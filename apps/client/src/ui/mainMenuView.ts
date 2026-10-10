@@ -173,9 +173,6 @@ export class MainMenuView {
           <div class="cinzel" style="font-size: 14px; font-weight: 700; color: #38bdf8; letter-spacing: 4px; margin-top: 4px;">
             NATIONS AT WAR
           </div>
-          <div style="font-size: 12px; color: #64748b; margin-top: 8px;">
-            Rise of Nations–Inspired Real-Time Strategy
-          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
