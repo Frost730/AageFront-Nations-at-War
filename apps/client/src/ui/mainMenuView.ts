@@ -167,7 +167,7 @@ export class MainMenuView {
         gap: 20px;
       ">
         <div style="display: flex; flex-direction: column; align-items: center;">
-          <img src="/logo.jpg" alt="Agefront Logo" style="width: 105px; height: 105px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(234, 179, 8, 0.65); box-shadow: 0 0 25px rgba(234, 179, 8, 0.35); margin-bottom: 10px;" />
+          <img src="/logo.jpg" alt="Agefront Logo" style="width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.7); box-shadow: 0 0 25px rgba(56, 189, 248, 0.45); margin-bottom: 12px;" />
           <h1 class="cinzel" style="font-size: 32px; font-weight: 900; color: #f8fafc; letter-spacing: 2px; text-shadow: 0 2px 10px rgba(56, 189, 248, 0.5);">
             AGEFRONT
           </h1>
