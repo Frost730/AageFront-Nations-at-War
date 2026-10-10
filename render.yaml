@@ -2,6 +2,7 @@ services:
   - type: web
     name: agefront-nations-at-war
     env: node
+    region: singapore
     plan: free
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
