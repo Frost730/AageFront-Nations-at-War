@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.jpg" alt="Agefront: Nations at War Logo" width="340" style="border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);" />
+</p>
+
 # Agefront: Nations at War
 
 An original, real-time strategy (RTS) game inspired by the nation-building and strategic combat of classic historical RTS titles like *Rise of Nations*. Features a complete offline **Single-Player Skirmish mode** and genuine **Local Area Network (LAN) Co-op Multiplayer**.
