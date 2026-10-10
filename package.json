@@ -1,0 +1,23 @@
+{
+  "name": "agefront-nations-at-war",
+  "version": "1.0.0",
+  "description": "Rise of Nations-inspired RTS with LAN Co-op",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@agefront/server",
+    "dev:client": "npm run dev --workspace=@agefront/client",
+    "build": "npm run build --workspace=@agefront/shared && npm run build --workspace=@agefront/client && npm run build --workspace=@agefront/server",
+    "test": "vitest run",
+    "lan": "npm run build && node apps/server/dist/index.js",
+    "start": "node apps/server/dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
