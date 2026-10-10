@@ -923,7 +923,7 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
   }
 
   // Tag every mesh with entityId for raycast selection and enable shadows
-  root.traverse(child => {
+  root.traverse((child: any) => {
     if ((child as THREE.Mesh).isMesh) {
       child.userData = { entityType: 'unit', entityId: unit.id };
       child.castShadow = true;

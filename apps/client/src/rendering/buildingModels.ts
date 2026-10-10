@@ -177,7 +177,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     root.add(block1);
 
     // Tag and return
-    root.traverse(child => {
+    root.traverse((child: any) => {
       if ((child as THREE.Mesh).isMesh) {
         child.userData = { entityType: 'building', entityId: bldg.id };
         child.castShadow = true;
@@ -957,7 +957,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
   // -------------------------------------------------------------
   // ENTITY TAGGING & SHADOWS FOR INTERACTIVITY
   // -------------------------------------------------------------
-  root.traverse(child => {
+  root.traverse((child: any) => {
     if ((child as THREE.Mesh).isMesh) {
       child.userData = {
         ...child.userData,

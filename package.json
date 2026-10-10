@@ -15,9 +15,11 @@
     "lan": "npm run build && node apps/server/dist/index.js",
     "start": "node apps/server/dist/index.js"
   },
-  "devDependencies": {
+  "dependencies": {
     "@types/node": "^22.10.1",
-    "typescript": "^5.7.2",
+    "typescript": "^5.7.2"
+  },
+  "devDependencies": {
     "vitest": "^2.1.8"
   }
 }

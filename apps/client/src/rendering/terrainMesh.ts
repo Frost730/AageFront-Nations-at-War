@@ -552,7 +552,7 @@ export class TerrainMesh {
       // Tag for raycasting
       obj.userData = { entityType: 'resource', entityId: node.id, resourceType: node.type };
       // Also tag all children so deep raycasting finds it immediately
-      obj.traverse(child => {
+      obj.traverse((child: any) => {
         child.userData = { entityType: 'resource', entityId: node.id, resourceType: node.type };
       });
 

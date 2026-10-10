@@ -378,7 +378,7 @@ export class GameRenderer {
         this.scene.add(group);
 
         // Cache rotators for 0-overhead animation loop
-        group.traverse(child => {
+        group.traverse((child: any) => {
           if (child.userData?.isRotator) {
             this.rotatorObjects.push({
               bldgId: bldg.id,
@@ -597,7 +597,7 @@ export class GameRenderer {
       };
 
       const ghostModel = createBuildingModel(dummyBldg, '#38bdf8');
-      ghostModel.traverse((child) => {
+      ghostModel.traverse((child: any) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
           mesh.castShadow = false;
