@@ -13,6 +13,15 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ['three'],
+          vendor: ['socket.io-client']
+        }
+      }
+    }
   }
 });
