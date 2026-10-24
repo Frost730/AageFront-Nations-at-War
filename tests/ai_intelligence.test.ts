@@ -359,4 +359,107 @@ describe('AI Tactical Intelligence & Cooperative Attack Patterns', () => {
     expect(spearman.state).toBe('attacking');
     expect(spearman.targetEntityId).toBe(cavalryId);
   });
+  it('reproduces civilian workers when all workers are killed', () => {
+    // Wipe out all enemy workers
+    for (const u of sim.units.values()) {
+      if (u.ownerId === 'p_enemy' && u.type === 'worker') {
+        u.state = 'dead';
+        u.hp = 0;
+      }
+    }
+    const enemyPlayer = sim.players.get('p_enemy')!;
+    // Starve enemy food to 0 to simulate total economic exhaustion
+    enemyPlayer.resources.food = 0;
+
+    // Run 10 ticks (0.5s) to trigger AI decision loop
+    for (let i = 0; i < 10; i++) {
+      sim.tick(0.05);
+    }
+
+    const enemyTc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'p_enemy' && b.type === 'town_centre')!;
+    // Town Centre should have received emergency relief and queued a new worker
+    expect(enemyTc.productionQueue.length).toBeGreaterThan(0);
+    expect(enemyTc.productionQueue[0].itemType).toBe('worker');
+  });
+
+  it('reproduces military troops continuously when army is wiped out', () => {
+    const enemyPlayer = sim.players.get('p_enemy')!;
+    enemyPlayer.resources.food = 200;
+    enemyPlayer.resources.wood = 200;
+
+    const enemyTc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'p_enemy' && b.type === 'town_centre')!;
+
+    // Construct a barracks for the enemy AI
+    const barracksId = 'enemy_test_barracks';
+    sim.buildings.set(barracksId, {
+      id: barracksId,
+      ownerId: 'p_enemy',
+      team: 2,
+      type: 'barracks',
+      x: enemyTc.x + 6,
+      y: enemyTc.y,
+      width: 3,
+      height: 3,
+      hp: 1200,
+      maxHp: 1200,
+      isConstructed: true,
+      constructionProgress: 100,
+      productionQueue: []
+    });
+
+    // Wipe out any existing military units
+    for (const u of sim.units.values()) {
+      if (u.ownerId === 'p_enemy' && u.type !== 'worker' && u.type !== 'scout') {
+        u.state = 'dead';
+        u.hp = 0;
+      }
+    }
+
+    // Run 10 ticks (0.5s) for AI decision loop
+    for (let i = 0; i < 10; i++) {
+      sim.tick(0.05);
+    }
+
+    const barracks = sim.buildings.get(barracksId)!;
+    // Barracks should have immediately queued fresh replacement troops
+    expect(barracks.productionQueue.length).toBeGreaterThan(0);
+  });
+
+  it('expands nation by building secondary Town Centre in Kingdom Age', () => {
+    const enemyPlayer = sim.players.get('p_enemy')!;
+    enemyPlayer.age = 'Kingdom Age';
+    enemyPlayer.resources.wood = 500;
+    enemyPlayer.resources.stone = 300;
+
+    const enemyTc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'p_enemy' && b.type === 'town_centre')!;
+
+    // Ensure enemy has at least 8 workers to trigger expansion
+    for (let i = 0; i < 8; i++) {
+      const wid = `extra_w_${i}`;
+      sim.units.set(wid, {
+        id: wid,
+        ownerId: 'p_enemy',
+        team: 2,
+        type: 'worker',
+        x: enemyTc.x + 1,
+        y: enemyTc.y + 1,
+        hp: 100,
+        maxHp: 100,
+        state: 'idle',
+        attackCooldown: 0,
+        gatherCooldown: 0,
+        facingAngle: 0,
+        carriedResourceAmount: 0
+      });
+    }
+
+    // Run 10 ticks for AI update
+    for (let i = 0; i < 10; i++) {
+      sim.tick(0.05);
+    }
+
+    const allTCs = Array.from(sim.buildings.values()).filter(b => b.ownerId === 'p_enemy' && b.type === 'town_centre');
+    // AI should have planned and placed a second Town Centre (expansion site)
+    expect(allTCs.length).toBeGreaterThanOrEqual(2);
+  });
 });

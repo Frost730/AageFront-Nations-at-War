@@ -1597,11 +1597,51 @@ export class SimulationEngine {
     if (player) {
       const def = BUILDING_DEFINITIONS[bldg.type];
       player.maxPopulation = Math.max(10, player.maxPopulation - def.populationProvided);
+
+      // Refund units in production queue
+      if (bldg.productionQueue && bldg.productionQueue.length > 0) {
+        for (const item of bldg.productionQueue) {
+          if (item.category === 'unit') {
+            const udef = UNIT_DEFINITIONS[item.itemType as UnitType];
+            if (udef) {
+              player.population = Math.max(0, player.population - udef.populationCost);
+              player.resources.food += udef.cost.food;
+              player.resources.wood += udef.cost.wood;
+              player.resources.stone += udef.cost.stone;
+              player.resources.metal += udef.cost.metal;
+            }
+          }
+        }
+      }
+      this.syncPlayerPopulation(player.id);
     }
 
     this.buildings.delete(bldgId);
     this.pendingEvents.push({ type: 'BUILDING_DESTROYED', buildingId: bldgId });
     this.checkVictoryConditions();
+  }
+
+  public syncPlayerPopulation(playerId: string): void {
+    const player = this.players.get(playerId);
+    if (!player) return;
+    let currentPop = 0;
+    for (const u of this.units.values()) {
+      if (u.ownerId === playerId && u.state !== 'dead') {
+        const udef = UNIT_DEFINITIONS[u.type];
+        currentPop += udef ? udef.populationCost : 1;
+      }
+    }
+    for (const b of this.buildings.values()) {
+      if (b.ownerId === playerId && b.productionQueue) {
+        for (const item of b.productionQueue) {
+          if (item.category === 'unit') {
+            const udef = UNIT_DEFINITIONS[item.itemType as UnitType];
+            currentPop += udef ? udef.populationCost : 1;
+          }
+        }
+      }
+    }
+    player.population = currentPop;
   }
 
   private recalculateTerritory(): void {
@@ -1958,6 +1998,9 @@ export class SimulationEngine {
     for (const player of this.players.values()) {
       if (!player.isAi || player.isDefeated) continue;
 
+      // Authoritative population sync to eliminate ghost cap lockouts
+      this.syncPlayerPopulation(player.id);
+
       const myUnits = Array.from(this.units.values()).filter(u => u.ownerId === player.id && u.state !== 'dead');
       const myBuildings = Array.from(this.buildings.values()).filter(b => b.ownerId === player.id && b.hp > 0);
       const workers = myUnits.filter(u => u.type === 'worker');
@@ -1989,21 +2032,129 @@ export class SimulationEngine {
         return workers.find(w => w.state === 'idle') || workers.find(w => w.state === 'gathering');
       };
 
-      // 1. Worker Economy Management
-      const targetWorkerCount = player.aiDifficulty === 'hard' ? 24 : player.aiDifficulty === 'medium' ? 18 : 12;
-      if (tc && tc.isConstructed && workers.length < targetWorkerCount && tc.productionQueue.length < 2 && player.resources.food >= 50 && player.population < player.maxPopulation) {
-        this.processCommand(player.id, {
-          type: 'TRAIN_UNIT',
-          buildingId: tc.id,
-          unitType: 'worker'
-        });
+      // -------------------------------------------------------------
+      // 1. EMERGENCY CIVILIAN SURVIVAL & RECOVERY
+      // -------------------------------------------------------------
+      const operationalTCs = myBuildings.filter(b => b.type === 'town_centre' && b.isConstructed);
+
+      if (workers.length === 0) {
+        if (operationalTCs.length > 0) {
+          // Provide emergency baseline relief food if completely starved so Town Centre can train
+          if (player.resources.food < 50) {
+            player.resources.food = 50;
+          }
+          for (const opTc of operationalTCs) {
+            if (opTc.productionQueue.length < 2 && player.population < player.maxPopulation) {
+              this.processCommand(player.id, {
+                type: 'TRAIN_UNIT',
+                buildingId: opTc.id,
+                unitType: 'worker'
+              });
+              break;
+            }
+          }
+        } else if (myBuildings.length > 0) {
+          // All Town Centres destroyed, but player has other buildings: spawn an emergency refugee worker
+          const spawnAnchor = myBuildings[0];
+          const spot = this.findAdjacentWalkableToBuilding(spawnAnchor.x, spawnAnchor.y, spawnAnchor.width, spawnAnchor.height) || { x: spawnAnchor.x, y: spawnAnchor.y };
+          const workerId = `unit_${this.unitIdCounter++}`;
+          const refugeeWorker: UnitData = {
+            id: workerId,
+            type: 'worker',
+            ownerId: player.id,
+            team: player.team,
+            x: spot.x,
+            y: spot.y,
+            hp: 100,
+            maxHp: 100,
+            state: 'idle',
+            attackCooldown: 0,
+            gatherCooldown: 0,
+            facingAngle: 0,
+            carriedResourceAmount: 0
+          };
+          this.units.set(workerId, refugeeWorker);
+          this.syncPlayerPopulation(player.id);
+          this.pendingEvents.push({ type: 'UNIT_SPAWNED', unitId: workerId, unitType: 'worker', ownerId: player.id, x: spot.x, y: spot.y });
+        }
       }
 
-      // 2. Housing Construction (Prevent pop blockage)
+      // -------------------------------------------------------------
+      // 2. REBUILD DESTROYED TOWN CENTRE (TOP PRIORITY IF ZERO TCS)
+      // -------------------------------------------------------------
+      const totalTCs = myBuildings.filter(b => b.type === 'town_centre').length;
+      if (totalTCs === 0 && workers.length > 0) {
+        if (player.resources.wood >= 250 && player.resources.stone >= 100) {
+          const builder = getBuilderWorker();
+          if (builder) {
+            const spot = this.findBuildingPlacementSpot('town_centre', basePos.x, basePos.y);
+            if (spot) {
+              this.processCommand(player.id, {
+                type: 'BUILD',
+                unitIds: [builder.id],
+                buildingType: 'town_centre',
+                position: spot
+              });
+            }
+          }
+        } else {
+          // Send workers to gather wood and stone specifically for the new Town Centre
+          for (const w of workers) {
+            if (w.state === 'idle') {
+              const resNeeded = player.resources.wood < 250 ? 'wood' : 'stone';
+              const node = this.findNearestResourceNode(w.x, w.y, resNeeded) || this.findNearestResourceNode(w.x, w.y);
+              if (node) {
+                this.processCommand(player.id, {
+                  type: 'GATHER',
+                  unitIds: [w.id],
+                  resourceNodeId: node.id
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // -------------------------------------------------------------
+      // 3. WORKER REPRODUCTION ACROSS ALL TOWN CENTRES
+      // -------------------------------------------------------------
+      const targetWorkerCount = player.aiDifficulty === 'hard' ? 28 : player.aiDifficulty === 'medium' ? 20 : 14;
+      for (const opTc of operationalTCs) {
+        if (workers.length < targetWorkerCount && opTc.productionQueue.length < 2 && player.resources.food >= 50 && player.population < player.maxPopulation) {
+          this.processCommand(player.id, {
+            type: 'TRAIN_UNIT',
+            buildingId: opTc.id,
+            unitType: 'worker'
+          });
+        }
+      }
+
+      // -------------------------------------------------------------
+      // 4. RESUME UNFINISHED / STALLED BUILDING CONSTRUCTION
+      // -------------------------------------------------------------
+      const unfinishedBldgs = myBuildings.filter(b => !b.isConstructed);
+      for (const ub of unfinishedBldgs) {
+        const hasAssignedBuilder = workers.some(w => w.targetEntityId === ub.id && (w.state === 'building' || w.state === 'repairing'));
+        if (!hasAssignedBuilder) {
+          const builder = getBuilderWorker();
+          if (builder) {
+            this.processCommand(player.id, {
+              type: 'REPAIR',
+              buildingId: ub.id,
+              unitIds: [builder.id]
+            });
+          }
+        }
+      }
+
+      // -------------------------------------------------------------
+      // 5. HOUSING CONSTRUCTION (PREVENT POPULATION CAP BLOCK)
+      // -------------------------------------------------------------
       const popHeadroom = player.maxPopulation - player.population;
-      const isBuildingHouse = myBuildings.some(b => b.type === 'house' && !b.isConstructed);
-      const headroomThreshold = player.aiDifficulty === 'hard' ? 6 : 4;
-      if (player.maxPopulation < 100 && popHeadroom <= headroomThreshold && !isBuildingHouse && player.resources.wood >= 60) {
+      const hasPendingHouse = myBuildings.some(b => b.type === 'house' && !b.isConstructed);
+      const maxHousingPop = player.aiDifficulty === 'hard' ? 200 : 150;
+      const headroomThreshold = player.aiDifficulty === 'hard' ? 7 : 5;
+      if (player.maxPopulation < maxHousingPop && popHeadroom <= headroomThreshold && !hasPendingHouse && player.resources.wood >= 60) {
         const builder = getBuilderWorker();
         if (builder) {
           const spot = this.findBuildingPlacementSpot('house', basePos.x, basePos.y);
@@ -2018,19 +2169,47 @@ export class SimulationEngine {
         }
       }
 
-      // 3. Construct Military, Economic & Defense Buildings
+      // -------------------------------------------------------------
+      // 6. NATION EXPANSION (SECONDARY TOWN CENTRES / COLONIES)
+      // -------------------------------------------------------------
+      const maxTCs = player.age === 'Founding Age' ? 1 : player.age === 'Kingdom Age' ? 2 : (player.aiDifficulty === 'hard' ? 4 : 3);
+      if (totalTCs < maxTCs && operationalTCs.length > 0 && workers.length >= 8 && player.resources.wood >= 250 && player.resources.stone >= 100 && !myBuildings.some(b => b.type === 'town_centre' && !b.isConstructed)) {
+        const builder = getBuilderWorker();
+        if (builder) {
+          const spot = this.findExpansionPlacementSpot(basePos.x, basePos.y);
+          if (spot) {
+            this.processCommand(player.id, {
+              type: 'BUILD',
+              unitIds: [builder.id],
+              buildingType: 'town_centre',
+              position: spot
+            });
+          }
+        }
+      }
+
+      // -------------------------------------------------------------
+      // 7. EXPAND MILITARY & ECONOMIC PRODUCTION INFRASTRUCTURE
+      // -------------------------------------------------------------
       const barracksCount = myBuildings.filter(b => b.type === 'barracks').length;
-      const hasArchery = myBuildings.some(b => b.type === 'archery_range');
-      const hasStable = myBuildings.some(b => b.type === 'stable');
-      const hasWorkshop = myBuildings.some(b => b.type === 'workshop');
-      const hasFort = myBuildings.some(b => b.type === 'fort');
+      const archeryCount = myBuildings.filter(b => b.type === 'archery_range').length;
+      const stableCount = myBuildings.filter(b => b.type === 'stable').length;
+      const workshopCount = myBuildings.filter(b => b.type === 'workshop').length;
+      const fortCount = myBuildings.filter(b => b.type === 'fort').length;
       const hasResearch = myBuildings.some(b => b.type === 'research_hall');
       const farmCount = myBuildings.filter(b => b.type === 'farm').length;
       const towerCount = myBuildings.filter(b => b.type === 'watchtower').length;
+      const lumberCampCount = myBuildings.filter(b => b.type === 'lumber_camp').length;
+      const miningCampCount = myBuildings.filter(b => b.type === 'mining_camp').length;
 
-      const maxBarracks = player.aiDifficulty === 'hard' ? 2 : 1;
-      const maxTowers = player.aiDifficulty === 'hard' ? 4 : player.aiDifficulty === 'medium' ? 2 : 1;
-      const maxFarms = player.aiDifficulty === 'hard' ? 4 : player.aiDifficulty === 'medium' ? 3 : 2;
+      // Scaled maximums based on Age & Difficulty
+      const maxBarracks = player.age === 'Founding Age' ? (player.aiDifficulty === 'hard' ? 2 : 1) : player.age === 'Kingdom Age' ? (player.aiDifficulty === 'hard' ? 3 : 2) : (player.aiDifficulty === 'hard' ? 4 : 3);
+      const maxArchery = player.age === 'Founding Age' ? 0 : player.age === 'Kingdom Age' ? (player.aiDifficulty === 'hard' ? 2 : 1) : (player.aiDifficulty === 'hard' ? 3 : 2);
+      const maxStables = player.age === 'Founding Age' ? 0 : player.age === 'Kingdom Age' ? (player.aiDifficulty === 'hard' ? 2 : 1) : (player.aiDifficulty === 'hard' ? 3 : 2);
+      const maxWorkshops = (player.age === 'Imperial Age' || player.age === 'Industrial Age') ? (player.aiDifficulty === 'hard' ? 2 : 1) : 0;
+      const maxForts = (player.age === 'Imperial Age' || player.age === 'Industrial Age') ? (player.aiDifficulty === 'hard' ? 2 : 1) : 0;
+      const maxFarms = player.age === 'Founding Age' ? 4 : player.age === 'Kingdom Age' ? 6 : (player.aiDifficulty === 'hard' ? 10 : 8);
+      const maxTowers = player.aiDifficulty === 'hard' ? 6 : player.aiDifficulty === 'medium' ? 4 : 2;
 
       if (barracksCount < maxBarracks && player.resources.wood >= 120 && player.resources.stone >= 30) {
         const builder = getBuilderWorker();
@@ -2058,7 +2237,7 @@ export class SimulationEngine {
             });
           }
         }
-      } else if (player.age !== 'Founding Age' && !hasArchery && player.resources.wood >= 140 && player.resources.stone >= 40 && player.resources.metal >= 20) {
+      } else if (archeryCount < maxArchery && player.resources.wood >= 140 && player.resources.stone >= 40 && player.resources.metal >= 20) {
         const builder = getBuilderWorker();
         if (builder) {
           const spot = this.findBuildingPlacementSpot('archery_range', basePos.x, basePos.y);
@@ -2071,7 +2250,7 @@ export class SimulationEngine {
             });
           }
         }
-      } else if (player.age !== 'Founding Age' && !hasStable && player.resources.wood >= 150 && player.resources.stone >= 50 && player.resources.metal >= 40) {
+      } else if (stableCount < maxStables && player.resources.wood >= 150 && player.resources.stone >= 50 && player.resources.metal >= 40) {
         const builder = getBuilderWorker();
         if (builder) {
           const spot = this.findBuildingPlacementSpot('stable', basePos.x, basePos.y);
@@ -2084,7 +2263,7 @@ export class SimulationEngine {
             });
           }
         }
-      } else if ((player.age === 'Imperial Age' || player.age === 'Industrial Age') && !hasWorkshop && player.resources.wood >= 200 && player.resources.stone >= 100 && player.resources.metal >= 80) {
+      } else if (workshopCount < maxWorkshops && player.resources.wood >= 200 && player.resources.stone >= 100 && player.resources.metal >= 80) {
         const builder = getBuilderWorker();
         if (builder) {
           const spot = this.findBuildingPlacementSpot('workshop', basePos.x, basePos.y);
@@ -2097,7 +2276,7 @@ export class SimulationEngine {
             });
           }
         }
-      } else if ((player.age === 'Imperial Age' || player.age === 'Industrial Age') && !hasFort && player.resources.stone >= 250 && player.resources.metal >= 150) {
+      } else if (fortCount < maxForts && player.resources.stone >= 250 && player.resources.metal >= 150) {
         const builder = getBuilderWorker();
         if (builder) {
           const spot = this.findBuildingPlacementSpot('fort', basePos.x, basePos.y);
@@ -2136,25 +2315,50 @@ export class SimulationEngine {
             });
           }
         }
+      } else if (lumberCampCount < 2 && player.resources.wood >= 80) {
+        const builder = getBuilderWorker();
+        if (builder) {
+          const spot = this.findBuildingPlacementSpot('lumber_camp', basePos.x, basePos.y);
+          if (spot) {
+            this.processCommand(player.id, {
+              type: 'BUILD',
+              unitIds: [builder.id],
+              buildingType: 'lumber_camp',
+              position: spot
+            });
+          }
+        }
+      } else if (miningCampCount < 2 && player.resources.wood >= 100) {
+        const builder = getBuilderWorker();
+        if (builder) {
+          const spot = this.findBuildingPlacementSpot('mining_camp', basePos.x, basePos.y);
+          if (spot) {
+            this.processCommand(player.id, {
+              type: 'BUILD',
+              unitIds: [builder.id],
+              buildingType: 'mining_camp',
+              position: spot
+            });
+          }
+        }
       }
 
-      // 4. Assign Idle Workers to Balanced Gathering
+      // -------------------------------------------------------------
+      // 8. INTELLIGENT WORKER GATHERING (NEVER IDLE, SUSTAINED FOOD)
+      // -------------------------------------------------------------
       const idleWorkers = workers.filter(w => w.state === 'idle');
       for (const worker of idleWorkers) {
-        let targetType: ResourceType = 'food';
-        if (player.resources.food < 120) targetType = 'food';
-        else if (player.resources.wood < 150) targetType = 'wood';
-        else if (player.resources.stone < 80) targetType = 'stone';
-        else if (player.resources.metal < 80) targetType = 'metal';
-        else targetType = Math.random() < 0.5 ? 'food' : 'wood';
-
-        const node = this.findNearestResourceNode(worker.x, worker.y, targetType) || this.findNearestResourceNode(worker.x, worker.y);
-        if (node) {
-          this.processCommand(player.id, {
-            type: 'GATHER',
-            unitIds: [worker.id],
-            resourceNodeId: node.id
-          });
+        const assigned = this.assignWorkerToBestJob(worker);
+        if (!assigned) {
+          // Fallback: nearest resource node anywhere
+          const node = this.findNearestResourceNode(worker.x, worker.y);
+          if (node) {
+            this.processCommand(player.id, {
+              type: 'GATHER',
+              unitIds: [worker.id],
+              resourceNodeId: node.id
+            });
+          }
         }
       }
 
@@ -2202,7 +2406,12 @@ export class SimulationEngine {
         }
       }
 
-      // 7. Parallel Military Recruitment (Infantry, Spearmen, Archers, Cavalry, Catapults, War Dragons)
+      // 7. Parallel Military Recruitment (Continuous Army Reproduction & Emergency Mobilization)
+      if (military.length === 0 && state.currentTactic !== 'amassing') {
+        state.currentTactic = 'amassing';
+        state.assignedTargetId = undefined;
+      }
+
       const barracksList = myBuildings.filter(b => b.type === 'barracks' && b.isConstructed && b.productionQueue.length < 2);
       for (const b of barracksList) {
         if (player.population < player.maxPopulation && player.resources.food >= 60 && player.resources.wood >= 25) {
@@ -2624,9 +2833,37 @@ export class SimulationEngine {
     }
   }
 
+  public findExpansionPlacementSpot(nearX: number, nearY: number): Vector2D | null {
+    const def = BUILDING_DEFINITIONS['town_centre'];
+    for (let r = 18; r <= 36; r += 3) {
+      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+        const px = Math.floor(nearX + Math.cos(angle) * r);
+        const py = Math.floor(nearY + Math.sin(angle) * r);
+
+        if (px < 4 || py < 4 || px + def.width >= this.mapData.width - 4 || py + def.height >= this.mapData.height - 4) {
+          continue;
+        }
+
+        let valid = true;
+        for (let dx = 0; dx < def.width; dx++) {
+          for (let dy = 0; dy < def.height; dy++) {
+            if (!this.pathfinder.isWalkable(px + dx, py + dy)) {
+              valid = false;
+              break;
+            }
+          }
+          if (!valid) break;
+        }
+
+        if (valid) return { x: px, y: py };
+      }
+    }
+    return this.findBuildingPlacementSpot('town_centre', nearX, nearY);
+  }
+
   private findBuildingPlacementSpot(type: BuildingType, nearX: number, nearY: number): Vector2D | null {
     const def = BUILDING_DEFINITIONS[type];
-    for (let r = 5; r <= 24; r += 2) {
+    for (let r = 5; r <= 38; r += 2) {
       for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
         const px = Math.floor(nearX + Math.cos(angle) * r);
         const py = Math.floor(nearY + Math.sin(angle) * r);
