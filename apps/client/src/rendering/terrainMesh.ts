@@ -505,24 +505,15 @@ export class TerrainMesh {
 
         obj = goldGroup;
       } else if (node.type === 'wood') {
-        // Distinctive timber harvest tree
-        const treeGroup = new THREE.Group();
-        const trunk = new THREE.Mesh(trunkGeom, trunkMat);
-        trunk.position.y = 0.45;
-        trunk.castShadow = true;
-        treeGroup.add(trunk);
-
-        const c1 = new THREE.Mesh(cone1Geom, foliageMat);
-        c1.position.y = 0.9;
-        c1.castShadow = true;
-        treeGroup.add(c1);
-
-        const c2 = new THREE.Mesh(cone2Geom, foliageMat);
-        c2.position.y = 1.5;
-        c2.castShadow = true;
-        treeGroup.add(c2);
-
-        obj = treeGroup;
+        // Efficient raycast hit proxy (visuals already rendered via instancing in buildLushForestAndFlora)
+        const proxyGeom = new THREE.CylinderGeometry(0.45, 0.45, 2.2, 5);
+        const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+        const proxy = new THREE.Mesh(proxyGeom, proxyMat);
+        proxy.position.set(node.x + 0.5, 1.1, node.y + 0.5);
+        proxy.userData = { entityType: 'resource', entityId: node.id, resourceType: 'wood' };
+        this.resourceMeshes.set(node.id, proxy);
+        this.group.add(proxy);
+        return;
       } else {
         // Forage Bush with Red Berries
         const foodGroup = new THREE.Group();

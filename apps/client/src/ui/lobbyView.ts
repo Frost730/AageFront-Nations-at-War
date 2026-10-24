@@ -192,11 +192,12 @@ export class LobbyView {
             <div>
               <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Map Size & Scale</label>
               <select id="select-map-size" ${!isHost ? 'disabled' : ''} style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #38bdf8; border-radius: 6px; padding: 6px 10px; font-size: 13px; font-weight: 700;">
-                <option value="60" ${state.settings.mapSize === 60 ? 'selected' : ''}>Small (60×60) — Fast Skirmish</option>
-                <option value="80" ${state.settings.mapSize === 80 || !state.settings.mapSize ? 'selected' : ''}>Standard (80×80) — Balanced</option>
-                <option value="100" ${state.settings.mapSize === 100 ? 'selected' : ''}>Large (100×100) — Expansive Kingdoms</option>
-                <option value="120" ${state.settings.mapSize === 120 ? 'selected' : ''}>Huge (120×120) — Grand Theater of War</option>
-                <option value="140" ${state.settings.mapSize === 140 ? 'selected' : ''}>Massive (140×140) — True World War (4-8 Nations)</option>
+                <option value="200" ${state.settings.mapSize === 200 ? 'selected' : ''}>Arena (200×200) — RoN Close Quarters Duel</option>
+                <option value="240" ${state.settings.mapSize === 240 ? 'selected' : ''}>Small (240×240) — RoN 2–3 Players</option>
+                <option value="280" ${state.settings.mapSize === 280 || !state.settings.mapSize ? 'selected' : ''}>Standard (280×280) — RoN 4 Players</option>
+                <option value="320" ${state.settings.mapSize === 320 ? 'selected' : ''}>Large (320×320) — RoN 5–6 Players</option>
+                <option value="360" ${state.settings.mapSize === 360 ? 'selected' : ''}>Huge (360×360) — RoN 7–8 Players</option>
+                <option value="400" ${state.settings.mapSize === 400 ? 'selected' : ''}>Big Huge (400×400) — RoN Epic World War</option>
               </select>
             </div>
 

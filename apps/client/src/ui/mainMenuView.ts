@@ -42,7 +42,7 @@ export class MainMenuView {
     { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' }
   ];
   private skirmishFormat: string = '1v1';
-  private skirmishMapSize: number = 80;
+  private skirmishMapSize: number = 240;
   private skirmishMapType: MapType = 'green_frontier';
   private skirmishResources: 'standard' | 'high' | 'deathmatch' = 'standard';
   private skirmishVictory: VictoryConditionType = 'conquest';
@@ -299,7 +299,7 @@ export class MainMenuView {
           me,
           { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' }
         ];
-        this.skirmishMapSize = 80;
+        this.skirmishMapSize = 240; // RoN Small (2-3 players)
         break;
       case '2v2':
         this.skirmishRoster = [
@@ -308,7 +308,7 @@ export class MainMenuView {
           { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
           { name: 'AI Enemy 2', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'medium' }
         ];
-        this.skirmishMapSize = 100;
+        this.skirmishMapSize = 280; // RoN Standard (4 players)
         break;
       case '3v3':
         this.skirmishRoster = [
@@ -319,7 +319,7 @@ export class MainMenuView {
           { name: 'AI Enemy 2', civ: 'Veyran Confederacy', team: 2, isAi: true, difficulty: 'medium' },
           { name: 'AI Enemy 3', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' }
         ];
-        this.skirmishMapSize = 120;
+        this.skirmishMapSize = 320; // RoN Large (5-6 players)
         break;
       case '4v4':
         this.skirmishRoster = [
@@ -332,7 +332,7 @@ export class MainMenuView {
           { name: 'AI Enemy 3', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' },
           { name: 'AI Enemy 4', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'medium' }
         ];
-        this.skirmishMapSize = 140;
+        this.skirmishMapSize = 360; // RoN Huge (7-8 players)
         break;
       case '1v2':
         this.skirmishRoster = [
@@ -340,7 +340,7 @@ export class MainMenuView {
           { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
           { name: 'AI Enemy 2', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' }
         ];
-        this.skirmishMapSize = 90;
+        this.skirmishMapSize = 240; // RoN Small
         break;
       case '1v3':
         this.skirmishRoster = [
@@ -349,7 +349,7 @@ export class MainMenuView {
           { name: 'AI Enemy 2', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' },
           { name: 'AI Enemy 3', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'medium' }
         ];
-        this.skirmishMapSize = 110;
+        this.skirmishMapSize = 280; // RoN Standard
         break;
       case 'ffa':
         this.skirmishRoster = [
@@ -358,7 +358,7 @@ export class MainMenuView {
           { name: 'AI Nation 3', civ: 'Solari Dominion', team: 3, isAi: true, difficulty: 'medium' },
           { name: 'AI Nation 4', civ: 'Nambara Alliance', team: 4, isAi: true, difficulty: 'medium' }
         ];
-        this.skirmishMapSize = 110;
+        this.skirmishMapSize = 280; // RoN Standard
         break;
     }
   }
@@ -548,11 +548,12 @@ export class MainMenuView {
                 Map Size & Scale
               </label>
               <select id="sp-map-size" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #38bdf8; border-radius: 6px; padding: 7px 10px; font-size: 12px; font-weight: 700;">
-                <option value="60" ${this.skirmishMapSize === 60 ? 'selected' : ''}>Small (60×60) — Fast Skirmish</option>
-                <option value="80" ${this.skirmishMapSize === 80 ? 'selected' : ''}>Standard (80×80) — Balanced Battleground</option>
-                <option value="100" ${this.skirmishMapSize === 100 ? 'selected' : ''}>Large (100×100) — Expansive Kingdoms</option>
-                <option value="120" ${this.skirmishMapSize === 120 ? 'selected' : ''}>Huge (120×120) — Grand Theater of War</option>
-                <option value="140" ${this.skirmishMapSize === 140 ? 'selected' : ''}>Massive (140×140) — True World War (4-8 Nations)</option>
+                <option value="200" ${this.skirmishMapSize === 200 ? 'selected' : ''}>Arena (200×200) — Rise of Nations Duel</option>
+                <option value="240" ${this.skirmishMapSize === 240 ? 'selected' : ''}>Small (240×240) — RoN 2–3 Players (Standard Skirmish)</option>
+                <option value="280" ${this.skirmishMapSize === 280 ? 'selected' : ''}>Standard (280×280) — RoN 4 Player Battleground</option>
+                <option value="320" ${this.skirmishMapSize === 320 ? 'selected' : ''}>Large (320×320) — RoN 5–6 Player Continent</option>
+                <option value="360" ${this.skirmishMapSize === 360 ? 'selected' : ''}>Huge (360×360) — RoN 7–8 Player Grand Theater</option>
+                <option value="400" ${this.skirmishMapSize === 400 ? 'selected' : ''}>Big Huge (400×400) — RoN Epic World War</option>
               </select>
             </div>
 

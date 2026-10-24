@@ -32,7 +32,7 @@ export interface GeneratedMap {
   resourceNodes: ResourceNodeData[];
 }
 
-export function generateMap(mapType: MapType, size: number = 80, seed: number = 42, numPlayers: number = 2): GeneratedMap {
+export function generateMap(mapType: MapType, size: number = 240, seed: number = 42, numPlayers: number = 2): GeneratedMap {
   const prng = new PRNG(seed);
   const tiles: MapTile[] = [];
 
@@ -263,11 +263,16 @@ export function generateMap(mapType: MapType, size: number = 80, seed: number = 
   }
 
   // Ensure EVERY procedural forest tile on the map is a harvestable wood resource node!
+  const nodeOccupied = new Set<string>();
+  resourceNodes.forEach(n => nodeOccupied.add(`${n.x},${n.y}`));
+
   tiles.forEach((t, idx) => {
     if (t.terrain === 'forest') {
       const tx = idx % size;
       const ty = Math.floor(idx / size);
-      if (!resourceNodes.some(n => n.x === tx && n.y === ty)) {
+      const key = `${tx},${ty}`;
+      if (!nodeOccupied.has(key)) {
+        nodeOccupied.add(key);
         resourceNodes.push({
           id: `res_wood_${tx}_${ty}`,
           type: 'wood',

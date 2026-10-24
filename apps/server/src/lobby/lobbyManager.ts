@@ -43,7 +43,7 @@ export class LobbyManager {
         players: [],
         settings: {
           mapType: 'green_frontier',
-          mapSize: 70,
+          mapSize: 280,
           seed: Math.floor(Math.random() * 100000),
           victoryCondition: 'conquest',
           startingResources: 'standard',
