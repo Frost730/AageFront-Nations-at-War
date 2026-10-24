@@ -301,6 +301,17 @@ export class NetworkClient {
       this.socket = null;
     }
   }
+  /**
+   * Executes a cheat code strictly in Single Player mode.
+   * Cheats are completely blocked and rejected in LAN multiplayer sessions.
+   */
+  public executeCheat(cheatText: string): { success: boolean; message: string; effect?: string } {
+    if (!this.isSinglePlayer || !this.localSim) {
+      return { success: false, message: 'Cheats are only permitted in Single Player skirmishes.' };
+    }
+    return this.localSim.applyCheat(this.myPlayerId, cheatText);
+  }
+
 }
 
 export const networkClient = new NetworkClient();

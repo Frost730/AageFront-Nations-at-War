@@ -609,5 +609,152 @@ describe('Simulation Engine Gameplay Rules', () => {
   });
 });
 
+describe('Single-Player Cheat Codes (Rise of Nations Style)', () => {
+  const initialPlayers = [
+    { id: 'player_human', name: 'Human Commander', team: 1, civ: 'Veyran Confederacy' as const, color: '#2563eb', isAi: false },
+    { id: 'player_enemy', name: 'Enemy AI', team: 2, civ: 'Ironvale Kingdom' as const, color: '#dc2626', isAi: true }
+  ];
 
+  function createTestSim(): SimulationEngine {
+    return new SimulationEngine(
+      {
+        mapType: 'green_frontier',
+        mapSize: 60,
+        seed: 42,
+        victoryCondition: 'conquest',
+        startingResources: 'standard',
+        sharedTeamEconomy: false,
+        aiDifficulty: 'medium'
+      },
+      initialPlayers
+    );
+  }
 
+  it('handles "cheat resource all" and grants 10000 to each resource', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    const initialFood = player.resources.food;
+    const initialWood = player.resources.wood;
+    const initialStone = player.resources.stone;
+    const initialMetal = player.resources.metal;
+    const initialKnowledge = player.resources.knowledge;
+
+    const res = sim.applyCheat('player_human', 'cheat resource all');
+    expect(res.success).toBe(true);
+    expect(player.resources.food).toBe(initialFood + 10000);
+    expect(player.resources.wood).toBe(initialWood + 10000);
+    expect(player.resources.stone).toBe(initialStone + 10000);
+    expect(player.resources.metal).toBe(initialMetal + 10000);
+    expect(player.resources.knowledge).toBe(initialKnowledge + 10000);
+  });
+
+  it('handles "cheat resource <type> <amount>" for specific resources', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    const initialFood = player.resources.food;
+
+    const res = sim.applyCheat('player_human', 'cheat resource food 5000');
+    expect(res.success).toBe(true);
+    expect(player.resources.food).toBe(initialFood + 5000);
+  });
+
+  it('handles "cheat age advance" to step through civilization ages', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    expect(player.age).toBe('Founding Age');
+
+    // 1st advance -> Kingdom Age
+    let res = sim.applyCheat('player_human', 'cheat age advance');
+    expect(res.success).toBe(true);
+    expect(player.age).toBe('Kingdom Age');
+
+    let snapshot = sim.getSnapshot();
+    const ageEvent1 = snapshot.events.find(e => e.type === 'AGE_ADVANCED');
+    expect(ageEvent1).toBeDefined();
+    expect((ageEvent1 as any).newAge).toBe('Kingdom Age');
+
+    // 2nd advance -> Imperial Age
+    res = sim.applyCheat('player_human', 'cheat age advance');
+    expect(res.success).toBe(true);
+    expect(player.age).toBe('Imperial Age');
+
+    // 3rd advance -> Industrial Age
+    res = sim.applyCheat('player_human', 'cheat age advance');
+    expect(res.success).toBe(true);
+    expect(player.age).toBe('Industrial Age');
+
+    // 4th advance -> Already at pinnacle
+    res = sim.applyCheat('player_human', 'cheat age advance');
+    expect(res.success).toBe(false);
+    expect(res.message).toContain('pinnacle');
+  });
+
+  it('handles direct age selection "cheat age 3" and "cheat age industrial"', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+
+    let res = sim.applyCheat('player_human', 'cheat age 3');
+    expect(res.success).toBe(true);
+    expect(player.age).toBe('Imperial Age');
+
+    res = sim.applyCheat('player_human', 'cheat age industrial');
+    expect(res.success).toBe(true);
+    expect(player.age).toBe('Industrial Age');
+  });
+
+  it('handles "cheat reveal" and "cheat map"', () => {
+    const sim = createTestSim();
+    const res = sim.applyCheat('player_human', 'cheat reveal');
+    expect(res.success).toBe(true);
+    expect(res.effect).toBe('reveal_map');
+  });
+
+  it('handles "cheat pop <amount>" to expand maximum population cap', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    const res = sim.applyCheat('player_human', 'cheat pop 250');
+    expect(res.success).toBe(true);
+    expect(player.maxPopulation).toBe(250);
+  });
+
+  it('handles "cheat tech all" to unlock all technologies and upgrades', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    const res = sim.applyCheat('player_human', 'cheat tech all');
+    expect(res.success).toBe(true);
+    expect(player.researchedTechs.length).toBeGreaterThan(10);
+    expect(player.researchedTechs).toContain('masonry');
+    expect(player.researchedTechs).toContain('crop_rotation');
+  });
+
+  it('handles "cheat victory" to immediately trigger match victory', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    const res = sim.applyCheat('player_human', 'cheat victory');
+    expect(res.success).toBe(true);
+    expect(sim.isGameOver).toBe(true);
+    expect(sim.winnerTeam).toBe(player.team);
+
+    const snapshot = sim.getSnapshot();
+    const gameOverEvent = snapshot.events.find(e => e.type === 'GAME_OVER');
+    expect(gameOverEvent).toBeDefined();
+    expect((gameOverEvent as any).winnerTeam).toBe(player.team);
+  });
+
+  it('handles "cheat heal" to restore all damaged units and structures to full HP', () => {
+    const sim = createTestSim();
+    const unit = Array.from(sim.units.values()).find(u => u.ownerId === 'player_human')!;
+    unit.hp = 10; // damaged
+
+    const res = sim.applyCheat('player_human', 'cheat heal');
+    expect(res.success).toBe(true);
+    expect(unit.hp).toBe(unit.maxHp);
+  });
+
+  it('rejects unrecognized commands with helpful guidance', () => {
+    const sim = createTestSim();
+    const res = sim.applyCheat('player_human', 'cheat nonexistent');
+    expect(res.success).toBe(false);
+    expect(res.message).toContain('cheat help');
+  });
+});

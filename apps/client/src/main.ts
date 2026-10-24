@@ -18,6 +18,7 @@ import { HudView } from './ui/hud.js';
 import { MainMenuView } from './ui/mainMenuView.js';
 import { LobbyView } from './ui/lobbyView.js';
 import { VictoryView } from './ui/victoryView.js';
+import { ChatConsole } from './ui/chatConsole.js';
 import { networkClient, GameStartData, SkirmishCommanderConfig } from './networking/networkClient.js';
 import { soundManager } from './audio/soundManager.js';
 
@@ -33,6 +34,7 @@ class GameApp {
   private mainMenu: MainMenuView;
   private lobbyView: LobbyView;
   private victoryView: VictoryView;
+  private chatConsole: ChatConsole;
 
   // Active game state
   private inGame: boolean = false;
@@ -191,6 +193,24 @@ class GameApp {
       }
     });
 
+    this.chatConsole = new ChatConsole(this.uiLayer, {
+      onSubmit: (text) => {
+        const result = networkClient.executeCheat(text);
+        if (result.success && result.effect === 'reveal_map') {
+          if (this.renderer.fogOfWar) {
+            this.renderer.fogOfWar.revealAll();
+          }
+        }
+        return result;
+      },
+      onNotification: (msg) => {
+        this.hud.showNotification(msg, 4000);
+      },
+      onOpen: () => {
+        this.renderer.cameraController.clearKeys();
+      }
+    });
+
     this.setupNetworkCallbacks();
 
     // Start 60 FPS Render Loop
@@ -283,6 +303,7 @@ class GameApp {
     this.hud.show();
     this.inGame = true;
     this.matchStartTime = performance.now();
+    this.chatConsole.setGameState(true, networkClient.isSinglePlayer);
 
     // Find my player: prioritize yourPlayerId sent by server or networkClient.myPlayerId
     const me = (data.yourPlayerId ? data.players.find(p => p.id === data.yourPlayerId) : null) ||
@@ -422,6 +443,7 @@ class GameApp {
 
   private endGame(): void {
     this.inGame = false;
+    this.chatConsole.setGameState(false, false);
     soundManager.stopAmbientMusic();
     networkClient.stop();
     this.selection.clear();

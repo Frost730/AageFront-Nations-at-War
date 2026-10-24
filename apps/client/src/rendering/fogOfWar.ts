@@ -7,6 +7,7 @@ export class FogOfWar {
   public width: number;
   public height: number;
   public fogGrid: Uint8Array; // 0 = Unexplored, 1 = Explored, 2 = Visible
+  public isRevealedAll: boolean = false;
   private myTeam: number;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -49,6 +50,17 @@ export class FogOfWar {
     return this.canvas;
   }
 
+  public revealAll(): void {
+    this.isRevealedAll = true;
+    this.fogGrid.fill(2);
+    const data = this.imgData.data;
+    for (let i = 0; i < this.fogGrid.length; i++) {
+      data[i * 4 + 3] = 0;
+    }
+    this.ctx.putImageData(this.imgData, 0, 0);
+    this.texture.needsUpdate = true;
+  }
+
   public updateVisibility(
     units: UnitData[],
     buildings: BuildingData[],
@@ -56,6 +68,7 @@ export class FogOfWar {
     myTeam: number,
     hasCartography: boolean = false
   ): void {
+    if (this.isRevealedAll) return;
     const now = performance.now();
     // Throttle fog re-computation and GPU texture upload to 12 FPS (every 80ms)
     // Saves massive CPU cycles and GPU texture bandwidth without any perceptible visual difference

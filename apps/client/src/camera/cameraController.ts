@@ -26,6 +26,11 @@ export class CameraController {
 
   private setupListeners(): void {
     window.addEventListener('keydown', (e) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') {
+        this.keysDown.clear();
+        return;
+      }
       this.keysDown.add(e.code);
     });
 
@@ -44,6 +49,10 @@ export class CameraController {
       this.zoomDistance = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomDistance * zoomFactor));
       this.updateCameraTransform();
     }, { passive: false });
+  }
+
+  public clearKeys(): void {
+    this.keysDown.clear();
   }
 
   public setMapBounds(width: number, height: number): void {

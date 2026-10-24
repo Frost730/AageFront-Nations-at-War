@@ -3022,4 +3022,177 @@ export class SimulationEngine {
       events
     };
   }
+
+  /**
+   * Applies Single-Player cheat commands (Rise of Nations style)
+   */
+  public applyCheat(playerId: string, rawCheat: string): { success: boolean; message: string; effect?: string } {
+    const player = this.players.get(playerId);
+    if (!player) {
+      return { success: false, message: 'Commander not found.' };
+    }
+
+    const trimmed = rawCheat.trim();
+    if (!trimmed) {
+      return { success: false, message: 'Empty command.' };
+    }
+
+    const lower = trimmed.toLowerCase();
+    const parts = lower.split(/\s+/);
+
+    if (parts[0] === 'help' || (parts[0] === 'cheat' && parts[1] === 'help')) {
+      return {
+        success: true,
+        message: 'Cheats: cheat resource all [amt], cheat age [advance|1-4], cheat reveal, cheat victory, cheat pop, cheat tech all, cheat heal'
+      };
+    }
+
+    if (parts[0] !== 'cheat') {
+      return { success: false, message: `Unknown command "${trimmed}". Type "cheat help" for commands.` };
+    }
+
+    const sub = parts[1];
+
+    // cheat resource ... or cheat resources ...
+    if (sub === 'resource' || sub === 'resources') {
+      const target = parts[2];
+      const amtArg = parts[3] ? parseInt(parts[3], 10) : undefined;
+      const defaultAmount = 10000;
+
+      if (!target || target === 'all') {
+        const amount = (parts[2] && !isNaN(parseInt(parts[2], 10))) ? parseInt(parts[2], 10) : (amtArg || defaultAmount);
+        player.resources.food += amount;
+        player.resources.wood += amount;
+        player.resources.stone += amount;
+        player.resources.metal += amount;
+        player.resources.knowledge += amount;
+        return { success: true, message: `Granted +${amount.toLocaleString()} to all resources!` };
+      }
+
+      const validTypes: ResourceType[] = ['food', 'wood', 'stone', 'metal', 'knowledge'];
+      if (validTypes.includes(target as ResourceType)) {
+        const amount = amtArg || defaultAmount;
+        player.resources[target as ResourceType] += amount;
+        return { success: true, message: `Granted +${amount.toLocaleString()} ${target}!` };
+      }
+
+      const parsedNum = parseInt(target, 10);
+      if (!isNaN(parsedNum)) {
+        player.resources.food += parsedNum;
+        player.resources.wood += parsedNum;
+        player.resources.stone += parsedNum;
+        player.resources.metal += parsedNum;
+        player.resources.knowledge += parsedNum;
+        return { success: true, message: `Granted +${parsedNum.toLocaleString()} to all resources!` };
+      }
+
+      return { success: false, message: `Unknown resource type "${target}". Valid: food, wood, stone, metal, knowledge, all.` };
+    }
+
+    // cheat age [advance|1-4|founding|kingdom|imperial|industrial]
+    if (sub === 'age') {
+      const ageArg = parts[2];
+      const ageSequence: AgeName[] = ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'];
+      const currentIndex = ageSequence.indexOf(player.age);
+
+      let targetAge: AgeName | null = null;
+      if (!ageArg || ageArg === 'advance' || ageArg === 'up' || ageArg === 'next') {
+        if (currentIndex < ageSequence.length - 1) {
+          targetAge = ageSequence[currentIndex + 1];
+        } else {
+          return { success: false, message: `Civilization is already in the pinnacle age (${player.age})!` };
+        }
+      } else if (ageArg === '1' || ageArg === 'founding') {
+        targetAge = 'Founding Age';
+      } else if (ageArg === '2' || ageArg === 'kingdom') {
+        targetAge = 'Kingdom Age';
+      } else if (ageArg === '3' || ageArg === 'imperial') {
+        targetAge = 'Imperial Age';
+      } else if (ageArg === '4' || ageArg === 'industrial') {
+        targetAge = 'Industrial Age';
+      } else {
+        return { success: false, message: `Invalid age option "${ageArg}". Use: advance, 1-4, founding, kingdom, imperial, industrial.` };
+      }
+
+      player.age = targetAge;
+      this.pendingEvents.push({ type: 'AGE_ADVANCED', playerId: player.id, newAge: targetAge });
+      return { success: true, message: `Civilization advanced to ${targetAge}!`, effect: 'age_advanced' };
+    }
+
+    // cheat reveal / cheat map
+    if (sub === 'reveal' || sub === 'map' || sub === 'vision' || sub === 'fog') {
+      return { success: true, message: 'All territory shrouded in darkness is now fully revealed!', effect: 'reveal_map' };
+    }
+
+    // cheat victory / cheat win
+    if (sub === 'victory' || sub === 'win') {
+      this.isGameOver = true;
+      this.winnerTeam = player.team;
+      this.victoryReason = 'Victory achieved through commander decree!';
+      for (const p of this.players.values()) {
+        p.isVictorious = p.team === this.winnerTeam;
+      }
+      this.pendingEvents.push({
+        type: 'GAME_OVER',
+        winnerTeam: this.winnerTeam,
+        reason: this.victoryReason
+      });
+      return { success: true, message: 'Victory declared for your nation!', effect: 'victory' };
+    }
+
+    // cheat pop / cheat population
+    if (sub === 'pop' || sub === 'population') {
+      const amt = parts[2] ? parseInt(parts[2], 10) : 200;
+      player.maxPopulation = Math.max(player.maxPopulation, isNaN(amt) ? 200 : amt);
+      return { success: true, message: `Population capacity expanded to ${player.maxPopulation}!` };
+    }
+
+    // cheat tech [all]
+    if (sub === 'tech') {
+      const techArg = parts[2];
+      if (!techArg || techArg === 'all') {
+        for (const tid of Object.keys(TECHNOLOGIES)) {
+          if (!player.researchedTechs.includes(tid)) {
+            player.researchedTechs.push(tid);
+            this.pendingEvents.push({ type: 'TECH_RESEARCHED', playerId: player.id, techId: tid });
+          }
+        }
+        for (const u of this.units.values()) {
+          if (u.ownerId === player.id && u.type === 'cavalry') {
+            u.maxHp = Math.round(u.maxHp * 1.25);
+            u.hp = Math.round(u.hp * 1.25);
+          }
+        }
+        for (const b of this.buildings.values()) {
+          if (b.ownerId === player.id) {
+            b.maxHp = Math.round(b.maxHp * 1.25);
+            b.hp = Math.round(b.hp * 1.25);
+          }
+        }
+        return { success: true, message: 'All civilization technologies unlocked!' };
+      }
+    }
+
+    // cheat heal / cheat heal all
+    if (sub === 'heal') {
+      let count = 0;
+      for (const u of this.units.values()) {
+        if (u.ownerId === player.id && u.state !== 'dead') {
+          u.hp = u.maxHp;
+          count++;
+        }
+      }
+      for (const b of this.buildings.values()) {
+        if (b.ownerId === player.id) {
+          b.hp = b.maxHp;
+          b.isConstructed = true;
+          b.constructionProgress = 100;
+          count++;
+        }
+      }
+      return { success: true, message: `Fully healed and restored ${count} military units & structures!` };
+    }
+
+    return { success: false, message: `Unrecognized cheat: "${trimmed}". Type "cheat help" for available codes.` };
+  }
 }

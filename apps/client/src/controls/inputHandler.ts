@@ -257,6 +257,9 @@ export class InputHandler {
 
   private setupKeyboardEvents(): void {
     window.addEventListener('keydown', (e) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
       if (e.key === 'Escape') {
         if (this.placementBuildingType) {
           this.cancelPlacement();
