@@ -33,7 +33,7 @@ describe('Rise of Nations Map Sizes & Generation', () => {
   });
 });
 
-describe('Camera Movement & Viewport Clamping (Map Bounding & Void Elimination)', () => {
+describe('Camera Movement & Full Map Boundary Navigation', () => {
   const mapWidth = 240;
   const mapHeight = 240;
 
@@ -43,72 +43,54 @@ describe('Camera Movement & Viewport Clamping (Map Bounding & Void Elimination)'
     return { camera, controller };
   }
 
-  function getGroundViewport(camera: THREE.PerspectiveCamera): { minX: number; maxX: number; minZ: number; maxZ: number } {
-    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const raycaster = new THREE.Raycaster();
-    const corners = [
-      new THREE.Vector2(-1, -1),
-      new THREE.Vector2(1, -1),
-      new THREE.Vector2(-1, 1),
-      new THREE.Vector2(1, 1)
-    ];
-
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const c of corners) {
-      raycaster.setFromCamera(c, camera);
-      const hit = new THREE.Vector3();
-      raycaster.ray.intersectPlane(groundPlane, hit);
-      if (hit.x < minX) minX = hit.x;
-      if (hit.x > maxX) maxX = hit.x;
-      if (hit.z < minZ) minZ = hit.z;
-      if (hit.z > maxZ) maxZ = hit.z;
-    }
-    return { minX, maxX, minZ, maxZ };
-  }
-
-  it('ensures camera initial placement is strictly inside map boundaries', () => {
-    const { camera, controller } = createTestCamera();
-    const vp = getGroundViewport(camera);
-
-    expect(vp.minX).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.maxX).toBeLessThanOrEqual(mapWidth + 0.01);
-    expect(vp.minZ).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.maxZ).toBeLessThanOrEqual(mapHeight + 0.01);
+  it('centers initially on the center of the map', () => {
+    const { controller } = createTestCamera();
+    expect(controller.target.x).toBe(mapWidth / 2);
+    expect(controller.target.z).toBe(mapHeight / 2);
   });
 
-  it('strictly prevents panning past the top-left boundary (minX >= 0, minZ >= 0)', () => {
-    const { camera, controller } = createTestCamera();
-    controller.jumpTo(-500, -500); // Try jumping far outside into negative space
-    const vp = getGroundViewport(camera);
+  it('allows camera to navigate all the way to (0, 0) top-left map boundary without going negative', () => {
+    const { controller } = createTestCamera();
+    controller.jumpTo(-500, -500); // Try navigating past top-left boundary
 
-    expect(vp.minX).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.minZ).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.maxX).toBeLessThanOrEqual(mapWidth + 0.01);
-    expect(vp.maxZ).toBeLessThanOrEqual(mapHeight + 0.01);
+    expect(controller.target.x).toBe(0);
+    expect(controller.target.z).toBe(0);
   });
 
-  it('strictly prevents panning past the bottom-right boundary (maxX <= mapWidth, maxZ <= mapHeight)', () => {
-    const { camera, controller } = createTestCamera();
-    controller.jumpTo(9999, 9999); // Try jumping far past the map edge
-    const vp = getGroundViewport(camera);
+  it('allows camera to navigate all the way to (mapWidth, mapHeight) bottom-right boundary without exceeding map size', () => {
+    const { controller } = createTestCamera();
+    controller.jumpTo(9999, 9999); // Try navigating past bottom-right boundary
 
-    expect(vp.minX).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.minZ).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.maxX).toBeLessThanOrEqual(mapWidth + 0.01);
-    expect(vp.maxZ).toBeLessThanOrEqual(mapHeight + 0.01);
+    expect(controller.target.x).toBe(mapWidth);
+    expect(controller.target.z).toBe(mapHeight);
   });
 
-  it('clamps zoom distance so player can never zoom out beyond the map boundaries', () => {
-    const { camera, controller } = createTestCamera();
+  it('allows camera to jump to any internal map coordinate (e.g. edge settlements and resources)', () => {
+    const { controller } = createTestCamera();
+
+    controller.jumpTo(5, 5);
+    expect(controller.target.x).toBe(5);
+    expect(controller.target.z).toBe(5);
+
+    controller.jumpTo(235, 235);
+    expect(controller.target.x).toBe(235);
+    expect(controller.target.z).toBe(235);
+
+    controller.jumpTo(120, 10);
+    expect(controller.target.x).toBe(120);
+    expect(controller.target.z).toBe(10);
+  });
+
+  it('clamps zoom distance within allowable RTS zoom range', () => {
+    const { controller } = createTestCamera();
 
     // Try setting zoom to extreme values
     (controller as any).zoomDistance = 500;
     controller.clampCameraToMap();
+    expect((controller as any).zoomDistance).toBeLessThanOrEqual(95);
 
-    const vp = getGroundViewport(camera);
-    expect(vp.minX).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.maxX).toBeLessThanOrEqual(mapWidth + 0.01);
-    expect(vp.minZ).toBeGreaterThanOrEqual(-0.01);
-    expect(vp.maxZ).toBeLessThanOrEqual(mapHeight + 0.01);
+    (controller as any).zoomDistance = 2;
+    controller.clampCameraToMap();
+    expect((controller as any).zoomDistance).toBeGreaterThanOrEqual(16);
   });
 });

@@ -142,6 +142,22 @@ export class TerrainMesh {
     this.groundMesh.receiveShadow = true;
     this.group.add(this.groundMesh);
 
+    // Natural Perimeter Horizon Skirt (prevents seeing black void when camera travels all the way to map boundaries)
+    const skirtMargin = 120;
+    const skirtGeom = new THREE.PlaneGeometry(width + skirtMargin * 2, height + skirtMargin * 2, 8, 8);
+    skirtGeom.rotateX(-Math.PI / 2);
+    skirtGeom.translate(width / 2, -0.22, height / 2);
+
+    const skirtMat = new THREE.MeshStandardMaterial({
+      color: 0x122718,
+      roughness: 0.95,
+      metalness: 0.05,
+      flatShading: true
+    });
+    const skirtMesh = new THREE.Mesh(skirtGeom, skirtMat);
+    skirtMesh.receiveShadow = true;
+    this.group.add(skirtMesh);
+
     // 3. Dynamic Living Water Surface with Translucent Depth
     const waterGeom = new THREE.PlaneGeometry(width, height, 16, 16);
     waterGeom.rotateX(-Math.PI / 2);
