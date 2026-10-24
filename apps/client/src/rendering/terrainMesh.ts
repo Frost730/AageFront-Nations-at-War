@@ -45,7 +45,7 @@ export class TerrainMesh {
 
       let elevY = 0;
       if (tile.terrain === 'water') {
-        elevY = -0.65;
+        elevY = -0.32;
       } else if (tile.terrain === 'sand') {
         elevY = 0.04 + microNoise * 0.4;
       } else if (tile.terrain === 'forest') {
@@ -79,7 +79,7 @@ export class TerrainMesh {
       let color = new THREE.Color(0x34d399); // Base vibrant meadow green
 
       if (tile.terrain === 'water') {
-        color = new THREE.Color(0x0f172a); // Deep blue-navy aquatic riverbed
+        color = new THREE.Color(0x0284c7); // Vibrant azure riverbed (eliminates dark blackhole effect)
       } else if (tile.terrain === 'sand') {
         color = new THREE.Color(0xf59e0b); // Warm golden shore sand
         color.lerp(new THREE.Color(0xd97706), Math.abs(Math.sin(vx * 0.8)));
@@ -101,14 +101,15 @@ export class TerrainMesh {
           color = new THREE.Color(0x64748b);
         }
       } else {
-        // Grassland with organic pasture variation
-        const varChoice = Math.sin(vx * 0.5) * Math.cos(vz * 0.5);
-        if (varChoice > 0.4) {
-          color = new THREE.Color(0x22c55e); // Lush spring grass
-        } else if (varChoice < -0.3) {
-          color = new THREE.Color(0x15803d); // Deep meadow
+        // Smooth natural grassland gradient (eliminates artificial checkerboard / polka-dot grid)
+        const varChoice = Math.sin(vx * 0.08) * Math.cos(vz * 0.08) * 0.5 + Math.sin(vx * 0.15 + 1.2) * 0.2;
+        const baseGrass = new THREE.Color(0x22c55e); // Lush spring grass
+        const deepMeadow = new THREE.Color(0x15803d); // Rich meadow green
+        const sunlitGrass = new THREE.Color(0x4ade80); // Sunlit warm hillside
+        if (varChoice > 0.1) {
+          color = baseGrass.clone().lerp(sunlitGrass, Math.min(1.0, (varChoice - 0.1) * 2.5));
         } else {
-          color = new THREE.Color(0x4ade80); // Sunlit hillside
+          color = baseGrass.clone().lerp(deepMeadow, Math.min(1.0, (0.1 - varChoice) * 2.5));
         }
       }
 
@@ -142,11 +143,11 @@ export class TerrainMesh {
     this.groundMesh.receiveShadow = true;
     this.group.add(this.groundMesh);
 
-    // Natural Perimeter Horizon Skirt (prevents seeing black void when camera travels all the way to map boundaries)
+    // Natural Perimeter Horizon Skirt (deep underground base to prevent black void at horizon)
     const skirtMargin = 120;
     const skirtGeom = new THREE.PlaneGeometry(width + skirtMargin * 2, height + skirtMargin * 2, 8, 8);
     skirtGeom.rotateX(-Math.PI / 2);
-    skirtGeom.translate(width / 2, -0.22, height / 2);
+    skirtGeom.translate(width / 2, -1.0, height / 2);
 
     const skirtMat = new THREE.MeshStandardMaterial({
       color: 0x122718,
@@ -158,20 +159,24 @@ export class TerrainMesh {
     skirtMesh.receiveShadow = true;
     this.group.add(skirtMesh);
 
-    // 3. Dynamic Living Water Surface with Translucent Depth
+    // 3. Dynamic Living Water Surface with Translucent Azure Depth & Self-Luminance
     const waterGeom = new THREE.PlaneGeometry(width, height, 16, 16);
     waterGeom.rotateX(-Math.PI / 2);
-    waterGeom.translate(width / 2, -0.16, height / 2);
+    waterGeom.translate(width / 2, 0, height / 2);
 
     const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7, // Vibrant turquoise-azure water
+      color: 0x38bdf8, // Clear brilliant sky-cyan water
+      emissive: 0x0284c7, // Radiant self-luminous azure glow - ensures water is always luminous and never black!
+      emissiveIntensity: 0.45,
       roughness: 0.12,
-      metalness: 0.35,
+      metalness: 0.1,
       transparent: true,
-      opacity: 0.84
+      opacity: 0.82,
+      depthWrite: false
     });
 
     this.waterMesh = new THREE.Mesh(waterGeom, waterMat);
+    this.waterMesh.position.y = -0.10;
     this.waterMesh.receiveShadow = true;
     this.group.add(this.waterMesh);
 
@@ -572,16 +577,11 @@ export class TerrainMesh {
   // ANIMATED LIVING WATER & WIND IN RENDER LOOP
   // -------------------------------------------------------------
   public update(time: number, dt: number): void {
-    // Gentle water swell
+    // Gentle natural water swell
     if (this.waterMesh) {
-      this.waterMesh.position.y = -0.16 + Math.sin(time * 1.5) * 0.03;
+      this.waterMesh.position.y = -0.10 + Math.sin(time * 1.5) * 0.02;
     }
-
-    // Subtle gentle tree wind sway
-    if (this.treesGroup) {
-      this.treesGroup.rotation.z = Math.sin(time * 0.8) * 0.003;
-      this.treesGroup.rotation.x = Math.cos(time * 0.6) * 0.002;
-    }
+    // Note: treesGroup rotation is intentionally removed so trees remain firmly and stably rooted in the ground
   }
 
   // Update glowing civilization territory borders on the terrain
