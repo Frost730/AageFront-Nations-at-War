@@ -462,4 +462,38 @@ describe('AI Tactical Intelligence & Cooperative Attack Patterns', () => {
     // AI should have planned and placed a second Town Centre (expansion site)
     expect(allTCs.length).toBeGreaterThanOrEqual(2);
   });
+  it('automatically assigns civilian workers to repair damaged buildings', () => {
+    const enemyTc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'p_enemy' && b.type === 'town_centre')!;
+    
+    // Simulate Town Centre taking heavy battle damage (reduced to 30% HP)
+    enemyTc.hp = Math.floor(enemyTc.maxHp * 0.3);
+
+    // Ensure there is an idle enemy worker near the base
+    const repairWorkerId = 'enemy_repair_worker';
+    sim.units.set(repairWorkerId, {
+      id: repairWorkerId,
+      ownerId: 'p_enemy',
+      team: 2,
+      type: 'worker',
+      x: enemyTc.x + 2,
+      y: enemyTc.y + 2,
+      hp: 100,
+      maxHp: 100,
+      state: 'idle',
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0,
+      carriedResourceAmount: 0
+    });
+
+    // Run 10 ticks (0.5s) for AI decision routine
+    for (let i = 0; i < 10; i++) {
+      sim.tick(0.05);
+    }
+
+    const worker = sim.units.get(repairWorkerId)!;
+    // Worker should have been assigned to repair the damaged Town Centre
+    expect(worker.state).toBe('repairing');
+    expect(worker.targetEntityId).toBe(enemyTc.id);
+  });
 });

@@ -1128,9 +1128,13 @@ export class SimulationEngine {
               bldg.hp = Math.min(bldg.maxHp, bldg.hp + 40 * dt);
               if (bldg.hp >= bldg.maxHp) {
                 unit.state = 'idle';
+                unit.targetEntityId = undefined;
+                this.assignWorkerToBestJob(unit);
               }
             } else {
               unit.state = 'idle';
+              unit.targetEntityId = undefined;
+              this.assignWorkerToBestJob(unit);
             }
           } else {
             if (!unit.path || unit.path.length === 0 || this.currentTick % 20 === 0) {
@@ -1722,31 +1726,33 @@ export class SimulationEngine {
     const player = this.players.get(worker.ownerId);
     if (!player) return false;
 
-    // 1. Priority: Construction sites needing builders (max 4 per building)
-    let closestUnfinished: BuildingData | null = null;
-    let closestUnfinishedDist = Infinity;
+    // 1. Priority: Construction sites needing builders or damaged buildings needing repair
+    let bestBldgToWork: BuildingData | null = null;
+    let bestBldgDist = Infinity;
     for (const b of this.buildings.values()) {
-      if (b.ownerId === worker.ownerId && !b.isConstructed) {
-        let builders = 0;
+      const isFriendly = b.ownerId === worker.ownerId || (player.team !== undefined && b.team === player.team);
+      if (isFriendly && (!b.isConstructed || b.hp < b.maxHp * 0.9)) {
+        let currentWorkers = 0;
         for (const u of this.units.values()) {
           if (u.targetEntityId === b.id && (u.state === 'building' || u.state === 'repairing')) {
-            builders++;
+            currentWorkers++;
           }
         }
-        if (builders < 4) {
+        const maxAllowed = b.isConstructed ? 2 : 4;
+        if (currentWorkers < maxAllowed) {
           const d = Math.hypot(b.x - worker.x, b.y - worker.y);
-          if (d < closestUnfinishedDist) {
-            closestUnfinishedDist = d;
-            closestUnfinished = b;
+          if (d < bestBldgDist) {
+            bestBldgDist = d;
+            bestBldgToWork = b;
           }
         }
       }
     }
 
-    if (closestUnfinished) {
-      worker.state = 'building';
-      worker.targetEntityId = closestUnfinished.id;
-      const targetTile = this.findAdjacentWalkableToBuilding(closestUnfinished.x, closestUnfinished.y, closestUnfinished.width, closestUnfinished.height) || { x: closestUnfinished.x, y: closestUnfinished.y };
+    if (bestBldgToWork) {
+      worker.state = bestBldgToWork.isConstructed ? 'repairing' : 'building';
+      worker.targetEntityId = bestBldgToWork.id;
+      const targetTile = this.findAdjacentWalkableToBuilding(bestBldgToWork.x, bestBldgToWork.y, bestBldgToWork.width, bestBldgToWork.height) || { x: bestBldgToWork.x, y: bestBldgToWork.y };
       worker.targetX = targetTile.x;
       worker.targetY = targetTile.y;
       worker.path = this.pathfinder.findPath(worker.x, worker.y, targetTile.x, targetTile.y);
@@ -2130,17 +2136,18 @@ export class SimulationEngine {
       }
 
       // -------------------------------------------------------------
-      // 4. RESUME UNFINISHED / STALLED BUILDING CONSTRUCTION
+      // 4. RESUME UNFINISHED CONSTRUCTION & REPAIR DAMAGED BUILDINGS
       // -------------------------------------------------------------
-      const unfinishedBldgs = myBuildings.filter(b => !b.isConstructed);
-      for (const ub of unfinishedBldgs) {
-        const hasAssignedBuilder = workers.some(w => w.targetEntityId === ub.id && (w.state === 'building' || w.state === 'repairing'));
-        if (!hasAssignedBuilder) {
+      const damagedOrUnfinished = myBuildings.filter(b => !b.isConstructed || b.hp < b.maxHp * 0.9);
+      for (const bldg of damagedOrUnfinished) {
+        const assignedRepairs = workers.filter(w => w.targetEntityId === bldg.id && (w.state === 'building' || w.state === 'repairing')).length;
+        const maxWorkers = bldg.isConstructed ? 2 : 4;
+        if (assignedRepairs < maxWorkers) {
           const builder = getBuilderWorker();
           if (builder) {
             this.processCommand(player.id, {
               type: 'REPAIR',
-              buildingId: ub.id,
+              buildingId: bldg.id,
               unitIds: [builder.id]
             });
           }
