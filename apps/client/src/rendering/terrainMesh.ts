@@ -41,17 +41,75 @@ export class TerrainMesh {
   private windUniforms = { uTime: { value: 0.0 } };
 
   
+  public getMountainWeight(x: number, z: number): { weight: number; maxElev: number } {
+    let w = 0;
+    let maxElev = 0;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = Math.min(this.width - 1, Math.max(0, Math.floor(x + dx * 0.85)));
+        const nz = Math.min(this.height - 1, Math.max(0, Math.floor(z + dz * 0.85)));
+        const t = this.tiles ? this.tiles[nz * this.width + nx] : null;
+        if (t && t.terrain === 'mountain') {
+          w += 1;
+          if ((t.elevation || 1) > maxElev) maxElev = t.elevation || 1;
+        }
+      }
+    }
+    return { weight: w / 9.0, maxElev: Math.max(1, maxElev) };
+  }
+
+  public computeElevationAtPoint(vx: number, vz: number): number {
+    if (!this.tiles || this.tiles.length === 0) return 0;
+    const tx = Math.min(this.width - 1, Math.max(0, Math.floor(vx)));
+    const tz = Math.min(this.height - 1, Math.max(0, Math.floor(vz)));
+    const tile = this.tiles[tz * this.width + tx] || { terrain: 'grass', elevation: 0, walkable: true };
+
+    const microNoise = (Math.sin(vx * 1.2) * Math.cos(vz * 1.2)) * 0.08 +
+                       (Math.sin(vx * 2.5 + 1.1) * Math.cos(vz * 2.5 - 0.7)) * 0.04;
+
+    if (tile.terrain === 'water') {
+      return -0.32;
+    } else if (tile.terrain === 'sand') {
+      return 0.04 + microNoise * 0.4;
+    } else if (tile.terrain === 'forest') {
+      return 0.12 + (tile.elevation || 0) * 0.8 + microNoise;
+    } else if (tile.terrain === 'mountain') {
+      const baseHeight = (tile.elevation || 1) >= 3 ? 3.6 : (tile.elevation || 1) >= 2 ? 2.6 : 1.6;
+      const ridge1 = Math.pow(Math.abs(Math.sin(vx * 0.28 + vz * 0.2) * Math.cos(vx * 0.2 - vz * 0.28)), 0.85) * 1.25;
+      const crag = Math.sin(vx * 0.75) * Math.cos(vz * 0.75) * 0.35;
+      return baseHeight + ridge1 + crag + microNoise * 0.5;
+    } else {
+      const mInfo = this.getMountainWeight(vx, vz);
+      if (mInfo.weight > 0.15) {
+        const baseHeight = mInfo.maxElev >= 3 ? 2.2 : 1.4;
+        return baseHeight * mInfo.weight * 0.75 + (tile.elevation || 0) * 0.6 + microNoise;
+      } else {
+        return (tile.elevation || 0) * 0.85 + microNoise;
+      }
+    }
+  }
+
   public getElevationAt(x: number, z: number): number {
     if (!this.tiles || this.tiles.length === 0) return 0;
-    const tx = Math.min(this.width - 1, Math.max(0, Math.floor(x)));
-    const tz = Math.min(this.height - 1, Math.max(0, Math.floor(z)));
-    const tile = this.tiles[tz * this.width + tx];
-    if (!tile) return 0;
-    if (tile.terrain === 'water') return -0.32;
-    if (tile.terrain === 'sand') return 0.04;
-    if (tile.terrain === 'forest') return 0.12 + (tile.elevation || 0) * 0.8;
-    if (tile.terrain === 'mountain') return 0.6 + (tile.elevation || 0) * 1.5;
-    return (tile.elevation || 0) * 0.6;
+    const clampedX = Math.min(this.width - 0.001, Math.max(0, x));
+    const clampedZ = Math.min(this.height - 0.001, Math.max(0, z));
+
+    const x0 = Math.floor(clampedX);
+    const z0 = Math.floor(clampedZ);
+    const x1 = Math.min(this.width, x0 + 1);
+    const z1 = Math.min(this.height, z0 + 1);
+
+    const fx = clampedX - x0;
+    const fz = clampedZ - z0;
+
+    const e00 = this.computeElevationAtPoint(x0, z0);
+    const e10 = this.computeElevationAtPoint(x1, z0);
+    const e01 = this.computeElevationAtPoint(x0, z1);
+    const e11 = this.computeElevationAtPoint(x1, z1);
+
+    const e0 = e00 * (1 - fx) + e10 * fx;
+    const e1 = e01 * (1 - fx) + e11 * fx;
+    return e0 * (1 - fz) + e1 * fz;
   }
 
   constructor(width: number, height: number, tiles: MapTile[], resourceNodes: ResourceNodeData[]) {
@@ -76,61 +134,11 @@ export class TerrainMesh {
       return tiles[tz * width + tx] || { terrain: 'grass', elevation: 0, walkable: true };
     };
 
-    // Precompute mountain influence for each tile or sample locally
-    // For smooth, realistic alpine massifs without discontinuous green holes
-    const getMountainWeight = (x: number, z: number): { weight: number; maxElev: number } => {
-      let w = 0;
-      let maxElev = 0;
-      for (let dz = -1; dz <= 1; dz++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const t = getTileAt(x + dx * 0.85, z + dz * 0.85);
-          if (t.terrain === 'mountain') {
-            w += 1;
-            if ((t.elevation || 1) > maxElev) maxElev = t.elevation || 1;
-          }
-        }
-      }
-      return { weight: w / 9.0, maxElev: Math.max(1, maxElev) };
-    };
-
-    // Calculate height and organic vertex offsets
+    // Calculate height and organic vertex offsets using exact point height function
     for (let i = 0; i < posAttr.count; i++) {
       const vx = posAttr.getX(i);
       const vz = posAttr.getZ(i);
-      const tile = getTileAt(vx, vz);
-
-      // Micro-relief organic noise
-      const microNoise = (Math.sin(vx * 1.2) * Math.cos(vz * 1.2)) * 0.08 +
-                         (Math.sin(vx * 2.5 + 1.1) * Math.cos(vz * 2.5 - 0.7)) * 0.04;
-
-      let elevY = 0;
-      if (tile.terrain === 'water') {
-        elevY = -0.32;
-      } else if (tile.terrain === 'sand') {
-        elevY = 0.04 + microNoise * 0.4;
-      } else if (tile.terrain === 'forest') {
-        elevY = 0.12 + (tile.elevation || 0) * 0.8 + microNoise;
-      } else if (tile.terrain === 'mountain') {
-        // Continuous alpine mountain massif matching reference ba65d829.jpg
-        const baseHeight = tile.elevation >= 3 ? 3.6 : tile.elevation >= 2 ? 2.6 : 1.6;
-        // Natural geological ridge and arête formations
-        const ridge1 = Math.pow(Math.abs(Math.sin(vx * 0.28 + vz * 0.2) * Math.cos(vx * 0.2 - vz * 0.28)), 0.85) * 1.25;
-        const crag = Math.sin(vx * 0.75) * Math.cos(vz * 0.75) * 0.35;
-        elevY = baseHeight + ridge1 + crag + microNoise * 0.5;
-      } else {
-        // Check if adjacent to mountain for natural cliff slope transition
-        const mInfo = getMountainWeight(vx, vz);
-        if (mInfo.weight > 0.15) {
-          // Foothill ramp up to mountain cliff base
-          const baseHeight = mInfo.maxElev >= 3 ? 2.2 : 1.4;
-          elevY = baseHeight * mInfo.weight * 0.75 + (tile.elevation || 0) * 0.6 + microNoise;
-        } else {
-          // Grass / hills
-          elevY = (tile.elevation || 0) * 0.85 + microNoise;
-        }
-      }
-
-      posAttr.setY(i, elevY);
+      posAttr.setY(i, this.computeElevationAtPoint(vx, vz));
     }
 
     geom.computeVertexNormals();
@@ -167,7 +175,7 @@ export class TerrainMesh {
       const ny = normAttr ? normAttr.getY(i) : 1.0; // slope steepness (1 = flat ground, < 0.7 = steep cliff)
 
       const tile = getTileAt(vx, vz);
-      const mInfo = getMountainWeight(vx, vz);
+      const mInfo = this.getMountainWeight(vx, vz);
       const isMountainArea = tile.terrain === 'mountain' || mInfo.weight > 0.22 || vy >= 1.35;
 
       let color = new THREE.Color(0x446d2c); // Base rich temperate meadow green

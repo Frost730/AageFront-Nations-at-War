@@ -498,6 +498,8 @@ export class GameRenderer {
       if (!group) {
         const teamColor = playerColorMap.get(unit.ownerId) || '#3b82f6';
         group = createUnitModel(unit, teamColor);
+        const initGroundY = this.terrainMesh?.getElevationAt(unit.x, unit.y) || 0;
+        group.position.set(unit.x, unit.type === 'dragon' ? initGroundY + 2.8 : initGroundY, unit.y);
         this.unitMeshes.set(unit.id, group);
         this.scene.add(group);
       }
@@ -507,10 +509,13 @@ export class GameRenderer {
         group.position.x += (unit.x - group.position.x) * Math.min(1.0, 16 * dt);
         group.position.z += (unit.y - group.position.z) * Math.min(1.0, 16 * dt);
 
+        const currentGroundElev = this.terrainMesh?.getElevationAt(group.position.x, group.position.z) || 0;
+
         if (unit.type === 'dragon') {
           // Elevated flight height + smooth hovering wave
           const hoverOffset = Math.sin(Date.now() * 0.0035 + (unit.id.charCodeAt(unit.id.length - 1) || 0)) * 0.35;
-          group.position.y = 2.8 + hoverOffset;
+          const targetDragonY = currentGroundElev + 2.8 + hoverOffset;
+          group.position.y += (targetDragonY - group.position.y) * Math.min(1.0, 12 * dt);
 
           if (unit.facingAngle !== undefined) {
             group.rotation.y = -unit.facingAngle + Math.PI / 2;
@@ -519,7 +524,7 @@ export class GameRenderer {
           // Ground shadow / selection ring directly beneath dragon on terrain
           const isSelected = selectedIds.has(unit.id);
           if (isSelected || this.selectionRings.has(unit.id)) {
-            this.tempVec1.set(group.position.x, 0.05, group.position.z);
+            this.tempVec1.set(group.position.x, currentGroundElev + 0.05, group.position.z);
             this.updateSelectionRing(unit.id, this.tempVec1, 1.3, isSelected, unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
           }
 
@@ -529,21 +534,23 @@ export class GameRenderer {
             this.updateHealthBar(unit.id, this.tempVec2, unit.hp, unit.maxHp, 1.8);
           }
         } else {
-          group.position.y = 0;
+          // Ground units: smoothly and immediately adhere to terrain elevation!
+          group.position.y += (currentGroundElev - group.position.y) * Math.min(1.0, 24 * dt);
 
           if (unit.facingAngle !== undefined) {
             group.rotation.y = -unit.facingAngle + Math.PI / 2;
           }
 
-          // Selection ring
+          // Selection ring resting precisely on terrain
           const isSelected = selectedIds.has(unit.id);
           if (isSelected || this.selectionRings.has(unit.id)) {
             this.updateSelectionRing(unit.id, group.position, 0.75, isSelected, unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
           }
 
-          // Floating health bar (only if damaged or sprite exists)
+          // Floating health bar above the unit
           if (unit.hp < unit.maxHp || this.healthBars.has(unit.id)) {
-            this.updateHealthBar(unit.id, group.position, unit.hp, unit.maxHp, 1.5);
+            this.tempVec2.set(group.position.x, group.position.y + 1.5, group.position.z);
+            this.updateHealthBar(unit.id, this.tempVec2, unit.hp, unit.maxHp, 1.5);
           }
         }
 
@@ -591,6 +598,10 @@ export class GameRenderer {
         }
         const teamColor = playerColorMap.get(bldg.ownerId) || '#3b82f6';
         group = createBuildingModel(bldg, teamColor);
+        const bldgCenterX = bldg.x + bldg.width / 2;
+        const bldgCenterZ = bldg.y + bldg.height / 2;
+        const bldgElev = this.terrainMesh?.getElevationAt(bldgCenterX, bldgCenterZ) || 0;
+        group.position.set(bldgCenterX, bldgElev, bldgCenterZ);
         group.userData = {
           isConstructed: bldg.isConstructed,
           width: bldg.width,
@@ -637,7 +648,8 @@ export class GameRenderer {
       }
 
       if (bldg.type === 'town_centre' && bldg.ownerId === myPlayerId) {
-        this.townCenterNightLight.position.set(bldg.x + bldg.width / 2, 4.5, bldg.y + bldg.height / 2);
+        const tcElev = this.terrainMesh?.getElevationAt(bldg.x + bldg.width / 2, bldg.y + bldg.height / 2) || 0;
+        this.townCenterNightLight.position.set(bldg.x + bldg.width / 2, tcElev + 4.5, bldg.y + bldg.height / 2);
       }
 
       group.visible = shouldRender;
