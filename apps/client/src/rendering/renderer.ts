@@ -151,6 +151,11 @@ export class GameRenderer {
     baseRotZ: number;
     phase: number;
   }[] = [];
+  public hemiLight: THREE.HemisphereLight;
+  public sunLight: THREE.DirectionalLight;
+  private townCenterNightLight: THREE.PointLight;
+  private lanternMeshes: THREE.Mesh[] = [];
+  private ambientGlowMultiplier: number = 1.0;
 
   private placementGhostGroup: THREE.Group | null = null;
   private placementFootprintMesh: THREE.Mesh | null = null;
@@ -189,23 +194,28 @@ export class GameRenderer {
     this.renderer.toneMappingExposure = 1.15;
 
     // Atmospheric Warm Natural Lighting (Age of Empires II style)
-    const hemiLight = new THREE.HemisphereLight(0xdceaf8, 0x485836, 0.95);
-    this.scene.add(hemiLight);
+    this.hemiLight = new THREE.HemisphereLight(0xdceaf8, 0x485836, 0.95);
+    this.scene.add(this.hemiLight);
 
     // North-West Sun casting crisp high-contrast shadows towards South-East (AoE style)
-    const sunLight = new THREE.DirectionalLight(0xfff8e8, 1.65);
-    sunLight.position.set(-70, 110, -50);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.camera.near = 10;
-    sunLight.shadow.camera.far = 350;
-    sunLight.shadow.camera.left = -140;
-    sunLight.shadow.camera.right = 140;
-    sunLight.shadow.camera.top = 140;
-    sunLight.shadow.camera.bottom = -140;
-    sunLight.shadow.bias = -0.0003;
-    this.scene.add(sunLight);
+    this.sunLight = new THREE.DirectionalLight(0xfff8e8, 1.65);
+    this.sunLight.position.set(-70, 110, -50);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.width = 2048;
+    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.camera.near = 10;
+    this.sunLight.shadow.camera.far = 350;
+    this.sunLight.shadow.camera.left = -140;
+    this.sunLight.shadow.camera.right = 140;
+    this.sunLight.shadow.camera.top = 140;
+    this.sunLight.shadow.camera.bottom = -140;
+    this.sunLight.shadow.bias = -0.0003;
+    this.scene.add(this.sunLight);
+
+    // Dynamic Settlement Night Hearth / Lantern point light
+    this.townCenterNightLight = new THREE.PointLight(0xff9a3c, 0.0, 38, 1.8);
+    this.townCenterNightLight.position.set(24, 4.5, 24);
+    this.scene.add(this.townCenterNightLight);
 
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -239,6 +249,7 @@ export class GameRenderer {
     this.buildingMeshes.clear();
     this.rotatorObjects = [];
     this.windObjects = [];
+    this.lanternMeshes = [];
 
     // 3. Remove all selection rings
     for (const ring of this.selectionRings.values()) {
@@ -522,6 +533,7 @@ export class GameRenderer {
           this.scene.remove(group);
           this.rotatorObjects = this.rotatorObjects.filter(r => r.bldgId !== bldg.id);
           this.windObjects = this.windObjects.filter(w => w.bldgId !== bldg.id);
+          this.lanternMeshes = this.lanternMeshes.filter(m => m.userData?.bldgId !== bldg.id);
         }
         const teamColor = playerColorMap.get(bldg.ownerId) || '#3b82f6';
         group = createBuildingModel(bldg, teamColor);
@@ -529,7 +541,7 @@ export class GameRenderer {
         this.buildingMeshes.set(bldg.id, group);
         this.scene.add(group);
 
-        // Cache rotators & wind-animated foliage/banners for 0-overhead animation loop
+        // Cache rotators & wind-animated foliage/banners & lanterns for 0-overhead animation loop
         group.traverse((child: any) => {
           if (child.userData?.isRotator) {
             this.rotatorObjects.push({
@@ -558,8 +570,15 @@ export class GameRenderer {
               baseRotZ: child.rotation.z,
               phase: bldg.x * 1.5 + bldg.y * 1.2
             });
+          } else if (child.userData?.isLantern) {
+            child.userData.bldgId = bldg.id;
+            this.lanternMeshes.push(child);
           }
         });
+      }
+
+      if (bldg.type === 'town_centre' && bldg.ownerId === myPlayerId) {
+        this.townCenterNightLight.position.set(bldg.x + bldg.width / 2, 4.5, bldg.y + bldg.height / 2);
       }
 
       group.visible = shouldRender;
@@ -597,6 +616,7 @@ export class GameRenderer {
         this.removeBuildingStatusBar(id);
         this.rotatorObjects = this.rotatorObjects.filter(r => r.bldgId !== id);
         this.windObjects = this.windObjects.filter(w => w.bldgId !== id);
+        this.lanternMeshes = this.lanternMeshes.filter(m => m.userData?.bldgId !== id);
       }
     }
 
@@ -2164,7 +2184,113 @@ export class GameRenderer {
     }
 
     this.terrainMesh?.update(now * 0.001, dt);
+    this.updateDayNightCycle(now * 0.001);
     this.cameraController.update(dt);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  // -------------------------------------------------------------
+  // DYNAMIC ATMOSPHERIC DAY / NIGHT & GOLDEN HOUR LIGHTING CYCLE
+  // -------------------------------------------------------------
+  private updateDayNightCycle(nowSec: number): void {
+    // 240-second diurnal lighting cycle (Noon -> Golden Hour Sunset -> Sapphire Twilight Dusk -> Peach Dawn)
+    const cycleDuration = 240;
+    const progress = (nowSec % cycleDuration) / cycleDuration;
+
+    const noonSun = new THREE.Color(0xfff8e8);
+    const goldenSun = new THREE.Color(0xff9a3c);
+    const duskMoon = new THREE.Color(0x9bc2ea);
+    const dawnSun = new THREE.Color(0xfec89a);
+
+    const noonSky = new THREE.Color(0xdceaf8);
+    const noonGround = new THREE.Color(0x485836);
+
+    const goldenSky = new THREE.Color(0xfde68a);
+    const goldenGround = new THREE.Color(0x4a321e);
+
+    const duskSky = new THREE.Color(0x1e293b);
+    const duskGround = new THREE.Color(0x0f172a);
+
+    const dawnSky = new THREE.Color(0xe0e7ff);
+    const dawnGround = new THREE.Color(0x2d3a22);
+
+    let sunColor: THREE.Color;
+    let skyColor: THREE.Color;
+    let groundColor: THREE.Color;
+    let sunIntensity: number;
+    let hemiIntensity: number;
+    let sunElevation: number;
+
+    if (progress < 0.40) {
+      // 1. Crisp Daylight & High Noon (0% - 40%)
+      sunColor = noonSun;
+      skyColor = noonSky;
+      groundColor = noonGround;
+      sunIntensity = 1.65;
+      hemiIntensity = 0.95;
+      sunElevation = 110;
+    } else if (progress < 0.62) {
+      // 2. Golden Hour / Amber Sunset (40% - 62%)
+      const t = (progress - 0.40) / 0.22;
+      sunColor = noonSun.clone().lerp(goldenSun, t);
+      skyColor = noonSky.clone().lerp(goldenSky, t);
+      groundColor = noonGround.clone().lerp(goldenGround, t);
+      sunIntensity = 1.65 + t * 0.25;
+      hemiIntensity = 0.95 - t * 0.15;
+      sunElevation = 110 - t * 45;
+    } else if (progress < 0.82) {
+      // 3. Sapphire Twilight & Moonlit Dusk (62% - 82%)
+      const t = (progress - 0.62) / 0.20;
+      sunColor = goldenSun.clone().lerp(duskMoon, t);
+      skyColor = goldenSky.clone().lerp(duskSky, t);
+      groundColor = goldenGround.clone().lerp(duskGround, t);
+      sunIntensity = 1.90 - t * 1.15; // Soft silvery moonlight (0.75)
+      hemiIntensity = 0.80 - t * 0.35; // Dim ambient twilight (0.45)
+      sunElevation = 65 + t * 35;
+    } else {
+      // 4. Rose & Peach Dawn (82% - 100%)
+      const t = (progress - 0.82) / 0.18;
+      sunColor = duskMoon.clone().lerp(dawnSun, t);
+      skyColor = duskSky.clone().lerp(dawnSky, t);
+      groundColor = duskGround.clone().lerp(dawnGround, t);
+      sunIntensity = 0.75 + t * 0.90;
+      hemiIntensity = 0.45 + t * 0.50;
+      sunElevation = 80 + t * 30;
+    }
+
+    this.sunLight.color.copy(sunColor);
+    this.sunLight.intensity = sunIntensity;
+    this.sunLight.position.y = sunElevation;
+
+    this.hemiLight.color.copy(skyColor);
+    this.hemiLight.groundColor.copy(groundColor);
+    this.hemiLight.intensity = hemiIntensity;
+
+    // Torch & Window Glow Factor: Activates during dusk & twilight (progress 0.55 - 0.88)
+    let glowFactor = 0.0;
+    if (progress >= 0.55 && progress <= 0.88) {
+      glowFactor = 1.0 - Math.abs(progress - 0.72) / 0.17;
+      glowFactor = Math.max(0, Math.min(1, glowFactor));
+    }
+
+    // Subtle candle & brazier flame flicker
+    const flicker = 1.0 + Math.sin(nowSec * 12.0) * 0.08 + Math.cos(nowSec * 19.0) * 0.06;
+    this.ambientGlowMultiplier = 0.85 + glowFactor * 1.65 * flicker;
+
+    // Dynamic town center hearth night light
+    if (this.townCenterNightLight) {
+      this.townCenterNightLight.intensity = glowFactor * 2.8 * flicker;
+    }
+
+    // Animate emissive intensity on all lanterns and braziers
+    for (let i = 0; i < this.lanternMeshes.length; i++) {
+      const mesh = this.lanternMeshes[i];
+      if (mesh.material) {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (mat.emissiveIntensity !== undefined) {
+          mat.emissiveIntensity = this.ambientGlowMultiplier;
+        }
+      }
+    }
   }
 }

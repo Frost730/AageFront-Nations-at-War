@@ -141,6 +141,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
 
     const lantern = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), lanternGlowMat);
     lantern.position.set(x, y, z);
+    lantern.userData = { isLantern: true };
     root.add(lantern);
   };
 
