@@ -530,6 +530,12 @@ export class SimulationEngine {
 
         player.population += udef.populationCost;
 
+        // In the last age advancement (Industrial Age), troops spawn instantly!
+        if (player.age === 'Industrial Age') {
+          this.spawnTrainedUnit(bldg, cmd.unitType);
+          return true;
+        }
+
         bldg.productionQueue.push({
           id: `prod_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           itemType: cmd.unitType,
@@ -1459,6 +1465,33 @@ export class SimulationEngine {
           } else if (item.category === 'age') {
             player.age = item.itemType as AgeName;
             this.pendingEvents.push({ type: 'AGE_ADVANCED', playerId: player.id, newAge: player.age });
+
+            // In the last age advancement (Industrial Age), troops spawn instantly after research!
+            if (player.age === 'Industrial Age') {
+              // 1. Immediately complete and spawn all units currently queued in any production building
+              for (const b of this.buildings.values()) {
+                if (b.ownerId === player.id && b.isConstructed) {
+                  const queuedUnits = b.productionQueue.filter(q => q.category === 'unit');
+                  b.productionQueue = b.productionQueue.filter(q => q.category !== 'unit');
+                  for (const q of queuedUnits) {
+                    this.spawnTrainedUnit(b, q.itemType as UnitType);
+                  }
+                }
+              }
+
+              // 2. Spawn an elite vanguard battalion of Industrial troops as an immediate reward
+              const tc = Array.from(this.buildings.values()).find(b => b.ownerId === player.id && b.type === 'town_centre');
+              if (tc) {
+                const vanguardTroops: UnitType[] = ['advanced_unit', 'ranged_infantry', 'cavalry', 'siege_unit'];
+                for (const uType of vanguardTroops) {
+                  const udef = UNIT_DEFINITIONS[uType];
+                  if (player.population + udef.populationCost <= player.maxPopulation) {
+                    player.population += udef.populationCost;
+                    this.spawnTrainedUnit(tc, uType);
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -3116,7 +3149,19 @@ export class SimulationEngine {
 
       player.age = targetAge;
       this.pendingEvents.push({ type: 'AGE_ADVANCED', playerId: player.id, newAge: targetAge });
-      return { success: true, message: `Civilization advanced to ${targetAge}!`, effect: 'age_advanced' };
+
+      if (targetAge === 'Industrial Age') {
+        for (const b of this.buildings.values()) {
+          if (b.ownerId === player.id && b.isConstructed) {
+            const queuedUnits = b.productionQueue.filter(q => q.category === 'unit');
+            b.productionQueue = b.productionQueue.filter(q => q.category !== 'unit');
+            for (const q of queuedUnits) {
+              this.spawnTrainedUnit(b, q.itemType as UnitType);
+            }
+          }
+        }
+      }
+      return { success: true, message: `Civilization advanced to ${targetAge}! (Troops now recruit instantly)`, effect: 'age_advanced' };
     }
 
     // cheat reveal / cheat map

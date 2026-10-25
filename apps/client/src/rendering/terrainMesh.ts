@@ -6,7 +6,7 @@ export class TerrainMesh {
   private width: number;
   private height: number;
   private groundMesh: THREE.Mesh;
-  private waterMesh: THREE.Mesh;
+  private waterMesh: THREE.Mesh | null = null;
   public resourceMeshes: Map<string, THREE.Object3D> = new Map();
   private borderLinesGroup: THREE.Group;
   private restrictedBorderGroup: THREE.Group;
@@ -159,26 +159,57 @@ export class TerrainMesh {
     skirtMesh.receiveShadow = true;
     this.group.add(skirtMesh);
 
-    // 3. Dynamic Living Water Surface with Translucent Azure Depth & Self-Luminance
-    const waterGeom = new THREE.PlaneGeometry(width, height, 16, 16);
-    waterGeom.rotateX(-Math.PI / 2);
-    waterGeom.translate(width / 2, 0, height / 2);
+    // 3. Optimized Static Water Surface - built strictly over actual water tiles with zero vertical movement!
+    const waterTiles: { tx: number; tz: number }[] = [];
+    for (let tz = 0; tz < height; tz++) {
+      for (let tx = 0; tx < width; tx++) {
+        if (tiles[tz * width + tx].terrain === 'water') {
+          waterTiles.push({ tx, tz });
+        }
+      }
+    }
 
-    const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8, // Clear brilliant sky-cyan water
-      emissive: 0x0284c7, // Radiant self-luminous azure glow - ensures water is always luminous and never black!
-      emissiveIntensity: 0.45,
-      roughness: 0.12,
-      metalness: 0.1,
-      transparent: true,
-      opacity: 0.82,
-      depthWrite: false
-    });
+    if (waterTiles.length > 0) {
+      const pos: number[] = [];
+      const waterSurfaceY = -0.08;
+      const pad = 0.15; // seamless margin into shoreline
 
-    this.waterMesh = new THREE.Mesh(waterGeom, waterMat);
-    this.waterMesh.position.y = -0.10;
-    this.waterMesh.receiveShadow = true;
-    this.group.add(this.waterMesh);
+      waterTiles.forEach(({ tx, tz }) => {
+        const x0 = tx - pad;
+        const x1 = tx + 1 + pad;
+        const z0 = tz - pad;
+        const z1 = tz + 1 + pad;
+
+        pos.push(
+          x0, waterSurfaceY, z0,
+          x0, waterSurfaceY, z1,
+          x1, waterSurfaceY, z0,
+
+          x1, waterSurfaceY, z0,
+          x0, waterSurfaceY, z1,
+          x1, waterSurfaceY, z1
+        );
+      });
+
+      const waterGeom = new THREE.BufferGeometry();
+      waterGeom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      waterGeom.computeVertexNormals();
+
+      const waterMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8, // Clear brilliant sky-cyan water
+        emissive: 0x0284c7, // Radiant self-luminous azure glow - ensures water is always luminous and never black!
+        emissiveIntensity: 0.45,
+        roughness: 0.12,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.82,
+        depthWrite: false
+      });
+
+      this.waterMesh = new THREE.Mesh(waterGeom, waterMat);
+      this.waterMesh.receiveShadow = true;
+      this.group.add(this.waterMesh);
+    }
 
     // 4. 3D Mountain Massifs & Jagged Peak Crags (Towering Restricted Alpine Mountains)
     this.buildMountainMassifs(width, height, tiles);
@@ -577,11 +608,10 @@ export class TerrainMesh {
   // ANIMATED LIVING WATER & WIND IN RENDER LOOP
   // -------------------------------------------------------------
   public update(time: number, dt: number): void {
-    // Gentle natural water swell
-    if (this.waterMesh) {
-      this.waterMesh.position.y = -0.10 + Math.sin(time * 1.5) * 0.02;
+    // Subtle shimmering aquatic opacity wave (strictly NO vertical movement in Y to prevent clipping/bobbing)
+    if (this.waterMesh && (this.waterMesh.material as THREE.MeshStandardMaterial)) {
+      (this.waterMesh.material as THREE.MeshStandardMaterial).opacity = 0.80 + Math.sin(time * 2.0) * 0.04;
     }
-    // Note: treesGroup rotation is intentionally removed so trees remain firmly and stably rooted in the ground
   }
 
   // Update glowing civilization territory borders on the terrain

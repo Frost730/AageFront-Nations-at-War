@@ -758,3 +758,103 @@ describe('Single-Player Cheat Codes (Rise of Nations Style)', () => {
     expect(res.message).toContain('cheat help');
   });
 });
+
+describe('Industrial Age Instant Troop Spawning', () => {
+  const initialPlayers = [
+    { id: 'player_human', name: 'Commander', team: 1, civ: 'Veyran Confederacy' as const, color: '#2563eb', isAi: false },
+    { id: 'player_enemy', name: 'Enemy AI', team: 2, civ: 'Ironvale Kingdom' as const, color: '#dc2626', isAi: true }
+  ];
+
+  function createTestSim(): SimulationEngine {
+    return new SimulationEngine(
+      {
+        mapType: 'green_frontier',
+        mapSize: 60,
+        seed: 42,
+        victoryCondition: 'conquest',
+        startingResources: 'deathmatch',
+        sharedTeamEconomy: false,
+        aiDifficulty: 'medium'
+      },
+      initialPlayers
+    );
+  }
+
+  it('queues units normally in Founding Age', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    expect(player.age).toBe('Founding Age');
+
+    const tc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'player_human' && b.type === 'town_centre')!;
+    const initialUnits = Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human').length;
+
+    const trained = sim.processCommand('player_human', {
+      type: 'TRAIN_UNIT',
+      buildingId: tc.id,
+      unitType: 'worker'
+    });
+
+    expect(trained).toBe(true);
+    expect(tc.productionQueue.length).toBe(1);
+    expect(tc.productionQueue[0].itemType).toBe('worker');
+    expect(Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human').length).toBe(initialUnits);
+  });
+
+  it('spawns troops instantly when recruited in the Industrial Age', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    player.age = 'Industrial Age';
+
+    const tc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'player_human' && b.type === 'town_centre')!;
+    const initialUnits = Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human').length;
+
+    const trained = sim.processCommand('player_human', {
+      type: 'TRAIN_UNIT',
+      buildingId: tc.id,
+      unitType: 'worker'
+    });
+
+    expect(trained).toBe(true);
+    // Queue should remain empty because the worker spawned instantly!
+    expect(tc.productionQueue.length).toBe(0);
+    expect(Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human').length).toBe(initialUnits + 1);
+  });
+
+  it('instantly completes all queued units and spawns vanguard battalion when researching the Industrial Age advancement', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    player.age = 'Imperial Age';
+
+    const tc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'player_human' && b.type === 'town_centre')!;
+
+    // Queue Industrial Age advancement at active slot 0
+    tc.productionQueue.push({
+      id: 'age_Industrial Age',
+      itemType: 'Industrial Age',
+      category: 'age',
+      progress: 99.9,
+      totalTime: 25
+    });
+
+    // Queue a unit in waiting slot 1
+    tc.productionQueue.push({
+      id: 'queued_worker',
+      itemType: 'worker',
+      category: 'unit',
+      progress: 0,
+      totalTime: 12
+    });
+
+    const initialUnitsCount = Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human').length;
+
+    // Fast-forward simulation to complete Industrial Age research
+    for (let i = 0; i < 5; i++) {
+      sim.tick(0.05);
+    }
+
+    expect(player.age).toBe('Industrial Age');
+    // Queued unit should have spawned instantly, and vanguard troops should have spawned!
+    const finalUnitsCount = Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human').length;
+    expect(finalUnitsCount).toBeGreaterThan(initialUnitsCount + 1);
+  });
+});
