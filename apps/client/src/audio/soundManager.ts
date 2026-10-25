@@ -291,6 +291,8 @@ export class SoundManager {
       this.playArrowHitSound(now, pitchMod);
     } else if (attackerType === 'siege_unit') {
       this.playSiegeImpactSound(now, pitchMod);
+    } else if (attackerType === 'dragon') {
+      this.playDragonBreathSound(now, pitchMod);
     } else {
       this.playMeleeClashSound(now, pitchMod, attackerType);
     }
@@ -432,6 +434,53 @@ export class SoundManager {
     const noiseGain = this.ctx.createGain();
     noiseGain.gain.setValueAtTime(0.28 * this.sfxVolume, now);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
+    noise.start(now);
+  }
+
+
+  private playDragonBreathSound(now: number, pitchMod: number): void {
+    if (!this.ctx) return;
+
+    // 1. Deep guttural draconic roar / resonant bellow
+    const roarOsc = this.ctx.createOscillator();
+    const roarGain = this.ctx.createGain();
+    roarOsc.type = 'sawtooth';
+    roarOsc.frequency.setValueAtTime(145 * pitchMod, now);
+    roarOsc.frequency.exponentialRampToValueAtTime(50, now + 0.32);
+
+    roarGain.gain.setValueAtTime(0.26 * this.sfxVolume, now);
+    roarGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+
+    const roarFilter = this.ctx.createBiquadFilter();
+    roarFilter.type = 'lowpass';
+    roarFilter.frequency.setValueAtTime(480 * pitchMod, now);
+
+    roarOsc.connect(roarFilter);
+    roarFilter.connect(roarGain);
+    roarGain.connect(this.ctx.destination);
+    roarOsc.start(now);
+    roarOsc.stop(now + 0.33);
+
+    // 2. Rushing flame blast combustion noise
+    const noiseBuf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.3), this.ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.45));
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1100 * pitchMod, now);
+    filter.frequency.exponentialRampToValueAtTime(450, now + 0.3);
+    filter.Q.setValueAtTime(1.6, now);
+
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.35 * this.sfxVolume, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
 
     noise.connect(filter);
     filter.connect(noiseGain);

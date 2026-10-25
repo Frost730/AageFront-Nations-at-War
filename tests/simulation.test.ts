@@ -259,7 +259,7 @@ describe('Simulation Engine Gameplay Rules', () => {
     expect(dragonDef).toBeDefined();
     expect(dragonDef.isFlying).toBe(true);
     expect(dragonDef.damage).toBeGreaterThanOrEqual(40);
-    expect(dragonDef.attackRange).toBe(7.5);
+    expect(dragonDef.attackRange).toBe(8.5);
     expect(dragonDef.producedAt).toBe('fort');
     expect(dragonDef.bonusMultiplierVs?.siege_unit).toBeGreaterThan(2.0);
 
@@ -336,6 +336,44 @@ describe('Simulation Engine Gameplay Rules', () => {
     // Dragon has smoothly advanced along aerial path
     expect(dragon!.x).toBeGreaterThan(10);
     expect(dragon!.y).toBeGreaterThan(10);
+
+    // Verify optimized dragon attack range & aerial standoff hover behavior
+    sim.units.set('target_enemy', {
+      id: 'target_enemy',
+      type: 'basic_infantry',
+      ownerId: 'p2',
+      team: 2,
+      x: 35,
+      y: 35,
+      hp: 100,
+      maxHp: 100,
+      state: 'idle',
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      carriedResourceAmount: 0
+    });
+
+    dragon!.x = 20;
+    dragon!.y = 35; // Distance is 15 tiles (well outside 8.5)
+    dragon!.path = undefined;
+    dragon!.state = 'idle';
+
+    const attackOrdered = sim.processCommand('p1', {
+      type: 'ATTACK',
+      unitIds: [dragon!.id],
+      targetEntityId: 'target_enemy'
+    });
+    expect(attackOrdered).toBe(true);
+
+    // Simulate dragon approaching to standoff range and attacking
+    for (let i = 0; i < 35; i++) {
+      sim.tick(0.05);
+    }
+    const enemy = sim.units.get("target_enemy")!;
+    const dist = Math.hypot(dragon!.x - enemy.x, dragon!.y - enemy.y);
+    expect(dist).toBeLessThanOrEqual(8.5 + 0.3); // Inside attack range
+    expect(dist).toBeGreaterThanOrEqual(6.0); // Maintained aerial standoff, not collapsed into melee!
+    expect(dragon!.state).toBe('attacking');
   });
 
   it('AI ally actively mobilizes military and attacks when enemy threatens ally base or units', () => {

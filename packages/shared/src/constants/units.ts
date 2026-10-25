@@ -194,7 +194,7 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
     hp: 360,
     speed: 5.2,
     damage: 42,
-    attackRange: 7.5,
+    attackRange: 8.5,
     attackCooldown: 1.6,
     visionRange: 13,
     populationCost: 4,

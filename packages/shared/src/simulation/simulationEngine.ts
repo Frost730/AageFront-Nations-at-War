@@ -391,7 +391,26 @@ export class SimulationEngine {
           let targetPos = { x: unit.x, y: unit.y };
 
           if (targetUnit) {
-            targetPos = { x: targetUnit.x, y: targetUnit.y };
+            const distToUnit = Math.hypot(unit.x - targetUnit.x, unit.y - targetUnit.y);
+            if (distToUnit <= attackRange) {
+              // Already within firing distance! Keep current position and fire without moving
+              unit.targetX = unit.x;
+              unit.targetY = unit.y;
+              unit.path = undefined;
+              continue;
+            }
+
+            if (unit.type === 'dragon') {
+              // Aerial standoff position along trajectory to target
+              const angle = Math.atan2(unit.y - targetUnit.y, unit.x - targetUnit.x);
+              const standoff = Math.max(2.0, attackRange * 0.85);
+              targetPos = {
+                x: targetUnit.x + Math.cos(angle) * standoff,
+                y: targetUnit.y + Math.sin(angle) * standoff
+              };
+            } else {
+              targetPos = { x: targetUnit.x, y: targetUnit.y };
+            }
           } else if (targetBuilding) {
             // Check if already in firing range
             const clampedX = Math.max(targetBuilding.x, Math.min(targetBuilding.x + targetBuilding.width, unit.x));
@@ -406,8 +425,16 @@ export class SimulationEngine {
               continue;
             }
 
-            // Standoff firing position for siege engines and marksmen
-            if (attackRange >= 3.0) {
+            if (unit.type === 'dragon') {
+              // Aerial standoff position directly along vector to building edge, flying freely over terrain
+              const angle = Math.atan2(unit.y - clampedY, unit.x - clampedX);
+              const standoff = Math.max(2.0, attackRange * 0.85);
+              targetPos = {
+                x: clampedX + Math.cos(angle) * standoff,
+                y: clampedY + Math.sin(angle) * standoff
+              };
+            } else if (attackRange >= 3.0) {
+              // Standoff firing position for siege engines and marksmen
               const firingSpot = this.pathfinder.findOptimalRangedAttackTile(
                 targetBuilding.x, targetBuilding.y,
                 targetBuilding.width, targetBuilding.height,
@@ -951,7 +978,7 @@ export class SimulationEngine {
 
         let minEnemyDist = currentStance === 'stand_ground'
           ? (attackRange + 0.3)
-          : (unit.type === 'dragon' ? 12.0 : (def.visionRange || 8.0));
+          : (unit.type === 'dragon' ? (def.visionRange || 13.0) : (def.visionRange || 8.0));
 
         // Siege units (Catapults/Trebuchets) prioritize enemy defensive structures and Town Centres
         if (unit.type === 'siege_unit') {
@@ -1135,7 +1162,12 @@ export class SimulationEngine {
             if (needsNewPath || (this.currentTick % 25 === 0 && unit.path)) {
               let moveTargetX = aimX;
               let moveTargetY = aimY;
-              if (targetBldg) {
+              if (unit.type === 'dragon') {
+                const angle = Math.atan2(unit.y - aimY, unit.x - aimX);
+                const standoff = Math.max(2.0, attackRange * 0.85);
+                moveTargetX = aimX + Math.cos(angle) * standoff;
+                moveTargetY = aimY + Math.sin(angle) * standoff;
+              } else if (targetBldg) {
                 if (attackRange >= 3.0) {
                   const firingSpot = this.pathfinder.findOptimalRangedAttackTile(
                     targetBldg.x, targetBldg.y,
