@@ -445,47 +445,96 @@ export class SoundManager {
   private playDragonBreathSound(now: number, pitchMod: number): void {
     if (!this.ctx) return;
 
-    // 1. Deep guttural draconic roar / resonant bellow
-    const roarOsc = this.ctx.createOscillator();
-    const roarGain = this.ctx.createGain();
-    roarOsc.type = 'sawtooth';
-    roarOsc.frequency.setValueAtTime(145 * pitchMod, now);
-    roarOsc.frequency.exponentialRampToValueAtTime(50, now + 0.32);
+    // 1. Deep Sub-Bass Chest Rumble (Thunderous physical presence of a colossal aerial leviathan)
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(85 * pitchMod, now);
+    subOsc.frequency.exponentialRampToValueAtTime(32, now + 0.55);
 
-    roarGain.gain.setValueAtTime(0.26 * this.sfxVolume, now);
-    roarGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    subGain.gain.setValueAtTime(0.38 * this.sfxVolume, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
 
-    const roarFilter = this.ctx.createBiquadFilter();
-    roarFilter.type = 'lowpass';
-    roarFilter.frequency.setValueAtTime(480 * pitchMod, now);
+    subOsc.connect(subGain);
+    subGain.connect(this.ctx.destination);
+    subOsc.start(now);
+    subOsc.stop(now + 0.56);
 
-    roarOsc.connect(roarFilter);
-    roarFilter.connect(roarGain);
-    roarGain.connect(this.ctx.destination);
-    roarOsc.start(now);
-    roarOsc.stop(now + 0.33);
+    // 2. Ferocious Reptilian Throat Roar (Dual-sawtooth harmonic bellow through vocal formant filter)
+    const throatOsc = this.ctx.createOscillator();
+    const throatGain = this.ctx.createGain();
+    throatOsc.type = 'sawtooth';
+    throatOsc.frequency.setValueAtTime(175 * pitchMod, now);
+    throatOsc.frequency.exponentialRampToValueAtTime(54, now + 0.48);
 
-    // 2. Rushing flame blast combustion noise
-    const noiseBuf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.3), this.ctx.sampleRate);
-    const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.45));
+    const throatFilter = this.ctx.createBiquadFilter();
+    throatFilter.type = 'bandpass';
+    throatFilter.frequency.setValueAtTime(420 * pitchMod, now);
+    throatFilter.frequency.exponentialRampToValueAtTime(260, now + 0.48);
+    throatFilter.Q.setValueAtTime(2.4, now);
 
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = noiseBuf;
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(1100 * pitchMod, now);
-    filter.frequency.exponentialRampToValueAtTime(450, now + 0.3);
-    filter.Q.setValueAtTime(1.6, now);
+    throatGain.gain.setValueAtTime(0.32 * this.sfxVolume, now);
+    throatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
 
-    const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.35 * this.sfxVolume, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    throatOsc.connect(throatFilter);
+    throatFilter.connect(throatGain);
+    throatGain.connect(this.ctx.destination);
+    throatOsc.start(now);
+    throatOsc.stop(now + 0.49);
 
-    noise.connect(filter);
-    filter.connect(noiseGain);
-    noiseGain.connect(this.ctx.destination);
-    noise.start(now);
+    // 3. Explosive Liquid Fire Jet Blast (Superheated pressurized flame rush)
+    const blastLen = Math.floor(this.ctx.sampleRate * 0.52);
+    const blastBuf = this.ctx.createBuffer(1, blastLen, this.ctx.sampleRate);
+    const blastData = blastBuf.getChannelData(0);
+    for (let i = 0; i < blastLen; i++) {
+      const envelope = Math.exp(-i / (blastLen * 0.42)) * (1.0 - Math.exp(-i / (blastLen * 0.04))); // Sharp attack swell, sustained furnace roar
+      blastData[i] = (Math.random() * 2 - 1) * envelope;
+    }
+
+    const blastSrc = this.ctx.createBufferSource();
+    blastSrc.buffer = blastBuf;
+
+    const blastFilter = this.ctx.createBiquadFilter();
+    blastFilter.type = 'lowpass';
+    blastFilter.frequency.setValueAtTime(1600 * pitchMod, now);
+    blastFilter.frequency.exponentialRampToValueAtTime(450, now + 0.5);
+    blastFilter.Q.setValueAtTime(1.8, now);
+
+    const blastGain = this.ctx.createGain();
+    blastGain.gain.setValueAtTime(0.42 * this.sfxVolume, now);
+    blastGain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+
+    blastSrc.connect(blastFilter);
+    blastFilter.connect(blastGain);
+    blastGain.connect(this.ctx.destination);
+    blastSrc.start(now);
+
+    // 4. Incendiary Sizzle & Crackling Embers Tail
+    const sizzleLen = Math.floor(this.ctx.sampleRate * 0.38);
+    const sizzleBuf = this.ctx.createBuffer(1, sizzleLen, this.ctx.sampleRate);
+    const sizzleData = sizzleBuf.getChannelData(0);
+    for (let i = 0; i < sizzleLen; i++) {
+      // Crackle pops: intermittent high-intensity sparks
+      const isPop = Math.random() < 0.08;
+      const amp = isPop ? (Math.random() * 1.8 - 0.9) : (Math.random() * 0.3 - 0.15);
+      sizzleData[i] = amp * Math.exp(-i / (sizzleLen * 0.35));
+    }
+
+    const sizzleSrc = this.ctx.createBufferSource();
+    sizzleSrc.buffer = sizzleBuf;
+
+    const sizzleFilter = this.ctx.createBiquadFilter();
+    sizzleFilter.type = 'highpass';
+    sizzleFilter.frequency.setValueAtTime(2200 * pitchMod, now);
+
+    const sizzleGain = this.ctx.createGain();
+    sizzleGain.gain.setValueAtTime(0.18 * this.sfxVolume, now);
+    sizzleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+    sizzleSrc.connect(sizzleFilter);
+    sizzleFilter.connect(sizzleGain);
+    sizzleGain.connect(this.ctx.destination);
+    sizzleSrc.start(now + 0.05);
   }
 
   public playAttack(unitType?: string): void {

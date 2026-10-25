@@ -1429,6 +1429,23 @@ export class GameRenderer {
   ): void {
     const time = now * 0.001;
 
+    // Movement & Combat Range Evaluation
+    const hasPath = Boolean(unit.path && unit.path.length > 0);
+    const isMoving = unit.state === 'moving' || hasPath;
+
+    // Check if within genuine combat range of current target
+    let inRangeOfTarget = false;
+    if (unit.targetEntityId) {
+      const targetPos = this.findEntityPosition(unit.targetEntityId, units, buildings);
+      if (targetPos) {
+        const d = Math.hypot(targetPos.x - group.position.x, targetPos.z - group.position.z);
+        const maxRange = unit.type === 'siege_unit' ? 12.0 : unit.type === 'dragon' ? 10.0 : unit.type === 'ranged_infantry' ? 8.5 : 2.5;
+        inRangeOfTarget = d <= maxRange;
+      }
+    }
+
+    const isAttacking = unit.state === 'attacking' && !isMoving && inRangeOfTarget;
+
     // Standard Human Stride & March helpers
     const lLeg = group.getObjectByName('left_leg');
     const rLeg = group.getObjectByName('right_leg');
@@ -1439,7 +1456,7 @@ export class GameRenderer {
 
     // Universal Humanoid Movement Leg March Animation (Age of Empires II: DE)
     if (isHumanoid) {
-      if (unit.state === 'moving') {
+      if (isMoving) {
         const strideRate = 9.5;
         const stride = Math.sin(time * strideRate);
         if (lLeg) lLeg.rotation.x = stride * 0.62;
@@ -1451,7 +1468,7 @@ export class GameRenderer {
           torso.rotation.y = stride * 0.09;
           torso.rotation.z = Math.cos(time * strideRate * 0.5) * 0.025;
         }
-      } else if (unit.state !== 'attacking' && unit.state !== 'gathering') {
+      } else if (!isAttacking && unit.state !== 'gathering') {
         // Natural idle planted footing & gentle breathing
         if (lLeg) lLeg.rotation.x = 0;
         if (rLeg) rLeg.rotation.x = 0;
@@ -1532,12 +1549,12 @@ export class GameRenderer {
           }
           toolPivot.rotation.x = hammerAngle;
           if (torso) torso.position.y = 0.45 + (hammerAngle > 0.2 ? -0.04 : 0);
-        } else if (unit.state === 'attacking') {
+        } else if (isAttacking) {
           // Aggressive improvised axe slash
           const slash = Math.sin(time * 12);
           toolPivot.rotation.x = slash * 1.25;
           if (torso) torso.rotation.y = slash * 0.22;
-        } else if (unit.state === 'moving') {
+        } else if (isMoving) {
           toolPivot.rotation.x = Math.sin(time * 8) * 0.25;
           // When carrying resource bundle/basket, lean forward with weight
           if (torso && (unit as any).carriedResourceAmount > 0) {
@@ -1553,7 +1570,7 @@ export class GameRenderer {
         const swordPivot = group.getObjectByName('sword_pivot');
         const shieldPivot = group.getObjectByName('shield_pivot');
 
-        if (unit.state === 'attacking') {
+        if (isAttacking) {
           // Authentic AoE 3-Phase Sword Slash & Shield Defense
           const slashCycle = (time * 2.2) % 1.0;
           if (slashCycle < 0.35) {
@@ -1609,7 +1626,7 @@ export class GameRenderer {
       case 'spearman': {
         const pikePivot = group.getObjectByName('pike_pivot');
 
-        if (unit.state === 'attacking') {
+        if (isAttacking) {
           // Authentic AoE Phalanx Pike Thrust
           const thrustCycle = (time * 2.0) % 1.0;
           if (thrustCycle < 0.3) {
@@ -1638,7 +1655,7 @@ export class GameRenderer {
             if (lLeg) lLeg.rotation.x = 0.42 * (1.0 - p);
             if (rLeg) rLeg.rotation.x = -0.42 * (1.0 - p);
           }
-        } else if (unit.state === 'moving') {
+        } else if (isMoving) {
           if (pikePivot) {
             // Held upright in march
             pikePivot.position.set(0.28, 0.6, 0.15);
@@ -1656,7 +1673,7 @@ export class GameRenderer {
       case 'ranged_infantry': {
         const bowPivot = group.getObjectByName('bow_pivot');
 
-        if (unit.state === 'attacking') {
+        if (isAttacking) {
           // Authentic AoE 4-Phase Archery Sequence (Nock -> Draw -> Hold -> Loose)
           const archerCycle = (time * 1.8) % 1.0;
           if (archerCycle < 0.42) {
@@ -1691,7 +1708,7 @@ export class GameRenderer {
             }
             if (torso) torso.rotation.y = 0.25 * (1.0 - p);
           }
-        } else if (unit.state === 'moving') {
+        } else if (isMoving) {
           if (bowPivot) {
             bowPivot.position.set(0.28, 0.55, 0.18);
             bowPivot.rotation.x = Math.sin(time * 9.5) * 0.15;
@@ -1783,7 +1800,7 @@ export class GameRenderer {
         const wheelBL = group.getObjectByName('wheel_bl');
         const wheelBR = group.getObjectByName('wheel_br');
 
-        if (unit.state === 'moving') {
+        if (isMoving) {
           // Continuous 4-wheel rotation when rolling across battlefield
           const rollRate = dt * 6.5;
           [wheelFL, wheelFR, wheelBL, wheelBR].forEach(w => {
@@ -1791,7 +1808,7 @@ export class GameRenderer {
           });
           if (armPivot) armPivot.rotation.x = -Math.PI / 4.2 + Math.sin(time * 8) * 0.05;
           if (chassis) chassis.position.y = 0.32 + Math.sin(time * 12) * 0.015;
-        } else if (unit.state === 'attacking') {
+        } else if (isAttacking) {
           // Authentic AoE Mangonel / Onager Launch & Recoil
           const launchCycle = (time * 1.4) % 1.0;
           if (launchCycle < 0.55) {
@@ -1833,7 +1850,7 @@ export class GameRenderer {
       case 'advanced_unit': {
         const halberdPivot = group.getObjectByName('halberd_pivot');
 
-        if (unit.state === 'attacking') {
+        if (isAttacking) {
           // Authentic AoE Champion Two-Handed Halberd Cleave
           const cleaveCycle = (time * 1.9) % 1.0;
           if (cleaveCycle < 0.42) {
@@ -1896,7 +1913,7 @@ export class GameRenderer {
         const flameEmitter = group.getObjectByName('flame_emitter');
 
         // Wings flap dynamically: faster flap while moving
-        const flapRate = unit.state === 'moving' ? 0.016 : 0.011;
+        const flapRate = isMoving ? 0.016 : 0.011;
         const flap = Math.sin(now * flapRate) * 0.62;
         if (leftWing) {
           leftWing.rotation.z = flap;
@@ -1913,7 +1930,7 @@ export class GameRenderer {
           dragonTail.rotation.z = Math.cos(now * 0.004) * 0.15;
         }
 
-        if (unit.state === 'attacking') {
+        if (isAttacking) {
           // Open jaw wide & lunge neck toward target!
           if (dragonJaw) dragonJaw.rotation.x = Math.PI / 2.05 + 0.45;
           if (dragonNeck) dragonNeck.rotation.x = Math.PI / 4 + 0.3 + Math.sin(now * 0.012) * 0.1;
