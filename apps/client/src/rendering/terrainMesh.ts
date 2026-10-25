@@ -1,3 +1,12 @@
+
+function distToSegment(px: number, pz: number, x1: number, z1: number, x2: number, z2: number): number {
+  const l2 = (x2 - x1) * (x2 - x1) + (z2 - z1) * (z2 - z1);
+  if (l2 === 0) return Math.hypot(px - x1, pz - z1);
+  let t = ((px - x1) * (x2 - x1) + (pz - z1) * (z2 - z1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * (x2 - x1)), pz - (z1 + t * (z2 - z1)));
+}
+
 import * as THREE from 'three';
 import { MapTile, ResourceNodeData } from '@agefront/shared';
 import {
@@ -89,6 +98,29 @@ export class TerrainMesh {
     geom.computeVertexNormals();
     const normAttr = geom.attributes.normal;
 
+    
+    // Precompute desire lines / dirt trails between resource nodes and settlement hubs
+    const pathSegments: { x1: number; z1: number; x2: number; z2: number }[] = [];
+    if (resourceNodes && resourceNodes.length > 0) {
+      for (let a = 0; a < resourceNodes.length; a++) {
+        const nodeA = resourceNodes[a];
+        let nearestDist = 26;
+        let nearestB: ResourceNodeData | null = null;
+        for (let b = 0; b < resourceNodes.length; b++) {
+          if (a === b) continue;
+          const nodeB = resourceNodes[b];
+          const d = Math.hypot(nodeA.x - nodeB.x, nodeA.y - nodeB.y);
+          if (d < nearestDist && d > 3.5) {
+            nearestDist = d;
+            nearestB = nodeB;
+          }
+        }
+        if (nearestB) {
+          pathSegments.push({ x1: nodeA.x, z1: nodeA.y, x2: nearestB.x, z2: nearestB.y });
+        }
+      }
+    }
+
     // 2. Multi-Palette Vertex Color Blending (Lush grass, sandy beaches, granite cliffs, alpine snow)
     for (let i = 0; i < posAttr.count; i++) {
       const vx = posAttr.getX(i);
@@ -132,6 +164,43 @@ export class TerrainMesh {
           color = baseGrass.clone().lerp(sunlitGrass, Math.min(1.0, (varChoice - 0.1) * 2.5));
         } else {
           color = baseGrass.clone().lerp(deepMeadow, Math.min(1.0, (0.1 - varChoice) * 2.5));
+        }
+      }
+
+      
+      // Natural Trodden Dirt Footpaths & Workyard Clearings (Rise of Nations / Settlers Style)
+      if (tile.terrain === 'grass') {
+        let minPathDist = 999;
+        for (let s = 0; s < pathSegments.length; s++) {
+          const seg = pathSegments[s];
+          if (vx < Math.min(seg.x1, seg.x2) - 2.5 || vx > Math.max(seg.x1, seg.x2) + 2.5) continue;
+          if (vz < Math.min(seg.z1, seg.z2) - 2.5 || vz > Math.max(seg.z1, seg.z2) + 2.5) continue;
+          const d = distToSegment(vx, vz, seg.x1, seg.z1, seg.x2, seg.z2);
+          if (d < minPathDist) minPathDist = d;
+        }
+
+        const pathNoise = Math.sin(vx * 2.4 + vz * 1.8) * 0.16;
+        const effectiveDist = minPathDist + pathNoise;
+        if (effectiveDist < 1.15) {
+          const intensity = Math.pow(1.0 - effectiveDist / 1.15, 1.4);
+          const pathDirt = new THREE.Color(0x735639);
+          const pathGravel = new THREE.Color(0x8a7052);
+          const blendColor = effectiveDist < 0.45 ? pathDirt : pathGravel;
+          color.lerp(blendColor, Math.min(0.88, intensity * 0.95));
+        }
+
+        // Trampled earth around resource clearing hubs
+        let minNodeDist = 999;
+        for (let n = 0; n < resourceNodes.length; n++) {
+          const rn = resourceNodes[n];
+          if (Math.abs(vx - rn.x) > 3.5 || Math.abs(vz - rn.y) > 3.5) continue;
+          const d = Math.hypot(vx - rn.x, vz - rn.y);
+          if (d < minNodeDist) minNodeDist = d;
+        }
+        if (minNodeDist < 2.4) {
+          const nodeIntensity = Math.pow(1.0 - minNodeDist / 2.4, 1.3);
+          const workyardColor = new THREE.Color(0x6e5235);
+          color.lerp(workyardColor, Math.min(0.78, nodeIntensity * 0.88));
         }
       }
 
