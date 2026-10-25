@@ -38,6 +38,39 @@ export class SoundManager {
     return this.isMuted;
   }
 
+  
+  public playCoin(): void {
+    if (this.isMuted || this.sfxVolume <= 0) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gainNode = this.ctx.createGain();
+
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(1760, now); // A6
+    osc1.frequency.setValueAtTime(2637, now + 0.08); // E7
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(2093, now); // C7
+    osc2.frequency.setValueAtTime(3136, now + 0.08); // G7
+
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.18 * this.sfxVolume, now + 0.015);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(this.ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.35);
+    osc2.stop(now + 0.35);
+  }
+
   public playClick(): void {
     if (this.isMuted || this.sfxVolume <= 0) return;
     this.initContext();

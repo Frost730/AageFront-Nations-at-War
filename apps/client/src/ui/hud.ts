@@ -25,6 +25,7 @@ export interface HudCallbacks {
   onSelectIdleWorker: () => void;
   onSelectAllMilitary?: () => void;
   onAssignWorkersToBuild: (buildingId: string) => void;
+  onTradeCommodity?: (buyResource: ResourceType, sellResource: ResourceType, buyAmount: number, sellAmount: number) => void;
   onSetStance?: (stance: UnitStance) => void;
   onSetFormation?: (formation: FormationType) => void;
   onOpenMenu: () => void;
@@ -1213,6 +1214,72 @@ export class HudView {
 
   private renderBuildingActionMatrix(bldg: BuildingData, player: PlayerState): void {
     this.actionMatrixElem.innerHTML = '';
+
+    
+    // If Market: train Trade Cart + Commodity Trading
+    if (bldg.type === 'market') {
+      const trainCaravanBtn = document.createElement('button');
+      trainCaravanBtn.className = 'aoe3-action-btn';
+      trainCaravanBtn.style.cssText = 'padding: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px;';
+      trainCaravanBtn.innerHTML = `
+        <span class="aoe3-hotkey-badge">Q</span>
+        <span style="font-size: 15px;">🛒</span>
+        <span style="font-weight: 700;">Trade Cart</span>
+        <span style="font-size: 8.5px; color: #fef08a;">50F 50W</span>
+      `;
+      trainCaravanBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const curPlayer = this.currentPlayer || player;
+        if (curPlayer.population >= curPlayer.maxPopulation) {
+          soundManager.playError();
+          this.showNotification(`⚠️ Population cap reached! Construct Houses.`);
+          return;
+        }
+        if (curPlayer.resources.food < 50 || curPlayer.resources.wood < 50) {
+          soundManager.playError();
+          this.showNotification(`⚠️ Trade Caravan requires 50 Food & 50 Wood!`);
+          return;
+        }
+        this.callbacks.onTrainUnit(bldg.id, 'trade_cart');
+        this.showNotification(`🛒 Trade Caravan training queued at Commercial Market.`);
+      });
+      this.actionMatrixElem.appendChild(trainCaravanBtn);
+
+      const trades: { label: string; icon: string; buy: ResourceType; sell: ResourceType; buyAmt: number; sellAmt: number; hotkey: string }[] = [
+        { label: 'Buy Food', icon: '🌾', buy: 'food', sell: 'wood', buyAmt: 100, sellAmt: 120, hotkey: 'W' },
+        { label: 'Buy Wood', icon: '🪵', buy: 'wood', sell: 'food', buyAmt: 100, sellAmt: 120, hotkey: 'E' },
+        { label: 'Buy Stone', icon: '🪨', buy: 'stone', sell: 'wood', buyAmt: 100, sellAmt: 130, hotkey: 'R' },
+        { label: 'Buy Gold', icon: '🪙', buy: 'metal', sell: 'wood', buyAmt: 100, sellAmt: 150, hotkey: 'T' },
+        { label: 'Sell Gold', icon: '💰', buy: 'food', sell: 'metal', buyAmt: 140, sellAmt: 100, hotkey: 'A' },
+        { label: 'Sell Stone', icon: '🧱', buy: 'food', sell: 'stone', buyAmt: 120, sellAmt: 100, hotkey: 'S' }
+      ];
+
+      trades.forEach(t => {
+        const tradeBtn = document.createElement('button');
+        tradeBtn.className = 'aoe3-action-btn';
+        tradeBtn.style.cssText = 'padding: 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px;';
+        tradeBtn.innerHTML = `
+          <span class="aoe3-hotkey-badge">${t.hotkey}</span>
+          <span style="font-size: 13px;">${t.icon}</span>
+          <span style="font-weight: 700; line-height: 1;">${t.label}</span>
+          <span style="font-size: 8px; color: #86efac;">+${t.buyAmt}/-${t.sellAmt}</span>
+        `;
+        tradeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const curPlayer = this.currentPlayer || player;
+          if (curPlayer.resources[t.sell] < t.sellAmt) {
+            soundManager.playError();
+            this.showNotification(`⚠️ Insufficient ${t.sell.toUpperCase()}! Need ${t.sellAmt}, have ${Math.floor(curPlayer.resources[t.sell])}.`);
+            return;
+          }
+          this.callbacks.onTradeCommodity?.(t.buy, t.sell, t.buyAmt, t.sellAmt);
+          soundManager.playCoin();
+          this.showNotification(`🪙 Exchanged ${t.sellAmt} ${t.sell} for ${t.buyAmt} ${t.buy}!`);
+        });
+        this.actionMatrixElem.appendChild(tradeBtn);
+      });
+      return;
+    }
 
     // If Town Centre: train worker, advance age, summon dragon in imperial age
     if (bldg.type === 'town_centre') {

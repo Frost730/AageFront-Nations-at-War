@@ -205,5 +205,22 @@ export const UNIT_DEFINITIONS: Record<UnitType, UnitDefinition> = {
       siege_unit: 2.5,
       buildings: 1.5
     }
+  },
+  trade_cart: {
+    type: 'trade_cart',
+    name: 'Trade Caravan',
+    role: 'Economic Trade Caravan',
+    description: 'Commercial ox-drawn caravan that travels along trade routes between Markets and Town Centers, generating continuous gold revenue.',
+    producedAt: 'market',
+    requiredAge: 'Kingdom Age',
+    cost: { food: 50, wood: 50, stone: 0, metal: 0, knowledge: 0 },
+    trainingTime: 8,
+    hp: 100,
+    speed: 3.4,
+    damage: 0,
+    attackRange: 0,
+    attackCooldown: 0,
+    visionRange: 7,
+    populationCost: 1
   }
 };

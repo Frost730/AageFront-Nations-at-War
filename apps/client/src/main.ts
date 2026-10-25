@@ -105,6 +105,15 @@ class GameApp {
         networkClient.sendCommand({ type: 'RESEARCH_TECH', buildingId, techId });
         soundManager.playClick();
       },
+      onTradeCommodity: (buyResource, sellResource, buyAmount, sellAmount) => {
+        networkClient.sendCommand({
+          type: 'TRADE_COMMODITY',
+          buyResource,
+          sellResource,
+          buyAmount,
+          sellAmount
+        });
+      },
       onAdvanceAge: (buildingId: string) => {
         networkClient.sendCommand({ type: 'ADVANCE_AGE', buildingId });
         soundManager.playAgeUp();
@@ -427,7 +436,16 @@ class GameApp {
           this.hud.showNotification(`Technology Researched: ${ev.techId}`);
         } else if (ev.type === 'BUILDING_COMPLETED') {
           soundManager.playBuild();
-        } else if (ev.type === 'UNIT_SPAWNED') {
+        } else 
+        if (ev.type === 'TRADE_COMPLETED') {
+          if (ev.ownerId === this.myPlayerId) {
+            soundManager.playCoin();
+            this.renderer.spawnFloatingText(ev.x, ev.y, `+${ev.goldEarned} 🪙`, '#facc15');
+            this.hud.showNotification(`💰 Caravan delivered trade goods: +${ev.goldEarned} Gold Revenue!`);
+          }
+        }
+
+        if (ev.type === 'UNIT_SPAWNED') {
           if (ev.ownerId === this.myPlayerId) {
             soundManager.playTrainUnit();
             if (ev.unitType === 'worker') {

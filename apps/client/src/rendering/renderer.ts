@@ -752,6 +752,42 @@ export class GameRenderer {
   }
 
   
+  
+  public spawnFloatingText(x: number, z: number, text: string, colorHex: string = '#facc15'): void {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.font = 'bold 32px "Cinzel", Georgia, serif';
+    ctx.fillStyle = colorHex;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = 6;
+    ctx.fillText(text, 128, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+
+    const groundElev = this.terrainMesh?.getElevationAt(x, z) || 0;
+    const startY = groundElev + 1.6;
+    sprite.position.set(x, startY, z);
+    sprite.scale.set(2.4, 0.6, 1.0);
+
+    this.scene.add(sprite);
+    this.visualEffects.push({
+      mesh: sprite,
+      createdAt: performance.now(),
+      duration: 1400,
+      update: (t) => {
+        sprite.position.y = startY + t * 1.2;
+        mat.opacity = Math.max(0, 1.0 - t * t);
+      }
+    });
+  }
+
   public spawnGroundScorch(x: number, z: number, radius: number = 1.0): void {
     if (!this.scorchTexture) {
       this.scorchTexture = createScorchTexture();

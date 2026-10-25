@@ -347,6 +347,15 @@ export class SimulationEngine {
         return true;
       }
 
+      case 'TRADE_COMMODITY': {
+        if (cmd.buyAmount <= 0 || cmd.sellAmount <= 0) return false;
+        if (player.resources[cmd.sellResource] < cmd.sellAmount) return false;
+        player.resources[cmd.sellResource] -= cmd.sellAmount;
+        player.resources[cmd.buyResource] += cmd.buyAmount;
+        player.stats.resourcesGathered[cmd.buyResource] += cmd.buyAmount;
+        return true;
+      }
+
       case 'SET_STANCE': {
         for (const uid of cmd.unitIds) {
           const unit = this.units.get(uid);
@@ -971,6 +980,71 @@ export class SimulationEngine {
 
       // Handle States
       switch (unit.state) {
+        case 'trading': {
+          let targetBldg = unit.tradeTargetId ? this.buildings.get(unit.tradeTargetId) : undefined;
+          if (!targetBldg || targetBldg.hp <= 0) {
+            let bestDest: BuildingData | null = null;
+            let maxDist = 0;
+            for (const b of this.buildings.values()) {
+              if (b.id !== unit.tradeSourceId && b.hp > 0 && b.isConstructed && (b.type === 'town_centre' || b.type === 'market')) {
+                if (b.team === unit.team) {
+                  const d = Math.hypot(b.x - unit.x, b.y - unit.y);
+                  if (d > maxDist) {
+                    maxDist = d;
+                    bestDest = b;
+                  }
+                }
+              }
+            }
+            if (bestDest) {
+              unit.tradeTargetId = bestDest.id;
+              unit.tradeGoldYield = Math.max(15, Math.round(maxDist * 1.5));
+              targetBldg = bestDest;
+            } else {
+              unit.state = 'idle';
+              break;
+            }
+          }
+
+          const destCenterX = targetBldg.x + targetBldg.width / 2;
+          const destCenterY = targetBldg.y + targetBldg.height / 2;
+          const dist = Math.hypot(destCenterX - unit.x, destCenterY - unit.y);
+
+          if (dist <= 2.2) {
+            const goldEarned = unit.tradeGoldYield || 20;
+            const owner = this.players.get(unit.ownerId);
+            if (owner) {
+              owner.resources.metal += goldEarned;
+              owner.stats.resourcesGathered.metal += goldEarned;
+            }
+            this.pendingEvents.push({
+              type: 'TRADE_COMPLETED',
+              unitId: unit.id,
+              ownerId: unit.ownerId,
+              goldEarned,
+              x: unit.x,
+              y: unit.y
+            });
+
+            const temp = unit.tradeSourceId;
+            unit.tradeSourceId = unit.tradeTargetId;
+            unit.tradeTargetId = temp;
+
+            const nextBldg = unit.tradeTargetId ? this.buildings.get(unit.tradeTargetId) : undefined;
+            if (nextBldg) {
+              unit.targetX = nextBldg.x + nextBldg.width / 2;
+              unit.targetY = nextBldg.y + nextBldg.height / 2;
+              unit.path = this.pathfinder.findPath(unit.x, unit.y, unit.targetX, unit.targetY);
+            }
+          } else {
+            if (!unit.path || unit.path.length === 0) {
+              unit.path = this.pathfinder.findPath(unit.x, unit.y, destCenterX, destCenterY);
+            }
+            this.stepUnitMovement(unit, speed, dt);
+          }
+          break;
+        }
+
         case 'moving': {
           this.stepUnitMovement(unit, speed, dt);
           break;
@@ -1693,6 +1767,31 @@ export class SimulationEngine {
       x: spawnX,
       y: spawnY
     });
+
+    if (unitType === 'trade_cart') {
+      let bestDest: BuildingData | null = null;
+      let maxDist = 0;
+      for (const b of this.buildings.values()) {
+        if (b.id !== bldg.id && b.hp > 0 && b.isConstructed && (b.type === 'town_centre' || b.type === 'market')) {
+          if (b.team === bldg.team) {
+            const d = Math.hypot(b.x - bldg.x, b.y - bldg.y);
+            if (d > maxDist) {
+              maxDist = d;
+              bestDest = b;
+            }
+          }
+        }
+      }
+      if (bestDest) {
+        unit.state = 'trading';
+        unit.tradeSourceId = bldg.id;
+        unit.tradeTargetId = bestDest.id;
+        unit.tradeGoldYield = Math.max(15, Math.round(maxDist * 1.5));
+        unit.targetX = bestDest.x + bestDest.width / 2;
+        unit.targetY = bestDest.y + bestDest.height / 2;
+        unit.path = this.pathfinder.findPath(unit.x, unit.y, unit.targetX, unit.targetY);
+      }
+    }
 
     if (unitType === 'worker') {
       if (bldg.rallyPoint) {

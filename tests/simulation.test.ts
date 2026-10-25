@@ -1027,4 +1027,97 @@ describe('Industrial Age Instant Troop Spawning', () => {
     expect(guard.y).toBe(15);
   });
 
+  it('handles TRADE_COMMODITY command to exchange resources at Commercial Market', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    player.resources.wood = 500;
+    player.resources.food = 100;
+
+    // Exchange 120 Wood for 100 Food
+    const ok = sim.processCommand('player_human', {
+      type: 'TRADE_COMMODITY',
+      buyResource: 'food',
+      sellResource: 'wood',
+      buyAmount: 100,
+      sellAmount: 120
+    });
+
+    expect(ok).toBe(true);
+    expect(player.resources.wood).toBe(380);
+    expect(player.resources.food).toBe(200);
+
+    // Fail when insufficient resources
+    const fail = sim.processCommand('player_human', {
+      type: 'TRADE_COMMODITY',
+      buyResource: 'food',
+      sellResource: 'wood',
+      buyAmount: 1000,
+      sellAmount: 1200
+    });
+    expect(fail).toBe(false);
+  });
+
+  it('automatically establishes continuous trade routes and generates gold revenue for trade carts', () => {
+    const sim = createTestSim();
+    const player = sim.players.get('player_human')!;
+    const initialGold = player.resources.metal;
+
+    const tc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'player_human' && b.type === 'town_centre')!;
+
+    // Construct a market 15 tiles away
+    const marketId = 'test_market_1';
+    const market = {
+      id: marketId,
+      ownerId: 'player_human',
+      team: 1,
+      type: 'market' as const,
+      x: tc.x + 15,
+      y: tc.y,
+      width: 3,
+      height: 3,
+      hp: 850,
+      maxHp: 850,
+      isConstructed: true,
+      constructionProgress: 100,
+      productionQueue: []
+    };
+    sim.buildings.set(marketId, market);
+
+    // Spawn trade cart directly at market
+    const cartId = 'trade_cart_1';
+    const cart = {
+      id: cartId,
+      type: 'trade_cart' as const,
+      ownerId: 'player_human',
+      team: 1,
+      x: market.x,
+      y: market.y + 3,
+      hp: 100,
+      maxHp: 100,
+      state: 'trading' as const,
+      tradeSourceId: market.id,
+      tradeTargetId: tc.id,
+      tradeGoldYield: 35,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0,
+      targetX: tc.x + tc.width / 2,
+      targetY: tc.y + tc.height / 2
+    };
+    sim.units.set(cartId, cart);
+
+    // Teleport trade cart right next to Town Center checkpoint
+    cart.x = tc.x + tc.width / 2;
+    cart.y = tc.y + tc.height / 2 + 1.0;
+
+    // Run tick to trigger checkpoint arrival & trade completion
+    sim.tick(0.05);
+
+    expect(player.resources.metal).toBe(initialGold + 35);
+    // Route should automatically reverse back towards the market
+    expect(cart.tradeTargetId).toBe(market.id);
+    expect(cart.tradeSourceId).toBe(tc.id);
+  });
+
 });

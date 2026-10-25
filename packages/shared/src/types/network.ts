@@ -64,6 +64,7 @@ export interface LobbyState {
 export type CommandPayload =
   | { type: 'MOVE'; unitIds: string[]; target: Vector2D; formation?: FormationType }
   | { type: 'SET_STANCE'; unitIds: string[]; stance: UnitStance }
+  | { type: 'TRADE_COMMODITY'; buyResource: ResourceType; sellResource: ResourceType; buyAmount: number; sellAmount: number }
   | { type: 'ATTACK'; unitIds: string[]; targetEntityId: string }
   | { type: 'GATHER'; unitIds: string[]; resourceNodeId: string }
   | { type: 'BUILD'; unitIds: string[]; buildingType: BuildingType; position: Vector2D }
@@ -94,7 +95,8 @@ export type GameEvent =
   | { type: 'TECH_RESEARCHED'; playerId: string; techId: string }
   | { type: 'PLAYER_DEFEATED'; playerId: string; playerName: string; team: number }
   | { type: 'GAME_OVER'; winnerTeam: number; reason: string }
-  | { type: 'UNIT_SPAWNED'; unitId: string; unitType: string; ownerId: string; x?: number; y?: number };
+  | { type: 'UNIT_SPAWNED'; unitId: string; unitType: string; ownerId: string; x?: number; y?: number }
+  | { type: 'TRADE_COMPLETED'; unitId: string; ownerId: string; goldEarned: number; x: number; y: number };
 
 // Socket.IO event contracts
 export interface ClientToServerEvents {

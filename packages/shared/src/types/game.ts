@@ -27,7 +27,8 @@ export type UnitType =
   | 'cavalry'
   | 'siege_unit'
   | 'advanced_unit'
-  | 'dragon';
+  | 'dragon'
+  | 'trade_cart';
 
 export type BuildingType =
   | 'town_centre'
@@ -55,6 +56,7 @@ export type UnitActionState =
   | 'building'
   | 'repairing'
   | 'attacking'
+  | 'trading'
   | 'dead';
 
 export type UnitStance = 'aggressive' | 'defensive' | 'stand_ground';
@@ -88,6 +90,9 @@ export interface UnitData {
   stance?: UnitStance;
   guardX?: number;
   guardY?: number;
+  tradeSourceId?: string;
+  tradeTargetId?: string;
+  tradeGoldYield?: number;
 }
 
 export interface BuildingData {
