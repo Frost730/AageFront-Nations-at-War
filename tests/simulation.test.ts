@@ -857,4 +857,174 @@ describe('Industrial Age Instant Troop Spawning', () => {
     const finalUnitsCount = Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human').length;
     expect(finalUnitsCount).toBeGreaterThan(initialUnitsCount + 1);
   });
+  it('correctly handles SET_STANCE command and establishes guard post', () => {
+    const sim = createTestSim();
+    const myUnits = Array.from(sim.units.values()).filter(u => u.ownerId === 'player_human');
+    const u1 = myUnits[0];
+
+    const success = sim.processCommand('player_human', {
+      type: 'SET_STANCE',
+      unitIds: [u1.id],
+      stance: 'defensive'
+    });
+
+    expect(success).toBe(true);
+    expect(u1.stance).toBe('defensive');
+    expect(u1.guardX).toBe(u1.x);
+    expect(u1.guardY).toBe(u1.y);
+
+    sim.processCommand('player_human', {
+      type: 'SET_STANCE',
+      unitIds: [u1.id],
+      stance: 'stand_ground'
+    });
+    expect(u1.stance).toBe('stand_ground');
+  });
+
+  it('deploys army in tactical formation ranks on MOVE', () => {
+    const sim = createTestSim();
+    // Spawn a mix of frontline infantry, ranged archers, and cavalry
+    const soldier1 = {
+      id: 'test_infantry_1',
+      type: 'basic_infantry' as const,
+      ownerId: 'player_human',
+      team: 1,
+      x: 10,
+      y: 10,
+      hp: 100,
+      maxHp: 100,
+      state: 'idle' as const,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0
+    };
+    const soldier2 = {
+      id: 'test_spear_1',
+      type: 'spearman' as const,
+      ownerId: 'player_human',
+      team: 1,
+      x: 10,
+      y: 11,
+      hp: 100,
+      maxHp: 100,
+      state: 'idle' as const,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0
+    };
+    const archer = {
+      id: 'test_archer_1',
+      type: 'ranged_infantry' as const,
+      ownerId: 'player_human',
+      team: 1,
+      x: 9,
+      y: 10,
+      hp: 70,
+      maxHp: 70,
+      state: 'idle' as const,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0
+    };
+    const scout = {
+      id: 'test_cavalry_1',
+      type: 'cavalry' as const,
+      ownerId: 'player_human',
+      team: 1,
+      x: 9,
+      y: 11,
+      hp: 150,
+      maxHp: 150,
+      state: 'idle' as const,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0
+    };
+
+    sim.units.set(soldier1.id, soldier1);
+    sim.units.set(soldier2.id, soldier2);
+    sim.units.set(archer.id, archer);
+    sim.units.set(scout.id, scout);
+
+    const target = { x: 25, y: 25 };
+    const success = sim.processCommand('player_human', {
+      type: 'MOVE',
+      unitIds: [soldier1.id, soldier2.id, archer.id, scout.id],
+      target,
+      formation: 'line'
+    });
+
+    expect(success).toBe(true);
+    // All units should have target destinations assigned
+    expect(soldier1.targetX).toBeDefined();
+    expect(soldier2.targetX).toBeDefined();
+    expect(archer.targetX).toBeDefined();
+    expect(scout.targetX).toBeDefined();
+
+    // Verify slots are spaced out (no overlapping exact targets)
+    const targets = [
+      `${soldier1.targetX}_${soldier1.targetY}`,
+      `${soldier2.targetX}_${soldier2.targetY}`,
+      `${archer.targetX}_${archer.targetY}`,
+      `${scout.targetX}_${scout.targetY}`
+    ];
+    const uniqueTargets = new Set(targets);
+    expect(uniqueTargets.size).toBe(4);
+  });
+
+  it('prevents stand_ground units from breaking formation to chase distant enemies', () => {
+    const sim = createTestSim();
+    const guard = {
+      id: 'guard_unit',
+      type: 'basic_infantry' as const,
+      ownerId: 'player_human',
+      team: 1,
+      x: 15,
+      y: 15,
+      hp: 100,
+      maxHp: 100,
+      state: 'idle' as const,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0,
+      stance: 'stand_ground' as const,
+      guardX: 15,
+      guardY: 15
+    };
+    sim.units.set(guard.id, guard);
+
+    // Enemy is 4 tiles away (well within vision 8.0, but beyond melee reach 1.2)
+    const enemy = {
+      id: 'distant_enemy',
+      type: 'basic_infantry' as const,
+      ownerId: 'player_ai',
+      team: 2,
+      x: 19,
+      y: 15,
+      hp: 100,
+      maxHp: 100,
+      state: 'idle' as const,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0
+    };
+    sim.units.set(enemy.id, enemy);
+
+    // Tick simulation
+    for (let i = 0; i < 10; i++) {
+      sim.tick(0.05);
+    }
+
+    // Stand ground unit should remain at post and not chase
+    expect(guard.state).toBe('idle');
+    expect(guard.x).toBe(15);
+    expect(guard.y).toBe(15);
+  });
+
 });

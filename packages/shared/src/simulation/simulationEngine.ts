@@ -9,7 +9,9 @@ import {
   UnitType,
   ResourceType,
   CivName,
-  AgeName
+  AgeName,
+  FormationType,
+  UnitStance
 } from '../types/game.js';
 import { CommandPayload, ServerSnapshot, GameEvent } from '../types/network.js';
 import { UNIT_DEFINITIONS } from '../constants/units.js';
@@ -192,46 +194,167 @@ export class SimulationEngine {
   }
 
   // Execute client commands
+  
+  private calculateFormationPositions(units: UnitData[], target: Vector2D, formation: FormationType = 'line'): Map<string, Vector2D> {
+    const result = new Map<string, Vector2D>();
+    if (units.length === 0) return result;
+    if (units.length === 1) {
+      result.set(units[0].id, { x: target.x, y: target.y });
+      return result;
+    }
+
+    const avgX = units.reduce((acc, u) => acc + u.x, 0) / units.length;
+    const avgY = units.reduce((acc, u) => acc + u.y, 0) / units.length;
+    let heading = Math.atan2(target.y - avgY, target.x - avgX);
+    if (Math.hypot(target.x - avgX, target.y - avgY) < 0.1) {
+      heading = 0;
+    }
+    const perp = heading + Math.PI / 2;
+    const fx = Math.cos(heading);
+    const fy = Math.sin(heading);
+    const px = Math.cos(perp);
+    const py = Math.sin(perp);
+
+    const findValidNear = (tx: number, ty: number): Vector2D => {
+      const ix = Math.floor(tx);
+      const iy = Math.floor(ty);
+      if (this.pathfinder.isWalkable(ix, iy)) {
+        return { x: ix + 0.5, y: iy + 0.5 };
+      }
+      for (let r = 1; r <= 3; r++) {
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dy = -r; dy <= r; dy++) {
+            if (this.pathfinder.isWalkable(ix + dx, iy + dy)) {
+              return { x: ix + dx + 0.5, y: iy + dy + 0.5 };
+            }
+          }
+        }
+      }
+      return { x: target.x, y: target.y };
+    };
+
+    if (formation === 'line') {
+      const rankOrder = (t: UnitType) => {
+        if (t === 'spearman' || t === 'basic_infantry' || t === 'advanced_unit') return 0;
+        if (t === 'scout' || t === 'cavalry') return 1;
+        if (t === 'ranged_infantry') return 2;
+        return 3;
+      };
+      const sorted = [...units].sort((a, b) => rankOrder(a.type) - rankOrder(b.type));
+      const ranks: UnitData[][] = [[], [], []];
+      for (const u of sorted) {
+        const ro = rankOrder(u.type);
+        if (ro === 0 || ro === 1) ranks[0].push(u);
+        else if (ro === 2) ranks[1].push(u);
+        else ranks[2].push(u);
+      }
+      let rowOffsetF = 0;
+      for (const rankUnits of ranks) {
+        if (rankUnits.length === 0) continue;
+        const maxPerRow = 8;
+        const numRows = Math.ceil(rankUnits.length / maxPerRow);
+        for (let r = 0; r < numRows; r++) {
+          const rowSlice = rankUnits.slice(r * maxPerRow, (r + 1) * maxPerRow);
+          const count = rowSlice.length;
+          const spacing = 1.4;
+          rowSlice.forEach((u, idx) => {
+            const offsetP = (idx - (count - 1) / 2) * spacing;
+            const candX = target.x + offsetP * px - rowOffsetF * fx;
+            const candY = target.y + offsetP * py - rowOffsetF * fy;
+            result.set(u.id, findValidNear(candX, candY));
+          });
+          rowOffsetF += 1.8;
+        }
+      }
+    } else if (formation === 'box') {
+      const cols = Math.ceil(Math.sqrt(units.length));
+      const rows = Math.ceil(units.length / cols);
+      const spacing = 1.4;
+      units.forEach((u, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const offsetP = (col - (cols - 1) / 2) * spacing;
+        const offsetF = (row - (rows - 1) / 2) * spacing;
+        const candX = target.x + offsetP * px - offsetF * fx;
+        const candY = target.y + offsetP * py - offsetF * fy;
+        result.set(u.id, findValidNear(candX, candY));
+      });
+    } else if (formation === 'staggered') {
+      const cols = Math.max(3, Math.ceil(Math.sqrt(units.length) * 1.4));
+      const spacingP = 2.4;
+      const spacingF = 2.0;
+      units.forEach((u, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const stagger = (row % 2 === 1) ? 1.2 : 0;
+        const offsetP = (col - (cols - 1) / 2) * spacingP + stagger;
+        const offsetF = row * spacingF;
+        const candX = target.x + offsetP * px - offsetF * fx;
+        const candY = target.y + offsetP * py - offsetF * fy;
+        result.set(u.id, findValidNear(candX, candY));
+      });
+    } else if (formation === 'column') {
+      const spacingP = 1.6;
+      const spacingF = 1.8;
+      units.forEach((u, i) => {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const offsetP = (col - 0.5) * spacingP;
+        const offsetF = row * spacingF;
+        const candX = target.x + offsetP * px - offsetF * fx;
+        const candY = target.y + offsetP * py - offsetF * fy;
+        result.set(u.id, findValidNear(candX, candY));
+      });
+    }
+
+    return result;
+  }
+
   public processCommand(playerId: string, cmd: CommandPayload): boolean {
     const player = this.players.get(playerId);
     if (!player || player.isDefeated) return false;
 
     switch (cmd.type) {
       case 'MOVE': {
-        const unitCount = cmd.unitIds.length;
-        const baseRadius = 1.4;
+        const validUnits: UnitData[] = [];
+        for (const uid of cmd.unitIds) {
+          const u = this.units.get(uid);
+          if (u && u.ownerId === playerId && u.state !== 'dead') {
+            validUnits.push(u);
+          }
+        }
+        if (validUnits.length === 0) return false;
 
-        cmd.unitIds.forEach((uid, index) => {
-          const unit = this.units.get(uid);
-          if (!unit || unit.ownerId !== playerId || unit.state === 'dead') return;
+        const positions = this.calculateFormationPositions(validUnits, cmd.target, cmd.formation || 'line');
 
+        for (const unit of validUnits) {
           unit.state = 'moving';
           unit.targetEntityId = undefined;
           unit.stuckTicks = 0;
 
-          let targetX = cmd.target.x;
-          let targetY = cmd.target.y;
+          const slot = positions.get(unit.id) || cmd.target;
+          unit.targetX = slot.x;
+          unit.targetY = slot.y;
+          unit.guardX = slot.x;
+          unit.guardY = slot.y;
 
-          // Multi-unit formation spacing to prevent congestion and vehicle traffic jams
-          if (unitCount > 1 && index > 0) {
-            const angle = (index * 2.39996); // golden angle distribution
-            const dist = baseRadius * Math.sqrt(index);
-            const ox = Math.round(cmd.target.x + Math.cos(angle) * dist);
-            const oy = Math.round(cmd.target.y + Math.sin(angle) * dist);
-            if (this.pathfinder.isWalkable(ox, oy)) {
-              targetX = ox + 0.5;
-              targetY = oy + 0.5;
-            }
-          }
-
-          unit.targetX = targetX;
-          unit.targetY = targetY;
           if (unit.type === 'dragon') {
-            unit.path = [{ x: targetX, y: targetY }];
+            unit.path = [{ x: slot.x, y: slot.y }];
           } else {
-            unit.path = this.pathfinder.findPath(unit.x, unit.y, targetX, targetY);
+            unit.path = this.pathfinder.findPath(unit.x, unit.y, slot.x, slot.y);
           }
-        });
+        }
+        return true;
+      }
+
+      case 'SET_STANCE': {
+        for (const uid of cmd.unitIds) {
+          const unit = this.units.get(uid);
+          if (!unit || unit.ownerId !== playerId || unit.state === 'dead') continue;
+          unit.stance = cmd.stance;
+          unit.guardX = unit.x;
+          unit.guardY = unit.y;
+        }
         return true;
       }
 
@@ -770,7 +893,18 @@ export class SimulationEngine {
       // Auto-aggro & defensive scan for idle combat units with tactical target prioritization
       if (unit.type !== 'worker' && unit.type !== 'scout' && unit.state === 'idle') {
         let nearestEnemyId: string | undefined;
-        let minEnemyDist = unit.type === 'dragon' ? 12.0 : (def.visionRange || 8.0);
+        const currentStance = unit.stance || 'aggressive';
+        const guardOriginX = unit.guardX ?? unit.x;
+        const guardOriginY = unit.guardY ?? unit.y;
+
+        let attackRange = def.attackRange;
+        if (unit.type === 'ranged_infantry' && player.researchedTechs.includes('bodkin_arrows')) {
+          attackRange += 1.0;
+        }
+
+        let minEnemyDist = currentStance === 'stand_ground'
+          ? (attackRange + 0.3)
+          : (unit.type === 'dragon' ? 12.0 : (def.visionRange || 8.0));
 
         // Siege units (Catapults/Trebuchets) prioritize enemy defensive structures and Town Centres
         if (unit.type === 'siege_unit') {
@@ -779,6 +913,11 @@ export class SimulationEngine {
               const cx = eb.x + eb.width / 2;
               const cy = eb.y + eb.height / 2;
               const d = Math.hypot(cx - unit.x, cy - unit.y);
+              if (currentStance === 'stand_ground' && d > attackRange + 0.3) continue;
+              if (currentStance === 'defensive') {
+                const distFromPost = Math.hypot(cx - guardOriginX, cy - guardOriginY);
+                if (distFromPost > 6.0) continue;
+              }
               const weight = eb.type === 'watchtower' || eb.type === 'fort' ? 0.45 : eb.type === 'town_centre' ? 0.55 : 0.8;
               if (d * weight < minEnemyDist) {
                 minEnemyDist = d * weight;
@@ -793,6 +932,11 @@ export class SimulationEngine {
           for (const eu of this.units.values()) {
             if (eu.team !== unit.team && eu.state !== 'dead') {
               const d = Math.hypot(eu.x - unit.x, eu.y - unit.y);
+              if (currentStance === 'stand_ground' && d > attackRange + 0.3) continue;
+              if (currentStance === 'defensive') {
+                const distFromPost = Math.hypot(eu.x - guardOriginX, eu.y - guardOriginY);
+                if (distFromPost > 6.0) continue;
+              }
               const bonus = def.bonusMultiplierVs ? (def.bonusMultiplierVs[eu.type] || 1.0) : 1.0;
               const hpRatio = eu.hp / Math.max(1, eu.maxHp);
               // Prioritize units we deal bonus damage against (e.g. spearmen vs cavalry, cavalry vs archers)

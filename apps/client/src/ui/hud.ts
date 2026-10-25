@@ -10,7 +10,9 @@ import {
   TECHNOLOGIES,
   AGE_ADVANCEMENT_REQUIREMENTS,
   AgeName,
-  ResourceType
+  ResourceType,
+  UnitStance,
+  FormationType
 } from '@agefront/shared';
 import { soundManager } from '../audio/soundManager.js';
 
@@ -23,6 +25,8 @@ export interface HudCallbacks {
   onSelectIdleWorker: () => void;
   onSelectAllMilitary?: () => void;
   onAssignWorkersToBuild: (buildingId: string) => void;
+  onSetStance?: (stance: UnitStance) => void;
+  onSetFormation?: (formation: FormationType) => void;
   onOpenMenu: () => void;
   onTransferResources?: (recipientId: string, resource: ResourceType, amount: number) => void;
 }
@@ -48,6 +52,8 @@ export class HudView {
   private coopBtnElem!: HTMLElement;
   private allPlayers: PlayerState[] = [];
   private currentPlayer: PlayerState | null = null;
+  private currentStance: UnitStance = 'aggressive';
+  private currentFormation: FormationType = 'line';
   private townCentreId: string | null = null;
 
   private currentContextKey: string = '';
@@ -1016,6 +1022,112 @@ export class HudView {
   }
 
   // ==========================================
+  
+  public getCurrentFormation(): FormationType {
+    return this.currentFormation;
+  }
+
+  public getCurrentStance(): UnitStance {
+    return this.currentStance;
+  }
+
+  public setStance(stance: UnitStance): void {
+    this.currentStance = stance;
+    this.callbacks.onSetStance?.(stance);
+    this.showNotification(`⚔️ Unit Stance: ${stance.toUpperCase().replace('_', ' ')}`);
+    if (this.currentContextKey === 'tactics_matrix') {
+      this.renderMilitaryTacticsMatrix();
+    }
+  }
+
+  public setFormation(formation: FormationType): void {
+    this.currentFormation = formation;
+    this.callbacks.onSetFormation?.(formation);
+    this.showNotification(`🛡️ Formation: ${formation.toUpperCase()} ORDER`);
+    if (this.currentContextKey === 'tactics_matrix') {
+      this.renderMilitaryTacticsMatrix();
+    }
+  }
+
+  private renderMilitaryTacticsMatrix(): void {
+    this.actionMatrixElem.innerHTML = '';
+
+    const stances: { id: UnitStance; label: string; icon: string; hotkey: string }[] = [
+      { id: 'aggressive', label: 'Aggressive', icon: '⚔️', hotkey: 'Q' },
+      { id: 'defensive', label: 'Defensive', icon: '🛡️', hotkey: 'W' },
+      { id: 'stand_ground', label: 'Stand Ground', icon: '🛑', hotkey: 'E' }
+    ];
+
+    const formations: { id: FormationType; label: string; icon: string; hotkey: string }[] = [
+      { id: 'line', label: 'Line', icon: '━', hotkey: 'A' },
+      { id: 'box', label: 'Box', icon: '⏹', hotkey: 'S' },
+      { id: 'staggered', label: 'Staggered', icon: '⁖', hotkey: 'D' },
+      { id: 'column', label: 'Column', icon: '‖', hotkey: 'F' }
+    ];
+
+    // Stance Buttons
+    stances.forEach(s => {
+      const isActive = this.currentStance === s.id;
+      const btn = document.createElement('button');
+      btn.className = 'aoe3-action-btn';
+      btn.style.cssText = `
+        padding: 2px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+        ${isActive ? 'background: linear-gradient(180deg, #991b1b 0%, #450a0a 100%) !important; border-color: #fef08a !important; box-shadow: 0 0 8px rgba(254, 240, 138, 0.4);' : ''}
+      `;
+      btn.innerHTML = `
+        <span class="aoe3-hotkey-badge">${s.hotkey}</span>
+        <span style="font-size: 14px;">${s.icon}</span>
+        <span style="font-weight: 700; font-size: 9.5px; line-height: 1; color: ${isActive ? '#fef08a' : '#f1f5f9'};">${s.label}</span>
+        <span style="font-size: 8px; color: ${isActive ? '#86efac' : '#94a3b8'};">${isActive ? 'ACTIVE' : 'STANCE'}</span>
+      `;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setStance(s.id);
+      });
+      this.actionMatrixElem.appendChild(btn);
+    });
+
+    // Spacer
+    for (let i = 0; i < 2; i++) {
+      const dummy = document.createElement('div');
+      this.actionMatrixElem.appendChild(dummy);
+    }
+
+    // Formation Buttons
+    formations.forEach(f => {
+      const isActive = this.currentFormation === f.id;
+      const btn = document.createElement('button');
+      btn.className = 'aoe3-action-btn';
+      btn.style.cssText = `
+        padding: 2px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+        ${isActive ? 'background: linear-gradient(180deg, #1e3a8a 0%, #172554 100%) !important; border-color: #fef08a !important; box-shadow: 0 0 8px rgba(254, 240, 138, 0.4);' : ''}
+      `;
+      btn.innerHTML = `
+        <span class="aoe3-hotkey-badge">${f.hotkey}</span>
+        <span style="font-size: 14px; font-weight: 900;">${f.icon}</span>
+        <span style="font-weight: 700; font-size: 9.5px; line-height: 1; color: ${isActive ? '#fef08a' : '#f1f5f9'};">${f.label}</span>
+        <span style="font-size: 8px; color: ${isActive ? '#86efac' : '#94a3b8'};">${isActive ? 'FORMED' : 'ORDER'}</span>
+      `;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setFormation(f.id);
+      });
+      this.actionMatrixElem.appendChild(btn);
+    });
+  }
+
   // ACTION MATRICES WITH AOE3 HOTKEYS (Q, W, E, R...)
   // ==========================================
   private renderWorkerBuildMatrix(player: PlayerState): void {

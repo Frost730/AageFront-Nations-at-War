@@ -8,7 +8,9 @@ import {
   BuildingType,
   UnitType,
   ResourceType,
-  CivName
+  CivName,
+  UnitStance,
+  FormationType
 } from './game.js';
 
 export interface LobbyPlayer {
@@ -60,7 +62,8 @@ export interface LobbyState {
 
 // Commands from client to server
 export type CommandPayload =
-  | { type: 'MOVE'; unitIds: string[]; target: Vector2D }
+  | { type: 'MOVE'; unitIds: string[]; target: Vector2D; formation?: FormationType }
+  | { type: 'SET_STANCE'; unitIds: string[]; stance: UnitStance }
   | { type: 'ATTACK'; unitIds: string[]; targetEntityId: string }
   | { type: 'GATHER'; unitIds: string[]; resourceNodeId: string }
   | { type: 'BUILD'; unitIds: string[]; buildingType: BuildingType; position: Vector2D }

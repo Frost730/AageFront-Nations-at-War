@@ -57,6 +57,9 @@ export type UnitActionState =
   | 'attacking'
   | 'dead';
 
+export type UnitStance = 'aggressive' | 'defensive' | 'stand_ground';
+export type FormationType = 'line' | 'box' | 'staggered' | 'column';
+
 export interface Vector2D {
   x: number;
   y: number;
@@ -82,6 +85,9 @@ export interface UnitData {
   gatherCooldown: number;
   facingAngle: number;
   stuckTicks?: number;
+  stance?: UnitStance;
+  guardX?: number;
+  guardY?: number;
 }
 
 export interface BuildingData {

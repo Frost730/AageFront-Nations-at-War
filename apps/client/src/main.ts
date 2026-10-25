@@ -8,7 +8,9 @@ import {
   Vector2D,
   GameSettings,
   CivName,
-  BUILDING_DEFINITIONS
+  BUILDING_DEFINITIONS,
+  FormationType,
+  UnitStance
 } from '@agefront/shared';
 import { GameRenderer } from './rendering/renderer.js';
 import { SelectionManager } from './controls/selectionManager.js';
@@ -30,6 +32,7 @@ class GameApp {
   private selection: SelectionManager;
   private inputHandler: InputHandler;
   private minimap: Minimap | null = null;
+  private activeFormation: FormationType = 'line';
   private hud: HudView;
   private mainMenu: MainMenuView;
   private lobbyView: LobbyView;
@@ -57,7 +60,7 @@ class GameApp {
 
     this.inputHandler = new InputHandler(this.canvas, this.renderer, this.selection, {
       dispatchMove: (unitIds, target) => {
-        networkClient.sendCommand({ type: 'MOVE', unitIds, target });
+        networkClient.sendCommand({ type: 'MOVE', unitIds, target, formation: this.activeFormation });
       },
       dispatchAttack: (unitIds, targetEntityId) => {
         networkClient.sendCommand({ type: 'ATTACK', unitIds, targetEntityId });
@@ -119,6 +122,19 @@ class GameApp {
         } else {
           this.hud.showNotification('ℹ️ No active combat units in your regiment.');
         }
+      },
+      onSetStance: (stance: UnitStance) => {
+        const militaryIds = this.currentUnits
+          .filter(u => this.selection.selectedIds.has(u.id) && u.ownerId === this.myPlayerId && u.type !== 'worker' && u.state !== 'dead')
+          .map(u => u.id);
+        if (militaryIds.length > 0) {
+          networkClient.sendCommand({ type: 'SET_STANCE', unitIds: militaryIds, stance });
+          soundManager.playClick();
+        }
+      },
+      onSetFormation: (formation: FormationType) => {
+        this.activeFormation = formation;
+        soundManager.playClick();
       },
       onAssignWorkersToBuild: (buildingId: string) => {
         const myWorkers = this.currentUnits.filter(u => u.ownerId === this.myPlayerId && u.type === 'worker' && u.state !== 'dead');
