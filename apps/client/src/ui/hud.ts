@@ -396,7 +396,7 @@ export class HudView {
       font-weight: 700;
     `;
     this.replayBarElem.innerHTML = `
-      <span style="display: flex; align-items: center; gap: 4px;">🎞️ <strong>REPLAY MODE</strong></span>
+      <span style="display: flex; align-items: center; gap: 4px;"><strong>REPLAY MODE</strong></span>
       <span id="replay-time-display" style="color: #cbd5e1; font-family: monospace; font-size: 13px;">00:00 / 00:00</span>
       <button id="btn-replay-pause" class="aoe3-action-btn" style="padding: 2px 8px; font-size: 12px; cursor: pointer;">⏸ Pause</button>
       <div style="display: flex; gap: 4px;">

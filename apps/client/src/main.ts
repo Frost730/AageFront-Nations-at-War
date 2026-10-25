@@ -396,7 +396,7 @@ class GameApp {
       (isPaused) => { this.replayPaused = isPaused; },
       (speed) => { this.replaySpeed = speed; }
     );
-    this.hud.showNotification('🎞️ Match Replay Mode Loaded (.afr)');
+    this.hud.showNotification('Match Replay Mode Loaded (.afr)');
   }
 
   private handleGameStart(data: GameStartData): void {
@@ -623,7 +623,7 @@ class GameApp {
         const hasMore = this.replayPlayer.step(0.05);
         if (!hasMore) {
           this.replayPaused = true;
-          this.hud.showNotification('🎞️ Replay Reached End of Match.');
+          this.hud.showNotification('Replay Reached End of Match.');
           break;
         }
       }

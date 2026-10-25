@@ -205,7 +205,7 @@ export class MainMenuView {
 
           
           <button id="btn-load-replay" class="aoe-btn-crimson" style="padding: 11px; font-size: 13px; opacity: 0.95;">
-            🎞️ Match Replay Viewer (.afr)
+            Match Replay Viewer (.afr)
           </button>
             <button id="btn-how-to-play" class="aoe-btn-crimson" style="padding: 11px; font-size: 13px; opacity: 0.95;">
             Civilization Codex & Guide
