@@ -88,7 +88,7 @@ export class GameRenderer {
     // Cap pixel ratio to 1.25 to prevent 4K GPU fill-rate throttling on high-DPI displays
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
 
@@ -99,8 +99,8 @@ export class GameRenderer {
     const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.55);
     sunLight.position.set(65, 95, 55);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 10;
     sunLight.shadow.camera.far = 300;
     sunLight.shadow.camera.left = -120;

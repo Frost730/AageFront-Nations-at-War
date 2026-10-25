@@ -13,19 +13,19 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     color: 0x94a3b8, // Light granite stone
     roughness: 0.82,
     metalness: 0.08,
-    flatShading: true
+    flatShading: false
   });
   const darkStoneMat = new THREE.MeshStandardMaterial({
     color: 0x475569, // Dark slate & plinth bedrock
     roughness: 0.88,
     metalness: 0.12,
-    flatShading: true
+    flatShading: false
   });
   const marbleMat = new THREE.MeshStandardMaterial({
     color: 0xf1f5f9, // Polished white marble for academy
     roughness: 0.45,
     metalness: 0.15,
-    flatShading: true
+    flatShading: false
   });
 
   // Heavy Timber & Wood Planks
@@ -33,18 +33,18 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     color: 0x451a03, // Dark oak structural timber
     roughness: 0.85,
     metalness: 0.05,
-    flatShading: true
+    flatShading: false
   });
   const plankWoodMat = new THREE.MeshStandardMaterial({
     color: 0x78350f, // Hewn pine planks
     roughness: 0.75,
     metalness: 0.05,
-    flatShading: true
+    flatShading: false
   });
   const lightWoodMat = new THREE.MeshStandardMaterial({
     color: 0xb45309, // Light scaffolding timber
     roughness: 0.7,
-    flatShading: true
+    flatShading: false
   });
 
   // Roof Shingles & Clay Tiles
@@ -52,13 +52,13 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     color: 0x991b1b, // Weathered terracotta red tile
     roughness: 0.55,
     metalness: 0.1,
-    flatShading: true
+    flatShading: false
   });
   const slateRoofMat = new THREE.MeshStandardMaterial({
     color: 0x1e293b, // Dark charcoal slate
     roughness: 0.5,
     metalness: 0.18,
-    flatShading: true
+    flatShading: false
   });
 
   // Faction Team Color & Accents
@@ -67,13 +67,13 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     color: teamCol,
     roughness: 0.35,
     metalness: 0.25,
-    flatShading: true
+    flatShading: false
   });
   const teamDarkMat = new THREE.MeshStandardMaterial({
     color: teamCol.clone().multiplyScalar(0.7),
     roughness: 0.45,
     metalness: 0.2,
-    flatShading: true
+    flatShading: false
   });
 
   // Metals & Glows
@@ -81,18 +81,18 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     color: 0xfbbf24, // Polished brass & gold finials
     roughness: 0.2,
     metalness: 0.85,
-    flatShading: true
+    flatShading: false
   });
   const ironMat = new THREE.MeshStandardMaterial({
     color: 0x334155, // Wrought iron portcullis & anvil
     roughness: 0.4,
     metalness: 0.75,
-    flatShading: true
+    flatShading: false
   });
   const canvasMat = new THREE.MeshStandardMaterial({
     color: 0xfef3c7, // Woven linen canvas & awnings
     roughness: 0.9,
-    flatShading: true
+    flatShading: false
   });
   const lanternGlowMat = new THREE.MeshStandardMaterial({
     color: 0xfbbf24,
@@ -115,7 +115,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
 
   // Helper for adding hanging lanterns
   const addLantern = (x: number, y: number, z: number) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.25, 4), ironMat);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.25, 14), ironMat);
     post.position.set(x, y + 0.1, z);
     root.add(post);
 
@@ -146,7 +146,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     root.add(p2);
 
     // Upright structural poles
-    const poleGeom = new THREE.CylinderGeometry(0.08, 0.08, 2.8, 5);
+    const poleGeom = new THREE.CylinderGeometry(0.08, 0.08, 2.8, 10);
     const poleOffsets = [
       [-w * 0.42, -h * 0.42], [w * 0.42, -h * 0.42],
       [-w * 0.42, h * 0.42], [w * 0.42, h * 0.42],
@@ -213,14 +213,14 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(upperKeep);
 
       // Main Grand Slate Roof
-      const mainRoof = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.6, 4), slateRoofMat);
+      const mainRoof = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.6, 14), slateRoofMat);
       mainRoof.position.y = 3.9;
       mainRoof.rotation.y = Math.PI / 4;
       root.add(mainRoof);
 
       // 3. Four Octagonal Corner Bastions with Conical Roofs
-      const bastionGeom = new THREE.CylinderGeometry(0.55, 0.65, 3.4, 8);
-      const bastionCapGeom = new THREE.ConeGeometry(0.68, 1.2, 8);
+      const bastionGeom = new THREE.CylinderGeometry(0.55, 0.65, 3.4, 14);
+      const bastionCapGeom = new THREE.ConeGeometry(0.68, 1.2, 14);
       const corners = [[-1.8, -1.8], [1.8, -1.8], [-1.8, 1.8], [1.8, 1.8]];
       corners.forEach(([cx, cz]) => {
         const bastion = new THREE.Mesh(bastionGeom, stoneMat);
@@ -241,7 +241,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       belfry.position.set(0, 4.2, 0);
       root.add(belfry);
 
-      const belfryRoof = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.4, 4), teamDarkMat);
+      const belfryRoof = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.4, 14), teamDarkMat);
       belfryRoof.position.set(0, 5.4, 0);
       belfryRoof.rotation.y = Math.PI / 4;
       root.add(belfryRoof);
@@ -256,7 +256,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(gateFrame);
 
       // 6. High Faction Heraldic Banner
-      const flagpole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 5), goldMat);
+      const flagpole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 10), goldMat);
       flagpole.position.set(0, 6.4, 0);
       root.add(flagpole);
 
@@ -290,7 +290,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(beamR);
 
       // 3. Steep Terracotta Tiled Gable Roof
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1.1, 4), tileRoofMat);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1.1, 14), tileRoofMat);
       roof.position.y = 1.8;
       roof.rotation.y = Math.PI / 4;
       root.add(roof);
@@ -306,7 +306,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(chimney);
 
       // Firewood pile outside
-      const woodLog = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5, 5), lightWoodMat);
+      const woodLog = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5, 10), lightWoodMat);
       woodLog.rotation.z = Math.PI / 2;
       woodLog.position.set(-0.6, 0.25, 0.7);
       root.add(woodLog);
@@ -323,7 +323,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
 
       // 2. Golden Wheat Rows
       const wheatGeom = new THREE.BoxGeometry(1.65, 0.32, 0.16);
-      const wheatMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.8, flatShading: true });
+      const wheatMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.8, flatShading: false });
       for (let z = -0.65; z <= 0.65; z += 0.32) {
         const row = new THREE.Mesh(wheatGeom, wheatMat);
         row.position.set(0.1, 0.3, z);
@@ -336,11 +336,11 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(fenceBar);
 
       // 3. Octagonal Windmill Tower
-      const mill = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.42, 2.0, 8), stoneMat);
+      const mill = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.42, 2.0, 14), stoneMat);
       mill.position.set(-0.5, 1.0, -0.45);
       root.add(mill);
 
-      const millCap = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 8), tileRoofMat);
+      const millCap = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 14), tileRoofMat);
       millCap.position.set(-0.5, 2.3, -0.45);
       root.add(millCap);
 
@@ -349,7 +349,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       sailsGroup.position.set(-0.5, 2.05, -0.12);
       sailsGroup.userData = { isRotator: true, rotSpeed: 0.8, rotAxis: 'z' };
 
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 6), timberMat);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 12), timberMat);
       hub.rotation.x = Math.PI / 2;
       sailsGroup.add(hub);
 
@@ -376,13 +376,13 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       cabin.position.set(-0.15, 0.55, 0.1);
       root.add(cabin);
 
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.8, 4), slateRoofMat);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.8, 14), slateRoofMat);
       roof.position.set(-0.15, 1.45, 0.1);
       roof.rotation.y = Math.PI / 4;
       root.add(roof);
 
       // 2. Open-sided Sawpit Pavilion with Uprights
-      const postGeom = new THREE.CylinderGeometry(0.06, 0.06, 1.4, 5);
+      const postGeom = new THREE.CylinderGeometry(0.06, 0.06, 1.4, 10);
       const p1 = new THREE.Mesh(postGeom, lightWoodMat);
       p1.position.set(0.65, 0.7, -0.6);
       root.add(p1);
@@ -402,7 +402,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(sawBlade);
 
       // 3. Stacked Hewn Logs
-      const logGeom = new THREE.CylinderGeometry(0.12, 0.12, 1.2, 6);
+      const logGeom = new THREE.CylinderGeometry(0.12, 0.12, 1.2, 12);
       logGeom.rotateZ(Math.PI / 2);
       for (let layer = 0; layer < 3; layer++) {
         for (let row = 0; row < 3 - layer; row++) {
@@ -413,7 +413,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       }
 
       // Chopping block with axe
-      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.35, 6), timberMat);
+      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.35, 12), timberMat);
       stump.position.set(0.35, 0.18, 0.65);
       root.add(stump);
       break;
@@ -437,17 +437,17 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(b2);
 
       // 3. Heavy Timber Derrick Crane
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 2.4, 6), timberMat);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 2.4, 12), timberMat);
       mast.position.set(-0.55, 1.2, -0.55);
       root.add(mast);
 
-      const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.8, 5), timberMat);
+      const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.8, 10), timberMat);
       boom.position.set(-0.15, 2.0, -0.3);
       boom.rotation.z = Math.PI / 3.2;
       root.add(boom);
 
       // Hanging Stone Block on Crane Rope
-      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.0, 4), ironMat);
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.0, 14), ironMat);
       rope.position.set(0.35, 1.5, -0.15);
       root.add(rope);
 
@@ -531,7 +531,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(parapet);
 
       // Steep Tiled Roof with Cresting
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.3, 4), teamMat);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.3, 14), teamMat);
       roof.position.y = 2.4;
       roof.rotation.y = Math.PI / 4;
       root.add(roof);
@@ -542,13 +542,13 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(gateArch);
 
       // 4. Heraldic Battle Shield & Torches
-      const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.08, 6), teamDarkMat);
+      const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.08, 12), teamDarkMat);
       shield.rotation.x = Math.PI / 2;
       shield.position.set(0, 1.4, 1.26);
       root.add(shield);
 
       // 5. Training Yard: Straw Dummy with Horned Helmet & Sword
-      const dummyPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 5), timberMat);
+      const dummyPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3, 10), timberMat);
       dummyPost.position.set(-1.0, 0.65, 1.4);
       root.add(dummyPost);
 
@@ -556,11 +556,11 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       dummyCross.position.set(-1.0, 0.95, 1.4);
       root.add(dummyCross);
 
-      const dummyHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), canvasMat);
+      const dummyHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), canvasMat);
       dummyHead.position.set(-1.0, 1.25, 1.4);
       root.add(dummyHead);
 
-      const dummyHelm = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.25, 4), ironMat);
+      const dummyHelm = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.25, 14), ironMat);
       dummyHelm.position.set(-1.0, 1.42, 1.4);
       root.add(dummyHelm);
 
@@ -580,7 +580,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       pavilion.position.set(0, 0.8, -0.45);
       root.add(pavilion);
 
-      const canopy = new THREE.Mesh(new THREE.ConeGeometry(1.8, 0.9, 4), tileRoofMat);
+      const canopy = new THREE.Mesh(new THREE.ConeGeometry(1.8, 0.9, 14), tileRoofMat);
       canopy.position.set(0, 1.8, -0.45);
       canopy.rotation.y = Math.PI / 4;
       root.add(canopy);
@@ -597,13 +597,13 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       t1.position.set(0.65, 0.65, 0.9);
       root.add(t1);
 
-      const bullseye = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.14, 8), tileRoofMat);
+      const bullseye = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.14, 14), tileRoofMat);
       bullseye.rotateX(Math.PI / 2);
       bullseye.position.set(0.65, 0.65, 0.92);
       root.add(bullseye);
 
       // Arrow in bullseye
-      const arrow = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), goldMat);
+      const arrow = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 14), goldMat);
       arrow.rotation.x = Math.PI / 2;
       arrow.position.set(0.65, 0.65, 1.05);
       root.add(arrow);
@@ -614,7 +614,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(t2);
 
       // Bow Quiver
-      const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 0.6, 6), timberMat);
+      const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 0.6, 12), timberMat);
       quiver.position.set(0, 0.5, 0.2);
       root.add(quiver);
       break;
@@ -631,7 +631,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       barn.position.set(-0.4, 0.9, 0);
       root.add(barn);
 
-      const barnRoof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1.1, 4), tileRoofMat);
+      const barnRoof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 1.1, 14), tileRoofMat);
       barnRoof.position.set(-0.4, 2.1, 0);
       barnRoof.rotation.y = Math.PI / 4;
       root.add(barnRoof);
@@ -642,7 +642,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(hoist);
 
       // 3. Fenced Horse Paddock with Hay Trough
-      const fenceGeom = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 4);
+      const fenceGeom = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 14);
       const post1 = new THREE.Mesh(fenceGeom, lightWoodMat);
       post1.position.set(0.85, 0.4, 0.85);
       root.add(post1);
@@ -671,18 +671,18 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       hall.position.y = 0.8;
       root.add(hall);
 
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.1, 4), slateRoofMat);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.1, 14), slateRoofMat);
       roof.position.y = 2.05;
       roof.rotation.y = Math.PI / 4;
       root.add(roof);
 
       // 2. Twin Brick Blast Chimneys
-      const chimneyMat = new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.85, flatShading: true });
-      const chim1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.8, 6), chimneyMat);
+      const chimneyMat = new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.85, flatShading: false });
+      const chim1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.8, 12), chimneyMat);
       chim1.position.set(0.85, 1.4, -0.7);
       root.add(chim1);
 
-      const chim2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2.4, 6), chimneyMat);
+      const chim2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2.4, 12), chimneyMat);
       chim2.position.set(0.85, 1.2, 0.5);
       root.add(chim2);
 
@@ -696,7 +696,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(furnaceFire);
 
       // 4. Blacksmith Anvil on Oak Stump
-      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.28, 0.4, 6), timberMat);
+      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.28, 0.4, 12), timberMat);
       stump.position.set(-0.6, 0.2, 0.8);
       root.add(stump);
 
@@ -705,7 +705,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(anvil);
 
       // 5. Cannonball Pyramids
-      const ballGeom = new THREE.SphereGeometry(0.12, 6, 6);
+      const ballGeom = new THREE.SphereGeometry(0.12, 12, 10);
       [[-0.8, 0.1, 0.3], [-0.65, 0.1, 0.3], [-0.72, 0.25, 0.3]].forEach(([bx, by, bz]) => {
         const ball = new THREE.Mesh(ballGeom, ironMat);
         ball.position.set(bx, by, bz);
@@ -721,7 +721,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(plaza);
 
       // 2. Central Trading Guild Monument
-      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 1.8, 6), marbleMat);
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 1.8, 12), marbleMat);
       pillar.position.set(0, 0.9, 0);
       root.add(pillar);
 
@@ -735,7 +735,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       stallA.position.set(-0.7, 0.3, -0.6);
       root.add(stallA);
 
-      const awningA = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.5, 4), teamMat);
+      const awningA = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.5, 14), teamMat);
       awningA.position.set(-0.7, 1.2, -0.6);
       awningA.rotation.y = Math.PI / 4;
       root.add(awningA);
@@ -745,7 +745,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       stallB.position.set(0.7, 0.3, -0.6);
       root.add(stallB);
 
-      const awningB = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.5, 4), canvasMat);
+      const awningB = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.5, 14), canvasMat);
       awningB.position.set(0.7, 1.2, -0.6);
       awningB.rotation.y = Math.PI / 4;
       root.add(awningB);
@@ -755,7 +755,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       stallC.position.set(0, 0.3, 0.7);
       root.add(stallC);
 
-      const awningC = new THREE.Mesh(new THREE.ConeGeometry(0.85, 0.5, 4), teamDarkMat);
+      const awningC = new THREE.Mesh(new THREE.ConeGeometry(0.85, 0.5, 14), teamDarkMat);
       awningC.position.set(0, 1.2, 0.7);
       awningC.rotation.y = Math.PI / 4;
       root.add(awningC);
@@ -783,7 +783,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(hall);
 
       // 4 Fluted Marble Columns
-      const colGeom = new THREE.CylinderGeometry(0.12, 0.15, 1.5, 8);
+      const colGeom = new THREE.CylinderGeometry(0.12, 0.15, 1.5, 14);
       const cols = [[-1.1, 1.1], [1.1, 1.1], [-1.1, -1.1], [1.1, -1.1]];
       cols.forEach(([cx, cz]) => {
         const col = new THREE.Mesh(colGeom, marbleMat);
@@ -823,22 +823,22 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
 
     case 'watchtower': {
       // 1. Battered Pyramidal Stone Base
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.95, 0.6, 6), darkStoneMat);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.95, 0.6, 12), darkStoneMat);
       base.position.y = 0.3;
       root.add(base);
 
       // 2. Tall Slender Stone Tower Shaft with Arrow Loops
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.68, 3.4, 6), stoneMat);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.68, 3.4, 12), stoneMat);
       shaft.position.y = 2.1;
       root.add(shaft);
 
       // Machicolated Overhanging Parapet Platform
-      const parapet = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.65, 0.75, 6), darkStoneMat);
+      const parapet = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.65, 0.75, 12), darkStoneMat);
       parapet.position.y = 3.9;
       root.add(parapet);
 
       // Conical Slate Roof with Team Pennant
-      const spire = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.4, 6), teamMat);
+      const spire = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.4, 10), teamMat);
       spire.position.y = 4.9;
       root.add(spire);
 
@@ -863,8 +863,8 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(rampart);
 
       // 2. Four Giant Drum Bastion Towers
-      const drumGeom = new THREE.CylinderGeometry(0.75, 0.85, 3.8, 8);
-      const drumCapGeom = new THREE.ConeGeometry(0.9, 1.3, 8);
+      const drumGeom = new THREE.CylinderGeometry(0.75, 0.85, 3.8, 14);
+      const drumCapGeom = new THREE.ConeGeometry(0.9, 1.3, 14);
       const drumCorners = [[-1.9, -1.9], [1.9, -1.9], [-1.9, 1.9], [1.9, 1.9]];
       drumCorners.forEach(([dx, dz]) => {
         const drum = new THREE.Mesh(drumGeom, stoneMat);
@@ -885,7 +885,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       citadel.position.set(0, 3.2, 0);
       root.add(citadel);
 
-      const citadelSpire = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.6, 4), teamMat);
+      const citadelSpire = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.6, 14), teamMat);
       citadelSpire.position.set(0, 4.7, 0);
       citadelSpire.rotation.y = Math.PI / 4;
       root.add(citadelSpire);
@@ -925,12 +925,12 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(tR);
 
       // Crenelated Tower Caps
-      const capL = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 4), slateRoofMat);
+      const capL = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 14), slateRoofMat);
       capL.position.set(-0.75, 2.45, 0);
       capL.rotation.y = Math.PI / 4;
       root.add(capL);
 
-      const capR = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 4), slateRoofMat);
+      const capR = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 14), slateRoofMat);
       capR.position.set(0.75, 2.45, 0);
       capR.rotation.y = Math.PI / 4;
       root.add(capR);
@@ -946,7 +946,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       root.add(portcullis);
 
       // Faction Shield over Gate
-      const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.06, 6), teamMat);
+      const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.06, 12), teamMat);
       shield.rotation.x = Math.PI / 2;
       shield.position.set(0, 2.0, 0.36);
       root.add(shield);

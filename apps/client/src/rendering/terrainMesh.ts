@@ -136,7 +136,7 @@ export class TerrainMesh {
       vertexColors: true,
       roughness: 0.82,
       metalness: 0.08,
-      flatShading: true
+      flatShading: false
     });
 
     this.groundMesh = new THREE.Mesh(geom, groundMat);
@@ -153,7 +153,7 @@ export class TerrainMesh {
       color: 0x122718,
       roughness: 0.95,
       metalness: 0.05,
-      flatShading: true
+      flatShading: false
     });
     const skirtMesh = new THREE.Mesh(skirtGeom, skirtMat);
     skirtMesh.receiveShadow = true;
@@ -258,29 +258,29 @@ export class TerrainMesh {
     const mountainGroup = new THREE.Group();
 
     // 1. Towering Granite Mountain Spire
-    const rockSpireGeom = new THREE.ConeGeometry(0.85, 2.2, 5);
+    const rockSpireGeom = new THREE.ConeGeometry(0.85, 2.2, 12);
     const rockSpireMat = new THREE.MeshStandardMaterial({
       color: 0x475569, // Slate granite rock
       roughness: 0.88,
       metalness: 0.12,
-      flatShading: true
+      flatShading: false
     });
 
     // 2. High Alpine Snow Cap Crown
-    const snowCapGeom = new THREE.ConeGeometry(0.55, 1.0, 5);
+    const snowCapGeom = new THREE.ConeGeometry(0.55, 1.0, 12);
     const snowCapMat = new THREE.MeshStandardMaterial({
       color: 0xf8fafc, // Pure sparkling alpine snow
       roughness: 0.35,
       metalness: 0.05,
-      flatShading: true
+      flatShading: false
     });
 
     // 3. Secondary Flanking Shoulder Boulder
-    const flankGeom = new THREE.DodecahedronGeometry(0.65, 0);
+    const flankGeom = new THREE.DodecahedronGeometry(0.65, 1);
     const flankMat = new THREE.MeshStandardMaterial({
       color: 0x334155, // Dark granite crevice rock
       roughness: 0.9,
-      flatShading: true
+      flatShading: false
     });
 
     const instRock = new THREE.InstancedMesh(rockSpireGeom, rockSpireMat, mountainSpots.length);
@@ -394,11 +394,11 @@ export class TerrainMesh {
 
     // 2. Talus Boulder & Rock Cairn markers along restricted mountain foot
     if (cairnSpots.length > 0) {
-      const boulderGeom = new THREE.DodecahedronGeometry(0.28, 0);
+      const boulderGeom = new THREE.DodecahedronGeometry(0.28, 1);
       const boulderMat = new THREE.MeshStandardMaterial({
         color: 0x64748b,
         roughness: 0.9,
-        flatShading: true
+        flatShading: false
       });
       const instCairn = new THREE.InstancedMesh(boulderGeom, boulderMat, cairnSpots.length);
       const dummy = new THREE.Object3D();
@@ -433,16 +433,16 @@ export class TerrainMesh {
 
     // 1. Diverse Forest Trees: Conifer Pines & Noble Firs
     if (forestSpots.length > 0) {
-      const trunkGeom = new THREE.CylinderGeometry(0.12, 0.18, 0.95, 5);
-      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, flatShading: true });
+      const trunkGeom = new THREE.CylinderGeometry(0.12, 0.18, 0.95, 8);
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, flatShading: false });
 
-      const cone1Geom = new THREE.ConeGeometry(0.88, 1.25, 5);
+      const cone1Geom = new THREE.ConeGeometry(0.88, 1.25, 8);
       cone1Geom.translate(0, 0.9, 0);
-      const cone2Geom = new THREE.ConeGeometry(0.68, 1.05, 5);
+      const cone2Geom = new THREE.ConeGeometry(0.68, 1.05, 8);
       cone2Geom.translate(0, 1.55, 0);
 
-      const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.72, flatShading: true });
-      const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.68, flatShading: true });
+      const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.72, flatShading: false });
+      const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.68, flatShading: false });
 
       const instTrunk = new THREE.InstancedMesh(trunkGeom, trunkMat, forestSpots.length);
       const instCone1 = new THREE.InstancedMesh(cone1Geom, foliageMat1, forestSpots.length);
@@ -475,8 +475,8 @@ export class TerrainMesh {
   // RESOURCE DEPOSITS (Gold Yellow nuggets, timber, stone, berries)
   // -------------------------------------------------------------
   private buildResourceDecorations(nodes: ResourceNodeData[]): void {
-    const stoneGeom = new THREE.DodecahedronGeometry(0.68, 0);
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.85, flatShading: true });
+    const stoneGeom = new THREE.DodecahedronGeometry(0.68, 1);
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.85, flatShading: false });
 
     // Radiant, gleaming Pure Gold Yellow Material
     const goldYellowMat = new THREE.MeshStandardMaterial({
@@ -484,24 +484,24 @@ export class TerrainMesh {
       roughness: 0.15,
       metalness: 0.92,
       emissive: 0x553d00, // Warm golden luminescence
-      flatShading: true
+      flatShading: false
     });
     const bedrockMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
       roughness: 0.9,
-      flatShading: true
+      flatShading: false
     });
 
-    const foodGeom = new THREE.SphereGeometry(0.48, 6, 5);
-    const foodMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7, flatShading: true });
-    const berryMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4, flatShading: true });
+    const foodGeom = new THREE.SphereGeometry(0.48, 10, 8);
+    const foodMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7, flatShading: false });
+    const berryMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4, flatShading: false });
 
     // Tree geometries for wood nodes
     const trunkGeom = new THREE.CylinderGeometry(0.14, 0.18, 0.95, 5);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, flatShading: true });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, flatShading: false });
     const cone1Geom = new THREE.ConeGeometry(0.88, 1.25, 5);
     const cone2Geom = new THREE.ConeGeometry(0.68, 1.05, 5);
-    const foliageMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.7, flatShading: true });
+    const foliageMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.7, flatShading: false });
 
     nodes.forEach(node => {
       let obj: THREE.Object3D;
