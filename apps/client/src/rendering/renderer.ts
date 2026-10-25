@@ -2000,8 +2000,8 @@ export class GameRenderer {
 
         if (isAttacking) {
           // Open jaw wide & lunge neck toward target!
-          if (dragonJaw) dragonJaw.rotation.x = Math.PI / 2.05 + 0.45;
-          if (dragonNeck) dragonNeck.rotation.x = Math.PI / 4 + 0.3 + Math.sin(now * 0.012) * 0.1;
+          if (dragonJaw) dragonJaw.rotation.x = 0.42;
+          if (dragonNeck) dragonNeck.rotation.x = 0.22 + Math.sin(now * 0.012) * 0.08;
           if (flameEmitter) {
             const glowScale = 1.6 + Math.sin(now * 0.035) * 0.4;
             flameEmitter.scale.set(glowScale, glowScale, glowScale);
@@ -2024,8 +2024,8 @@ export class GameRenderer {
           }
         } else {
           // Relax jaw and neck to soaring posture
-          if (dragonJaw) dragonJaw.rotation.x = Math.PI / 2.05;
-          if (dragonNeck) dragonNeck.rotation.x = Math.PI / 4;
+          if (dragonJaw) dragonJaw.rotation.x = 0.0;
+          if (dragonNeck) dragonNeck.rotation.x = 0.0;
           if (flameEmitter) flameEmitter.scale.set(1.0, 1.0, 1.0);
         }
         break;
