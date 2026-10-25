@@ -1124,6 +1124,7 @@ export class SimulationEngine {
           if ((!targetUnit || targetUnit.state === 'dead') && (!targetBldg || targetBldg.hp <= 0)) {
             unit.state = 'idle';
             unit.targetEntityId = undefined;
+            unit.path = undefined;
             break;
           }
 
@@ -1519,6 +1520,7 @@ export class SimulationEngine {
       unit.stuckTicks = 0;
       if (unit.path.length === 0 && unit.state === 'moving') {
         unit.state = 'idle';
+        unit.path = undefined;
       }
     } else {
       const newX = unit.x + (dx / dist) * moveStep;
@@ -1599,6 +1601,7 @@ export class SimulationEngine {
         this.pendingEvents.push({ type: 'UNIT_DIED', unitId: targetUnit.id, killerId: attacker.id });
         attacker.state = 'idle';
         attacker.targetEntityId = undefined;
+        attacker.path = undefined;
         this.checkVictoryConditions();
       } else {
         // Retaliate if idle or gathering
@@ -1635,6 +1638,7 @@ export class SimulationEngine {
         this.destroyBuilding(targetBldg.id);
         attacker.state = 'idle';
         attacker.targetEntityId = undefined;
+        attacker.path = undefined;
       } else {
         // Nearby friendly military defenders rush to defend structure
         for (const ally of this.units.values()) {

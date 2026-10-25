@@ -1466,7 +1466,8 @@ export class GameRenderer {
 
     // Movement & Combat Range Evaluation
     const hasPath = Boolean(unit.path && unit.path.length > 0);
-    const isMoving = unit.state === 'moving' || hasPath;
+    const isMoving = unit.state === 'moving' || (unit.state === 'attacking' && hasPath);
+    const isStationary = unit.state === 'idle' || (!isMoving && unit.state !== 'attacking');
 
     // Check if within genuine combat range of current target
     let inRangeOfTarget = false;
@@ -1479,7 +1480,7 @@ export class GameRenderer {
       }
     }
 
-    const isAttacking = unit.state === 'attacking' && !isMoving && inRangeOfTarget;
+    const isAttacking = unit.state === 'attacking' && !isMoving && inRangeOfTarget && !isStationary;
 
     // Standard Human Stride & March helpers
     const lLeg = group.getObjectByName('left_leg');
@@ -1491,7 +1492,7 @@ export class GameRenderer {
 
     // Universal Humanoid Movement Leg March Animation (Age of Empires II: DE)
     if (isHumanoid) {
-      if (isMoving) {
+      if (isMoving && !isStationary) {
         const strideRate = 9.5;
         const stride = Math.sin(time * strideRate);
         if (lLeg) lLeg.rotation.x = stride * 0.62;
@@ -1503,8 +1504,8 @@ export class GameRenderer {
           torso.rotation.y = stride * 0.09;
           torso.rotation.z = Math.cos(time * strideRate * 0.5) * 0.025;
         }
-      } else if (!isAttacking && unit.state !== 'gathering') {
-        // Natural idle planted footing & gentle breathing
+      } else {
+        // Natural idle planted footing & gentle breathing - zero leg oscillation when idle!
         if (lLeg) lLeg.rotation.x = 0;
         if (rLeg) rLeg.rotation.x = 0;
         if (lArm) lArm.rotation.x = 0;
@@ -1786,7 +1787,7 @@ export class GameRenderer {
           if (legFR) legFR.rotation.x = 0.2 - rearCycle * 0.25;
           if (legBL) legBL.rotation.x = -0.3;
           if (legBR) legBR.rotation.x = -0.3;
-        } else if (unit.state === 'moving') {
+        } else if (isMoving && !isStationary) {
           // Authentic 4-Beat Equine Gallop Cadence
           const gallop = time * 14.0;
           const strideL = Math.sin(gallop);
