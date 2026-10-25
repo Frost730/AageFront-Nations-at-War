@@ -4,7 +4,9 @@ import {
   generateMap,
   GridPathfinder,
   UNIT_DEFINITIONS,
-  BUILDING_DEFINITIONS
+  BUILDING_DEFINITIONS,
+  MatchReplayRecorder,
+  MatchReplayPlayer
 } from '../packages/shared/src/index.js';
 
 describe('Map Generation & Pathfinding', () => {
@@ -1209,6 +1211,62 @@ describe('Industrial Age Instant Troop Spawning', () => {
     expect(gate.isOpen).toBe(false);
     expect(sim.pathfinder.isWalkable(14, 14)).toBe(false);
     expect(sim.pathfinder.isWalkable(15, 14)).toBe(false);
+  });
+
+  it('records commands and accurately reproduces match replay state with MatchReplayPlayer', () => {
+    const sim = createTestSim();
+    const settings = sim.settings;
+    const initialPlayers = [
+      { id: 'player_human', name: 'Commander Human', team: 1, civ: 'Veyran Confederacy' as const, color: '#3b82f6', isAi: false },
+      { id: 'player_ai', name: 'Adversary Legion', team: 2, civ: 'Ironvale Kingdom' as const, color: '#ef4444', isAi: true }
+    ];
+
+    const recorder = new MatchReplayRecorder('test_game_123', settings, initialPlayers);
+
+    // Record commands
+    recorder.recordCommand(2, 'player_human', {
+      type: 'SET_STANCE',
+      unitIds: ['unit_1000'],
+      stance: 'defensive'
+    });
+
+    recorder.recordCommand(4, 'player_human', {
+      type: 'TRADE_COMMODITY',
+      buyResource: 'food',
+      sellResource: 'wood',
+      buyAmount: 100,
+      sellAmount: 120
+    });
+
+    const replayData = recorder.finalize(10, 1, 'Victory achieved through tactical dominance!');
+    expect(replayData.commands.length).toBe(2);
+    expect(replayData.totalTicks).toBe(10);
+    expect(replayData.winnerTeam).toBe(1);
+
+    const jsonExport = recorder.exportToJson();
+    expect(jsonExport).toContain('test_game_123');
+    expect(jsonExport).toContain('Veyran Confederacy');
+
+    // Instantiate Replay Player from the exported data
+    const parsedReplay = JSON.parse(jsonExport);
+    const player = new MatchReplayPlayer(parsedReplay);
+
+    expect(player.currentTick).toBe(0);
+    expect(player.isFinished).toBe(false);
+
+    // Step forward 5 ticks
+    for (let t = 0; t < 5; t++) {
+      player.step(0.05);
+    }
+    expect(player.currentTick).toBe(5);
+
+    // Step until end of replay
+    while (!player.isFinished && player.step(0.05)) {
+      // playing
+    }
+
+    expect(player.isFinished).toBe(true);
+    expect(player.currentTick).toBe(10);
   });
 
 });

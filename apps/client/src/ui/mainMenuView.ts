@@ -18,6 +18,7 @@ export interface MainMenuCallbacks {
   onJoinLan: (serverAddress: string, name: string, civ: CivName) => void;
   onRequestJoinLan?: (serverAddress: string, name: string, civ: CivName, roomCode: string) => void;
   onCancelJoinRequest?: (requestId: string) => void;
+  onPlayReplay?: (replayData: any) => void;
 }
 
 export class MainMenuView {
@@ -202,7 +203,11 @@ export class MainMenuView {
             Join LAN Game
           </button>
 
-          <button id="btn-how-to-play" class="aoe-btn-crimson" style="padding: 11px; font-size: 13px; opacity: 0.95;">
+          
+          <button id="btn-load-replay" class="aoe-btn-crimson" style="padding: 11px; font-size: 13px; opacity: 0.95;">
+            🎞️ Match Replay Viewer (.afr)
+          </button>
+            <button id="btn-how-to-play" class="aoe-btn-crimson" style="padding: 11px; font-size: 13px; opacity: 0.95;">
             Civilization Codex & Guide
           </button>
 
@@ -238,6 +243,29 @@ export class MainMenuView {
       this.render();
     });
 
+    
+    this.rootElem.querySelector('#btn-load-replay')?.addEventListener('click', () => {
+      soundManager.playClick();
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.afr,.json';
+      input.onchange = (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (re) => {
+          try {
+            const data = JSON.parse(re.target?.result as string);
+            this.callbacks.onPlayReplay?.(data);
+          } catch (err) {
+            alert('Invalid .afr match replay file format.');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    });
+  
     this.rootElem.querySelector('#btn-how-to-play')?.addEventListener('click', () => {
       this.currentModal = 'how_to_play';
       soundManager.playClick();

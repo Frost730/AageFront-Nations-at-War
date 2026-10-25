@@ -8,3 +8,4 @@ export * from './simulation/mapGenerator.js';
 export * from './simulation/pathfinding.js';
 export * from './simulation/simulationEngine.js';
 export * from './utils/sanitize.js';
+export * from './simulation/replaySystem.js';

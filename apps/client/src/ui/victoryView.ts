@@ -4,6 +4,7 @@ import { soundManager } from '../audio/soundManager.js';
 export interface VictoryCallbacks {
   onRematch: () => void;
   onMainMenu: () => void;
+  onDownloadReplay?: () => void;
 }
 
 export class VictoryView {
@@ -89,7 +90,11 @@ export class VictoryView {
         </div>
 
         <div style="display: flex; justify-content: center; gap: 16px; margin-top: 10px;">
-          <button id="btn-rematch" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: 1px solid #3b82f6; color: #ffffff; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+          
+          <button id="btn-download-replay" style="background: linear-gradient(135deg, #d97706, #b45309); border: 1px solid #fbbf24; color: #ffffff; border-radius: 8px; padding: 12px 20px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+            💾 Download Replay (.afr)
+          </button>
+            <button id="btn-rematch" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: 1px solid #3b82f6; color: #ffffff; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
             ⚔️ Rematch
           </button>
           <button id="btn-return-menu" style="background: #1e293b; border: 1px solid #475569; color: #f8fafc; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
@@ -99,6 +104,12 @@ export class VictoryView {
       </div>
     `;
 
+    
+    this.rootElem.querySelector('#btn-download-replay')?.addEventListener('click', () => {
+      soundManager.playClick();
+      this.callbacks.onDownloadReplay?.();
+    });
+  
     this.rootElem.querySelector('#btn-rematch')?.addEventListener('click', () => {
       this.rootElem.style.display = 'none';
       this.callbacks.onRematch();

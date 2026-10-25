@@ -10,7 +10,10 @@ import {
   CivName,
   BUILDING_DEFINITIONS,
   FormationType,
-  UnitStance
+  UnitStance,
+  MatchReplayRecorder,
+  MatchReplayPlayer,
+  MatchReplayData
 } from '@agefront/shared';
 import { GameRenderer } from './rendering/renderer.js';
 import { SelectionManager } from './controls/selectionManager.js';
@@ -33,6 +36,12 @@ class GameApp {
   private inputHandler: InputHandler;
   private minimap: Minimap | null = null;
   private activeFormation: FormationType = 'line';
+  private replayRecorder: MatchReplayRecorder | null = null;
+  private replayPlayer: MatchReplayPlayer | null = null;
+  private isReplaying: boolean = false;
+  private replayPaused: boolean = false;
+  private replaySpeed: number = 1;
+
   private hud: HudView;
   private mainMenu: MainMenuView;
   private lobbyView: LobbyView;
@@ -165,6 +174,9 @@ class GameApp {
     this.inputHandler.onResourceSelect = (node) => this.hud.showResourceDetails(node);
 
     this.mainMenu = new MainMenuView(this.uiLayer, {
+      onPlayReplay: (data: MatchReplayData) => {
+        this.startReplayMode(data);
+      },
       onStartSinglePlayer: (roster, settings) => {
         this.startSinglePlayerGame(roster, settings);
       },
@@ -219,6 +231,20 @@ class GameApp {
     this.lobbyView.hide();
 
     this.victoryView = new VictoryView(this.uiLayer, {
+      onDownloadReplay: () => {
+        const json = this.replayRecorder?.exportToJson() || localStorage.getItem('last_afr_replay');
+        if (!json) {
+          alert('No recorded replay available for this match.');
+          return;
+        }
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `AgeFront_Match_${Date.now()}.afr`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
       onRematch: () => {
         this.victoryView.hide();
         this.mainMenu.show();
@@ -332,6 +358,47 @@ class GameApp {
     networkClient.requestJoin(name, civ, 1, roomCode);
   }
 
+  
+  private startReplayMode(replayData: MatchReplayData): void {
+    this.mainMenu.hide();
+    this.lobbyView.hide();
+    this.victoryView.hide();
+    this.hud.show();
+    this.inGame = true;
+    this.isReplaying = true;
+    this.replayPaused = false;
+    this.replaySpeed = 1;
+    this.replayPlayer = new MatchReplayPlayer(replayData);
+
+    const firstPlayer = replayData.initialPlayers[0];
+    this.myPlayerId = firstPlayer.id;
+    this.myTeam = firstPlayer.team;
+    this.inputHandler.setPlayerInfo(this.myPlayerId, this.myTeam);
+
+    const snap = this.replayPlayer.sim.getSnapshot();
+    this.currentUnits = snap.units;
+    this.currentBuildings = snap.buildings;
+    this.currentResourceNodes = snap.resourceNodes;
+    this.currentPlayers = snap.players;
+    this.inputHandler.activeUnitsForSelection = this.currentUnits;
+    this.inputHandler.activeBuildingsForSelection = this.currentBuildings;
+    this.inputHandler.activeResourcesForSelection = this.currentResourceNodes;
+
+    this.renderer.initMap(
+      this.replayPlayer.sim.mapData.width,
+      this.replayPlayer.sim.mapData.height,
+      this.replayPlayer.sim.mapData.tiles,
+      this.currentResourceNodes,
+      this.myTeam
+    );
+
+    this.hud.showReplayControls(
+      (isPaused) => { this.replayPaused = isPaused; },
+      (speed) => { this.replaySpeed = speed; }
+    );
+    this.hud.showNotification('🎞️ Match Replay Mode Loaded (.afr)');
+  }
+
   private handleGameStart(data: GameStartData): void {
     this.mainMenu.hide();
     this.lobbyView.hide();
@@ -340,6 +407,19 @@ class GameApp {
     this.inGame = true;
     this.matchStartTime = performance.now();
     this.chatConsole.setGameState(true, networkClient.isSinglePlayer);
+    this.replayRecorder = new MatchReplayRecorder(
+      Date.now().toString() || `match_${Date.now()}`,
+      data.settings,
+      data.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        civ: p.civ,
+        color: p.color,
+        isAi: p.isAi
+      }))
+    );
+
 
     // Find my player: prioritize yourPlayerId sent by server or networkClient.myPlayerId
     const me = (data.yourPlayerId ? data.players.find(p => p.id === data.yourPlayerId) : null) ||
@@ -470,7 +550,15 @@ class GameApp {
           } else {
             this.hud.showNotification(`💀 DEFEAT! Your civilization was conquered.`);
           }
-          this.victoryView.show(isVictory, ev.reason, me, durationSec);
+          
+    const replay = this.replayRecorder?.finalize(Math.round(durationSec * 20), ev.winnerTeam, ev.reason);
+    if (replay) {
+      try {
+        localStorage.setItem('last_afr_replay', JSON.stringify(replay));
+      } catch (e) {}
+    }
+  
+    this.victoryView.show(isVictory, ev.reason, me, durationSec);
         }
       }
     }
@@ -509,6 +597,9 @@ class GameApp {
     this.inputHandler.activeBuildingsForSelection = [];
     this.inputHandler.activeResourcesForSelection = [];
     this.hud.hide();
+    this.hud.hideReplayControls();
+    this.isReplaying = false;
+    this.replayPlayer = null;
     if (this.minimap) {
       const minimapContainer = this.hud.getMinimapContainer();
       minimapContainer.innerHTML = '';
@@ -526,7 +617,26 @@ class GameApp {
 
     if (this.inGame) {
       // Update Three.js entities and render
-      this.renderer.updateEntities(
+      
+    if (this.isReplaying && this.replayPlayer && !this.replayPaused) {
+      for (let s = 0; s < this.replaySpeed; s++) {
+        const hasMore = this.replayPlayer.step(0.05);
+        if (!hasMore) {
+          this.replayPaused = true;
+          this.hud.showNotification('🎞️ Replay Reached End of Match.');
+          break;
+        }
+      }
+      const snap = this.replayPlayer.sim.getSnapshot();
+      this.currentUnits = snap.units;
+      this.currentBuildings = snap.buildings;
+      this.currentPlayers = snap.players;
+      this.inputHandler.activeUnitsForSelection = this.currentUnits;
+      this.inputHandler.activeBuildingsForSelection = this.currentBuildings;
+      this.hud.updateReplayTime(this.replayPlayer.currentTick * 0.05, this.replayPlayer.replayData.totalTicks * 0.05);
+    }
+
+    this.renderer.updateEntities(
         this.currentUnits,
         this.currentBuildings,
         this.currentPlayers,
