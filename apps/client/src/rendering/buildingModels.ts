@@ -944,56 +944,247 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
     }
 
     case 'research_hall': {
-      // 1. Classical Neoclassical Marble Podium with Steps
-      const podium = new THREE.Mesh(new THREE.BoxGeometry(2.95, 0.42, 2.95), marbleMat);
-      podium.position.y = 0.21;
+      // 1. Classical Neoclassical Tiered Ashlar & Marble Foundation
+      const subPlinth = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.22, 3.1), darkStoneMat);
+      subPlinth.position.y = 0.11;
+      root.add(subPlinth);
+
+      const podium = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.26, 2.85), marbleMat);
+      podium.position.y = 0.35;
       root.add(podium);
 
-      const steps = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.26, 0.65), marbleMat);
-      steps.position.set(0, 0.13, 1.65);
-      root.add(steps);
+      // Grand Entrance Marble Staircase (3 tiers)
+      for (let st = 0; st < 3; st++) {
+        const step = new THREE.Mesh(
+          new THREE.BoxGeometry(1.6 - st * 0.1, 0.12, 0.32),
+          marbleMat
+        );
+        step.position.set(0, 0.06 + st * 0.1, 1.45 + (2 - st) * 0.22);
+        root.add(step);
+      }
 
-      // 2. Grand Academic Library Hall with Colonnade
-      const hall = new THREE.Mesh(new THREE.BoxGeometry(2.55, 1.55, 2.55), stoneMat);
-      hall.position.y = 1.08;
-      root.add(hall);
+      // Stone Balustrade Curb flanking steps
+      const balustradeGeom = new THREE.BoxGeometry(0.18, 0.42, 0.75);
+      const balL = new THREE.Mesh(balustradeGeom, marbleMat);
+      balL.position.set(-0.92, 0.32, 1.65);
+      root.add(balL);
 
-      // 4 Fluted Marble Columns
-      const colGeom = new THREE.CylinderGeometry(0.13, 0.16, 1.55, 18);
-      const cols = [[-1.12, 1.12], [1.12, 1.12], [-1.12, -1.12], [1.12, -1.12]];
-      cols.forEach(([cx, cz]) => {
+      const balR = new THREE.Mesh(balustradeGeom, marbleMat);
+      balR.position.set(0.92, 0.32, 1.65);
+      root.add(balR);
+
+      // Flanking Wrought-Iron Lamp Posts with Glowing Lanterns
+      for (let side = -1; side <= 1; side += 2) {
+        const lampPost = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.75, 8), darkStoneMat);
+        lampPost.position.set(side * 0.92, 0.72, 1.85);
+        root.add(lampPost);
+
+        const lantern = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08, 0), lanternGlowMat);
+        lantern.position.set(side * 0.92, 1.15, 1.85);
+        root.add(lantern);
+
+        const lampCap = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.08, 6), ironMat);
+        lampCap.position.set(side * 0.92, 1.22, 1.85);
+        root.add(lampCap);
+      }
+
+      // 2. Classical Portico Colonnade (4 Fluted Marble Columns & Triangular Pediment)
+      const colGeom = new THREE.CylinderGeometry(0.12, 0.14, 1.45, 16);
+      const colPositions = [-0.68, -0.24, 0.24, 0.68];
+      colPositions.forEach(cx => {
+        // Base plinth
+        const cBase = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.1, 0.24), marbleMat);
+        cBase.position.set(cx, 0.53, 1.32);
+        root.add(cBase);
+
+        // Fluted column
         const col = new THREE.Mesh(colGeom, marbleMat);
-        col.position.set(cx, 1.08, cz);
+        col.position.set(cx, 1.28, 1.32);
         root.add(col);
+
+        // Capital
+        const cCap = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.1, 0.26), marbleMat);
+        cCap.position.set(cx, 2.05, 1.32);
+        root.add(cCap);
       });
 
-      // 3. Stately Celestial Observatory Dome
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(1.18, 20, 16, 0, Math.PI * 2, 0, Math.PI / 2), teamDarkMat);
-      dome.position.y = 1.85;
+      // Classical Architrave & Entablature Beam
+      const architrave = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.18, 0.42), marbleMat);
+      architrave.position.set(0, 2.19, 1.32);
+      root.add(architrave);
+
+      // Carved Triangular Portico Pediment with Frieze
+      const pedimentGeom = new THREE.CylinderGeometry(0.98, 0.98, 0.38, 3);
+      pedimentGeom.rotateZ(Math.PI);
+      const pediment = new THREE.Mesh(pedimentGeom, marbleMat);
+      pediment.position.set(0, 2.58, 1.32);
+      pediment.scale.set(1.25, 0.65, 0.95);
+      root.add(pediment);
+
+      // Astronomical / Scholarly Medallion on Pediment
+      const medallion = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.05, 12), goldMat);
+      medallion.rotation.x = Math.PI / 2;
+      medallion.position.set(0, 2.52, 1.52);
+      root.add(medallion);
+
+      // 3. Central Scholarly Hall & Recessed Portico
+      const hall = new THREE.Mesh(new THREE.BoxGeometry(2.45, 1.65, 2.45), stoneMat);
+      hall.position.set(0, 1.3, 0);
+      root.add(hall);
+
+      // Corner Quoin Blocks on Main Hall
+      for (const [qx, qz] of [[-1.22, -1.22], [1.22, -1.22], [-1.22, 1.22], [1.22, 1.22]]) {
+        for (let qy = 0; qy < 4; qy++) {
+          const quoin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.28, 0.2), darkStoneMat);
+          quoin.position.set(qx, 0.65 + qy * 0.42, qz);
+          root.add(quoin);
+        }
+      }
+
+      // Arched Double Entrance Doors of Dark Oak & Iron Studs (Authentic timber finish)
+      const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.25, 0.12), darkStoneMat);
+      doorFrame.position.set(0, 1.1, 1.22);
+      root.add(doorFrame);
+
+      const doorArch = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.12, 14, 1, false, 0, Math.PI), darkStoneMat);
+      doorArch.rotation.z = Math.PI;
+      doorArch.position.set(0, 1.72, 1.22);
+      root.add(doorArch);
+
+      const woodenDoor = new THREE.Mesh(new THREE.BoxGeometry(0.72, 1.15, 0.08), plankWoodMat);
+      woodenDoor.position.set(0, 1.05, 1.25);
+      root.add(woodenDoor);
+
+      const doorIronSeam = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.15, 0.1), ironMat);
+      doorIronSeam.position.set(0, 1.05, 1.26);
+      root.add(doorIronSeam);
+
+      // Warm Leaded Glass Fanlight above door
+      const fanlight = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 12, 1, false, 0, Math.PI), lanternGlowMat);
+      fanlight.rotation.z = Math.PI;
+      fanlight.position.set(0, 1.68, 1.25);
+      root.add(fanlight);
+
+      // 4. Scholastic Library Wings with Pitched Slate Roofs (Left & Right)
+      // Left Library Wing Roof
+      const roofL = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 2.5), slateRoofMat);
+      roofL.position.set(-1.0, 2.22, 0);
+      roofL.rotation.z = 0.28;
+      root.add(roofL);
+
+      // Right Library Wing Roof
+      const roofR = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 2.5), slateRoofMat);
+      roofR.position.set(1.0, 2.22, 0);
+      roofR.rotation.z = -0.28;
+      root.add(roofR);
+
+      // Arched Leaded Glass Library Lancet Windows (Side & Rear walls)
+      const windowSides = [
+        { x: -1.25, z: -0.4, ry: Math.PI / 2 },
+        { x: -1.25, z: 0.4, ry: Math.PI / 2 },
+        { x: 1.25, z: -0.4, ry: -Math.PI / 2 },
+        { x: 1.25, z: 0.4, ry: -Math.PI / 2 },
+        { x: -0.6, z: -1.25, ry: Math.PI },
+        { x: 0.6, z: -1.25, ry: Math.PI }
+      ];
+      windowSides.forEach(w => {
+        const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.65, 0.08), darkStoneMat);
+        winFrame.position.set(w.x, 1.35, w.z);
+        winFrame.rotation.y = w.ry;
+        root.add(winFrame);
+
+        const winGlass = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.55, 0.09), lanternGlowMat);
+        winGlass.position.set(w.x, 1.35, w.z);
+        winGlass.rotation.y = w.ry;
+        root.add(winGlass);
+      });
+
+      // 5. Central Octagonal Observatory Drum Tower
+      const drumBase = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.22, 0.55, 8), darkStoneMat);
+      drumBase.position.set(0, 2.38, 0);
+      root.add(drumBase);
+
+      const drumMid = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.15, 0.65, 8), stoneMat);
+      drumMid.position.set(0, 2.95, 0);
+      root.add(drumMid);
+
+      // Arched Observation Windows around the Drum
+      for (let i = 0; i < 8; i++) {
+        const angle = (i * Math.PI) / 4;
+        const owX = Math.sin(angle) * 1.02;
+        const owZ = Math.cos(angle) * 1.02;
+        const obsWin = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.38, 0.08), lanternGlowMat);
+        obsWin.position.set(owX, 2.95, owZ);
+        obsWin.rotation.y = angle;
+        root.add(obsWin);
+      }
+
+      // Upper Cornice Ring
+      const drumCornice = new THREE.Mesh(new THREE.CylinderGeometry(1.18, 1.08, 0.16, 8), marbleMat);
+      drumCornice.position.set(0, 3.32, 0);
+      root.add(drumCornice);
+
+      // 6. Stately Ribbed Domed Observatory with Team Faction Accents
+      const domeGeom = new THREE.SphereGeometry(1.08, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+      const dome = new THREE.Mesh(domeGeom, slateRoofMat);
+      dome.position.set(0, 3.36, 0);
       root.add(dome);
 
-      // 4. Rotating Celestial Astrolabe / Armillary Sphere (Animated in Render Loop!)
+      // 8 Gilded Dome Ribs
+      for (let r = 0; r < 8; r++) {
+        const ribAngle = (r * Math.PI) / 4;
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(1.08, 0.024, 6, 12, Math.PI / 2), goldMat);
+        rib.position.set(0, 3.36, 0);
+        rib.rotation.y = ribAngle;
+        rib.rotation.z = -Math.PI / 2;
+        root.add(rib);
+      }
+
+      // Faction Colored Decorative Band around Dome Base
+      const teamRing = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.12, 0.14, 16), teamMat);
+      teamRing.position.set(0, 3.42, 0);
+      root.add(teamRing);
+
+      // 7. Rooftop Lantern Cupola & Animated Celestial Astrolabe / Armillary Sphere
+      const cupola = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.38, 8), marbleMat);
+      cupola.position.set(0, 4.45, 0);
+      root.add(cupola);
+
+      const cupolaCap = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.28, 8), goldMat);
+      cupolaCap.position.set(0, 4.75, 0);
+      root.add(cupolaCap);
+
+      // Animated Armillary Sphere (Astrolabe)
       const astrolabeGroup = new THREE.Group();
-      astrolabeGroup.position.set(0, 3.15, 0);
+      astrolabeGroup.position.set(0, 5.15, 0);
       astrolabeGroup.userData = { isRotator: true, rotSpeed: 0.6, rotAxis: 'y' };
 
-      const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.038, 10, 24), goldMat);
+      const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.03, 10, 24), goldMat);
       astrolabeGroup.add(ring1);
 
-      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.032, 10, 24), goldMat);
+      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.025, 10, 24), goldMat);
       ring2.rotation.x = Math.PI / 3;
       astrolabeGroup.add(ring2);
 
-      // Radiant Sapphire Arcana Crystal at core
-      const coreCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.26, 0), arcanaCrystalMat);
+      const ring3 = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.02, 10, 24), goldMat);
+      ring3.rotation.y = Math.PI / 3;
+      astrolabeGroup.add(ring3);
+
+      // Radiant Sapphire Arcana Crystal Core
+      const coreCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.18, 0), arcanaCrystalMat);
       astrolabeGroup.add(coreCrystal);
 
       root.add(astrolabeGroup);
 
-      // Stained Glass Arch Window
-      const win = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.05, 0.1), arcanaCrystalMat);
-      win.position.set(0, 1.05, 1.28);
-      root.add(win);
+      // Brass Astronomical Telescope on Front Terrace
+      const telescopeStand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.52, 8), darkStoneMat);
+      telescopeStand.position.set(0.68, 0.72, 1.05);
+      root.add(telescopeStand);
+
+      const telescopeTube = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.03, 0.65, 8), goldMat);
+      telescopeTube.position.set(0.68, 1.04, 1.05);
+      telescopeTube.rotation.set(-Math.PI / 4, 0, 0.2);
+      root.add(telescopeTube);
       break;
     }
 

@@ -1388,13 +1388,15 @@ export class GameRenderer {
       fillGradEnd = '#92400e';
     } else if (hasQueue) {
       const item = bldg.productionQueue[0];
-      const itemName = item.itemType.replace('_', ' ').toUpperCase();
+      const isTech = item.category === 'tech';
+      const isAge = item.category === 'age';
+      const itemName = item.itemType.replace(/_/g, ' ').toUpperCase();
       const countSuffix = bldg.productionQueue.length > 1 ? ` (+${bldg.productionQueue.length - 1})` : '';
-      stateLabel = `⚜️ ${itemName}${countSuffix}`;
+      stateLabel = isAge ? `🏛️ ${itemName}${countSuffix}` : isTech ? `🔬 ${itemName}${countSuffix}` : `⚜️ ${itemName}${countSuffix}`;
       progress = Math.min(1.0, Math.max(0, item.progress / 100));
       percentText = `${Math.floor(item.progress)}%`;
-      fillGradStart = '#b91c1c';
-      fillGradEnd = '#6b0e0e';
+      fillGradStart = isTech ? '#6366f1' : isAge ? '#d97706' : '#0284c7';
+      fillGradEnd = isTech ? '#4338ca' : isAge ? '#92400e' : '#0369a1';
     } else if (isDamaged) {
       stateLabel = '🛡️ FORTIFICATION INTEGRITY';
       progress = Math.min(1.0, Math.max(0, bldg.hp / bldg.maxHp));

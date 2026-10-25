@@ -1065,15 +1065,19 @@ export class HudView {
         `;
       } else if (bldg.productionQueue.length > 0) {
         const item = bldg.productionQueue[0];
-        const itemName = item.itemType.replace('_', ' ').toUpperCase();
+        const isTech = item.category === 'tech';
+        const isAge = item.category === 'age';
+        const actionLabel = isAge ? '🏛️ Advancing' : isTech ? '🔬 Researching' : '⚙️ Training';
+        const techDef = isTech ? TECHNOLOGIES[item.itemType] : null;
+        const itemName = techDef ? techDef.name.toUpperCase() : item.itemType.replace(/_/g, ' ').toUpperCase();
         activityHtml = `
           <div style="margin-top: 4px;">
-            <div style="font-size: 10px; color: #38bdf8; display: flex; justify-content: space-between; font-weight: 700;">
-              <span>⚙️ Training: ${itemName}</span>
+            <div style="font-size: 10px; color: ${isTech ? '#a78bfa' : isAge ? '#f59e0b' : '#38bdf8'}; display: flex; justify-content: space-between; font-weight: 700;">
+              <span>${actionLabel}: ${itemName}</span>
               <span>${Math.floor(item.progress)}%</span>
             </div>
             <div style="width: 100%; height: 6px; background: #331d0d; border: 1px solid #8c6a34; border-radius: 3px; overflow: hidden; margin-top: 2px;">
-              <div style="width: ${item.progress}%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8);"></div>
+              <div style="width: ${item.progress}%; height: 100%; background: ${isTech ? 'linear-gradient(90deg, #6366f1, #a78bfa)' : isAge ? 'linear-gradient(90deg, #d97706, #fbbf24)' : 'linear-gradient(90deg, #0284c7, #38bdf8)'};"></div>
             </div>
             ${bldg.productionQueue.length > 1 ? `<div style="font-size: 9px; color: #fef08a; margin-top: 2px;">Queue: +${bldg.productionQueue.length - 1} pending</div>` : ''}
           </div>
@@ -1531,28 +1535,103 @@ export class HudView {
 
     // Research Hall: Technologies
     if (bldg.type === 'research_hall') {
-      const techList = Object.values(TECHNOLOGIES).filter(t => !player.researchedTechs.includes(t.id));
-      const hotkeys = ['Q', 'W', 'E', 'R'];
-      techList.slice(0, 4).forEach((t, idx) => {
+      const ageRank = (a: any) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
+      const curPlayer = this.currentPlayer || player;
+      const playerAgeRank = ageRank(curPlayer.age);
+
+      // Sort technologies:
+      // 1. Available in current age with prerequisites met (top priority)
+      // 2. Available in current age with missing prerequisites
+      // 3. Higher age technologies (locked)
+      const allTechs = Object.values(TECHNOLOGIES).filter(t => !curPlayer.researchedTechs.includes(t.id));
+      allTechs.sort((a, b) => {
+        const aAgeRank = ageRank(a.requiredAge);
+        const bAgeRank = ageRank(b.requiredAge);
+        const aUnlocked = aAgeRank <= playerAgeRank && a.prerequisites.every(p => curPlayer.researchedTechs.includes(p));
+        const bUnlocked = bAgeRank <= playerAgeRank && b.prerequisites.every(p => curPlayer.researchedTechs.includes(p));
+        if (aUnlocked !== bUnlocked) return aUnlocked ? -1 : 1;
+        if (aAgeRank !== bAgeRank) return aAgeRank - bAgeRank;
+        return a.name.localeCompare(b.name);
+      });
+
+      const hotkeys = ['Q', 'W', 'E', 'R', 'T', 'A', 'S', 'D', 'F', 'G'];
+      allTechs.slice(0, 10).forEach((t, idx) => {
+        const tAgeRank = ageRank(t.requiredAge);
+        const isAgeLocked = tAgeRank > playerAgeRank;
+        const missingPrereqs = t.prerequisites.filter(p => !curPlayer.researchedTechs.includes(p));
+        const isPrereqLocked = missingPrereqs.length > 0;
+        const isLocked = isAgeLocked || isPrereqLocked;
+        const isCurrentlyQueued = bldg.productionQueue.some(item => item.itemType === t.id);
+
+        // Build compact cost text
+        const costItems: string[] = [];
+        if (t.cost.food) costItems.push(`${t.cost.food}F`);
+        if (t.cost.wood) costItems.push(`${t.cost.wood}W`);
+        if (t.cost.stone) costItems.push(`${t.cost.stone}S`);
+        if (t.cost.metal) costItems.push(`${t.cost.metal}G`);
+        if (t.cost.knowledge) costItems.push(`${t.cost.knowledge}Kn`);
+        const costStr = costItems.slice(0, 2).join(' ') + (costItems.length > 2 ? '+' : '');
+
+        // Category icon
+        const catIcons: Record<string, string> = {
+          Economy: '🌾',
+          Military: '⚔️',
+          Construction: '🏛️',
+          Exploration: '🧭',
+          Civilization: '📜'
+        };
+        const icon = isCurrentlyQueued ? '⏳' : isLocked ? '🔒' : (catIcons[t.category] || '🔬');
+
         const btn = document.createElement('button');
         btn.className = 'aoe3-action-btn';
-        btn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px;';
+        btn.style.cssText = `padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; ${isCurrentlyQueued ? 'border-color: #38bdf8; background: #0c2b42;' : isLocked ? 'opacity: 0.65; border-color: #64748b;' : 'border-color: #a855f7;'}`;
+        btn.title = `${t.name} (${t.category})\n${t.description}\nRequired Age: ${t.requiredAge}${isPrereqLocked ? `\nMissing Prerequisites: ${missingPrereqs.map(p => TECHNOLOGIES[p]?.name || p).join(', ')}` : ''}\nCost: ${costItems.join(', ')}`;
         btn.innerHTML = `
-          <span class="aoe3-hotkey-badge">${hotkeys[idx]}</span>
-          <span style="font-size: 16px;">🧪</span>
-          <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55px;">${t.name}</span>
-          <span style="font-size: 8.5px; color: #fef08a;">${t.cost.knowledge}K</span>
+          <span class="aoe3-hotkey-badge">${hotkeys[idx] || ''}</span>
+          <span style="font-size: 15px;">${icon}</span>
+          <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 58px; ${isCurrentlyQueued ? 'color: #38bdf8;' : isLocked ? 'color: #94a3b8;' : 'color: #fef08a;'}">${t.name}</span>
+          <span style="font-size: 8px; color: ${isCurrentlyQueued ? '#38bdf8' : isAgeLocked ? '#f87171' : isPrereqLocked ? '#f59e0b' : '#cbd5e1'};">${isCurrentlyQueued ? 'Queued' : isAgeLocked ? t.requiredAge.replace(' Age', '') : isPrereqLocked ? 'Prereq' : costStr}</span>
         `;
+
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          const curPlayer = this.currentPlayer || player;
-          if (curPlayer.resources.knowledge < t.cost.knowledge) {
+          const pState = this.currentPlayer || player;
+          const pAgeRank = ageRank(pState.age);
+          if (tAgeRank > pAgeRank) {
             soundManager.playError();
-            this.showNotification(`⚠️ Need ${t.cost.knowledge} Knowledge to research ${t.name}!`);
+            this.showNotification(`🔒 ${t.name} requires ${t.requiredAge}! Advance your civilization first.`);
             return;
           }
+          if (missingPrereqs.length > 0) {
+            soundManager.playError();
+            const prereqNames = missingPrereqs.map(p => TECHNOLOGIES[p]?.name || p).join(', ');
+            this.showNotification(`🔒 Requires prerequisite: ${prereqNames}`);
+            return;
+          }
+
+          if (bldg.productionQueue.some(item => item.itemType === t.id)) {
+            soundManager.playError();
+            this.showNotification(`⚠️ ${t.name} is already in the research queue!`);
+            return;
+          }
+
+          // Check all resources
+          const missingRes: string[] = [];
+          if (pState.resources.food < t.cost.food) missingRes.push(`${t.cost.food - pState.resources.food} Food`);
+          if (pState.resources.wood < t.cost.wood) missingRes.push(`${t.cost.wood - pState.resources.wood} Wood`);
+          if (pState.resources.stone < t.cost.stone) missingRes.push(`${t.cost.stone - pState.resources.stone} Stone`);
+          if (pState.resources.metal < t.cost.metal) missingRes.push(`${t.cost.metal - pState.resources.metal} Metal`);
+          if (pState.resources.knowledge < t.cost.knowledge) missingRes.push(`${t.cost.knowledge - pState.resources.knowledge} Knowledge`);
+
+          if (missingRes.length > 0) {
+            soundManager.playError();
+            this.showNotification(`⚠️ Insufficient resources for ${t.name}! Need: ${missingRes.join(', ')}`);
+            return;
+          }
+
           this.callbacks.onResearchTech(bldg.id, t.id);
-          this.showNotification(`🧪 Research started: ${t.name}`);
+          soundManager.playClick();
+          this.showNotification(`🔬 Research started: ${t.name}`);
         });
         this.actionMatrixElem.appendChild(btn);
       });
