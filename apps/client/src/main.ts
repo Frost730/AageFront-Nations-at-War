@@ -507,7 +507,8 @@ class GameApp {
     if (snapshot.events) {
       for (const ev of snapshot.events) {
         if (ev.type === 'ATTACK_HIT') {
-          soundManager.playAttack();
+          const attacker = this.currentUnits.find(u => u.id === ev.attackerId);
+          soundManager.playCombatHit(attacker?.type || 'basic_infantry');
           this.renderer.spawnAttackVisual(ev.attackerId, ev.targetId, this.currentUnits, this.currentBuildings);
         } else if (ev.type === 'AGE_ADVANCED') {
           soundManager.playAgeUp();

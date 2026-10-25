@@ -458,7 +458,8 @@ export class InputHandler {
         if (targetUnit && targetUnit.team !== this.myTeam) {
           this.dispatcher.dispatchAttack(unitIds, targetUnit.id);
           this.renderer.spawnOrderMarker(targetUnit.x, targetUnit.y, 'attack');
-          soundManager.playAttack();
+          const firstUnit = this.activeUnitsForSelection.find(u => unitIds.includes(u.id));
+          soundManager.playAttackOrder(firstUnit?.type);
           return;
         }
       } else if (hit.type === 'building') {
@@ -471,7 +472,8 @@ export class InputHandler {
             // Attack enemy building
             this.dispatcher.dispatchAttack(unitIds, targetBldg.id);
             this.renderer.spawnOrderMarker(cx, cy, 'attack');
-            soundManager.playAttack();
+            const firstUnit = this.activeUnitsForSelection.find(u => unitIds.includes(u.id));
+            soundManager.playAttackOrder(firstUnit?.type);
             return;
           } else {
             // Friendly building
@@ -520,7 +522,8 @@ export class InputHandler {
         if (b.team !== this.myTeam) {
           this.dispatcher.dispatchAttack(unitIds, b.id);
           this.renderer.spawnOrderMarker(b.x + b.width / 2, b.y + b.height / 2, 'attack');
-          soundManager.playAttack();
+          const firstUnit = this.activeUnitsForSelection.find(u => unitIds.includes(u.id));
+          soundManager.playAttackOrder(firstUnit?.type);
         } else {
           if (!b.isConstructed || b.hp < b.maxHp) {
             this.dispatcher.dispatchRepair(unitIds, b.id);

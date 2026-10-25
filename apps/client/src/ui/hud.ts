@@ -194,7 +194,6 @@ export class HudView {
       <button id="quick-btn-idle" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Find Idle Settler (Z)">💤</button>
       <button id="quick-btn-military" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Select All Military Units (V)">📯</button>
       <button id="quick-btn-formation" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Formations & Combat Stances">⚔️</button>
-      <button id="quick-btn-anchor" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Naval Fleet & Docks">⚓</button>
       <button id="quick-btn-builder" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Select Builder for Construction">🔨</button>
     `;
     this.rootElem.appendChild(quickStrip);
@@ -219,11 +218,6 @@ export class HudView {
 
     quickStrip.querySelector('#quick-btn-formation')?.addEventListener('click', () => {
       this.showNotification('⚔️ Battle formation set: Line Formation / Aggressive Stance.');
-      soundManager.playClick();
-    });
-
-    quickStrip.querySelector('#quick-btn-anchor')?.addEventListener('click', () => {
-      this.showNotification('⚓ Naval docks ready for transport and war frigates.');
       soundManager.playClick();
     });
 
@@ -1448,6 +1442,9 @@ export class HudView {
     if (bldg.type === 'barracks') {
       this.createTrainUnitButton(bldg, 'basic_infantry', 'Infantry', '⚔️', '60F 20G', 'Q', player);
       this.createTrainUnitButton(bldg, 'spearman', 'Spearman', '🛡️', '50F 20W', 'W', player);
+      if (player.age === 'Imperial Age' || player.age === 'Industrial Age') {
+        this.createTrainUnitButton(bldg, 'advanced_unit', 'Royal Guard', '👑', '120F 120G', 'E', player);
+      }
     }
 
     // Archery Range Units
@@ -1467,7 +1464,8 @@ export class HudView {
 
     // Fort / Roost: War Dragon
     if (bldg.type === 'fort') {
-      this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'Q', player);
+      this.createTrainUnitButton(bldg, 'advanced_unit', 'Royal Guard', '🛡️', '120F 120G', 'Q', player);
+      this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'W', player);
     }
 
     // Research Hall: Technologies

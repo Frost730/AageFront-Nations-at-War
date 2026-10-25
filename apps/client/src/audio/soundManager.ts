@@ -139,11 +139,15 @@ export class SoundManager {
 
   
   private lastVocalBarkTime: number = 0;
+  private lastCombatHitTime: number = 0;
 
+  /**
+   * Smooth, authoritative unit voice commentary for selection & tactical orders.
+   */
   public playUnitVocalBark(type: 'select' | 'move' | 'attack' | 'work', unitType: string = 'basic_infantry'): void {
     if (this.isMuted || this.sfxVolume <= 0) return;
     const now = performance.now();
-    if (now - this.lastVocalBarkTime < 750) return; // 750ms debounce
+    if (now - this.lastVocalBarkTime < 1100) return; // 1.1s natural pause
     this.lastVocalBarkTime = now;
 
     const isWorker = unitType === 'worker';
@@ -151,72 +155,40 @@ export class SoundManager {
 
     if (type === 'select') {
       phrases = isWorker 
-        ? ['Mandatum?', 'Rogan?', 'Quid vis?', 'Conditor!']
-        : ['Imperator!', 'Ad arma!', 'Paratus!', 'Praesto sum!'];
+        ? ['Ready to work.', 'Orders received.', 'Yes, Sire?', 'Mandatum?']
+        : ['Standing ready.', 'At your command.', 'Awaiting orders.', 'Imperator!'];
     } else if (type === 'move') {
       phrases = isWorker
-        ? ['Properandum.', 'Sequor.', 'Iter facio.']
-        : ['Audentes!', 'Movere!', 'Celeriter!', 'Ad signa!'];
+        ? ['Right away.', 'Moving now.', 'On my way.', 'Properandum.']
+        : ['Marching out.', 'Moving forward.', 'Understood.', 'Audentes!'];
     } else if (type === 'attack') {
-      phrases = ['Oppugnate!', 'Ad victoriam!', 'Incursionem!', 'Ferte tela!'];
+      phrases = ['To arms!', 'Charge!', 'Engaging enemy!', 'Ad victoriam!'];
     } else { // work
-      phrases = ['Fabricator.', 'Fodito!', 'Laboro.', 'Construo.'];
+      phrases = ['Constructing now.', 'Right away.', 'Harvesting resources.', 'Laboro.'];
     }
 
     const phrase = phrases[Math.floor(Math.random() * phrases.length)];
 
-    // 1. Web Speech Synthesis Latin Vocalization
+    // Smooth Web Speech Synthesis
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
+        window.speechSynthesis.cancel(); // Prevent voice overlapping or queuing
         const utter = new SpeechSynthesisUtterance(phrase);
-        utter.volume = Math.min(1.0, 0.65 * this.sfxVolume);
-        utter.rate = isWorker ? 1.05 : 1.15;
-        utter.pitch = isWorker ? 1.12 : 0.85;
+        utter.volume = Math.min(1.0, 0.75 * this.sfxVolume);
+        utter.rate = isWorker ? 1.0 : 0.95;
+        utter.pitch = isWorker ? 1.02 : 0.92;
         
         const voices = window.speechSynthesis.getVoices();
-        const preferred = voices.find(v => v.lang.includes('it') || v.lang.includes('la') || v.lang.includes('es') || v.name.includes('Male'));
+        const preferred = voices.find(v => 
+          (v.name.includes('Natural') || v.name.includes('Online') || v.name.includes('David') || v.name.includes('George') || v.name.includes('Male')) &&
+          !v.name.includes('Zira')
+        ) || voices.find(v => v.lang.startsWith('en')) || voices.find(v => v.lang.includes('it') || v.lang.includes('es'));
+        
         if (preferred) utter.voice = preferred;
-
         window.speechSynthesis.speak(utter);
       } catch (e) {
-        // Fallback to audio formant synthesis
+        // Fallback gracefully
       }
-    }
-
-    // 2. Synthesized Vocal Formant Glottal Resonance (AoE Vowel Tone)
-    this.initContext();
-    if (this.ctx) {
-      const audioNow = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const f1 = this.ctx.createBiquadFilter();
-      const f2 = this.ctx.createBiquadFilter();
-      const gain = this.ctx.createGain();
-
-      const fundamental = isWorker ? 175 : 115;
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(fundamental, audioNow);
-      osc.frequency.exponentialRampToValueAtTime(fundamental * 0.9, audioNow + 0.18);
-
-      f1.type = 'bandpass';
-      f1.frequency.setValueAtTime(isWorker ? 650 : 500, audioNow);
-      f1.Q.setValueAtTime(4.0, audioNow);
-
-      f2.type = 'bandpass';
-      f2.frequency.setValueAtTime(isWorker ? 1700 : 1350, audioNow);
-      f2.Q.setValueAtTime(5.0, audioNow);
-
-      gain.gain.setValueAtTime(0.01, audioNow);
-      gain.gain.linearRampToValueAtTime(0.12 * this.sfxVolume, audioNow + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioNow + 0.22);
-
-      osc.connect(f1);
-      osc.connect(f2);
-      f1.connect(gain);
-      f2.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(audioNow);
-      osc.stop(audioNow + 0.23);
     }
   }
 
@@ -294,57 +266,181 @@ export class SoundManager {
     });
   }
 
-  public playAttack(unitType?: string): void {
+  /**
+   * Played when the player issues an attack order.
+   */
+  public playAttackOrder(unitType?: string): void {
     this.playUnitVocalBark('attack', unitType);
+  }
+
+  /**
+   * Realistic physical combat fight noise on weapon impacts, sword clashes, and siege explosions.
+   */
+  public playCombatHit(attackerType: string = 'basic_infantry'): void {
     if (this.isMuted || this.sfxVolume <= 0) return;
+    const nowMs = performance.now();
+    if (nowMs - this.lastCombatHitTime < 75) return; // 75ms throttle for crisp battlefield soundscape
+    this.lastCombatHitTime = nowMs;
+
     this.initContext();
     if (!this.ctx) return;
-
-    // Authentic sword clash / steel parry (metallic ringing ping + blade friction)
     const now = this.ctx.currentTime;
+    const pitchMod = 0.92 + Math.random() * 0.16; // Organic pitch variation
 
-    // 1. Ringing steel harmonics
-    [2400, 3600, 4800].forEach((freq, idx) => {
+    if (attackerType === 'ranged_infantry') {
+      this.playArrowHitSound(now, pitchMod);
+    } else if (attackerType === 'siege_unit') {
+      this.playSiegeImpactSound(now, pitchMod);
+    } else {
+      this.playMeleeClashSound(now, pitchMod, attackerType);
+    }
+  }
+
+  private playMeleeClashSound(now: number, pitchMod: number, unitType: string): void {
+    if (!this.ctx) return;
+
+    // 1. Sharp Metal Scrape Transient (Friction of crossing blades)
+    const scrapeBuf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.04), this.ctx.sampleRate);
+    const scrapeData = scrapeBuf.getChannelData(0);
+    for (let i = 0; i < scrapeData.length; i++) {
+      scrapeData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (scrapeData.length * 0.25));
+    }
+    const scrapeSrc = this.ctx.createBufferSource();
+    scrapeSrc.buffer = scrapeBuf;
+
+    const scrapeFilter = this.ctx.createBiquadFilter();
+    scrapeFilter.type = 'bandpass';
+    scrapeFilter.frequency.setValueAtTime(2600 * pitchMod, now);
+    scrapeFilter.Q.setValueAtTime(3.5, now);
+
+    const scrapeGain = this.ctx.createGain();
+    scrapeGain.gain.setValueAtTime(0.18 * this.sfxVolume, now);
+    scrapeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    scrapeSrc.connect(scrapeFilter);
+    scrapeFilter.connect(scrapeGain);
+    scrapeGain.connect(this.ctx.destination);
+    scrapeSrc.start(now);
+
+    // 2. Ringing Forged Steel Harmonics (Crystalline metallic ring)
+    const ringFreqs = unitType === 'advanced_unit' 
+      ? [2200 * pitchMod, 3450 * pitchMod, 4900 * pitchMod]
+      : [2800 * pitchMod, 3950 * pitchMod, 5300 * pitchMod];
+
+    ringFreqs.forEach((freq, idx) => {
       const osc = this.ctx!.createOscillator();
       const gain = this.ctx!.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq + (idx * 50), now);
+      osc.frequency.setValueAtTime(freq, now);
 
-      gain.gain.setValueAtTime(0.12 * this.sfxVolume, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18 + (idx * 0.04));
+      const decay = 0.12 + idx * 0.04;
+      gain.gain.setValueAtTime(0.09 * this.sfxVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
 
       osc.connect(gain);
       gain.connect(this.ctx!.destination);
 
       osc.start(now);
-      osc.stop(now + 0.25);
+      osc.stop(now + decay + 0.02);
     });
 
-    // 2. Impact noise burst
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.08);
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
-    }
+    // 3. Heavy Physical Armor / Body Thud (Low-end chest impact)
+    const thudOsc = this.ctx.createOscillator();
+    const thudGain = this.ctx.createGain();
 
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
+    thudOsc.type = 'triangle';
+    thudOsc.frequency.setValueAtTime(160 * pitchMod, now);
+    thudOsc.frequency.exponentialRampToValueAtTime(45 * pitchMod, now + 0.07);
 
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.setValueAtTime(1800, now);
+    thudGain.gain.setValueAtTime(0.22 * this.sfxVolume, now);
+    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
 
+    thudOsc.connect(thudGain);
+    thudGain.connect(this.ctx.destination);
+
+    thudOsc.start(now);
+    thudOsc.stop(now + 0.08);
+  }
+
+  private playArrowHitSound(now: number, pitchMod: number): void {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.25 * this.sfxVolume, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
 
-    noise.connect(filter);
-    filter.connect(gain);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(420 * pitchMod, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.05);
+
+    gain.gain.setValueAtTime(0.24 * this.sfxVolume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+
+    osc.connect(gain);
     gain.connect(this.ctx.destination);
 
+    osc.start(now);
+    osc.stop(now + 0.06);
+
+    const noiseBuf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.035), this.ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.3));
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1400 * pitchMod, now);
+
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.15 * this.sfxVolume, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
     noise.start(now);
+  }
+
+  private playSiegeImpactSound(now: number, pitchMod: number): void {
+    if (!this.ctx) return;
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(75 * pitchMod, now);
+    subOsc.frequency.exponentialRampToValueAtTime(25, now + 0.35);
+
+    subGain.gain.setValueAtTime(0.35 * this.sfxVolume, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.ctx.destination);
+
+    subOsc.start(now);
+    subOsc.stop(now + 0.36);
+
+    const noiseBuf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.22), this.ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.4));
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800 * pitchMod, now);
+
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.28 * this.sfxVolume, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
+    noise.start(now);
+  }
+
+  public playAttack(unitType?: string): void {
+    this.playCombatHit(unitType);
   }
 
   public playBuild(): void {
