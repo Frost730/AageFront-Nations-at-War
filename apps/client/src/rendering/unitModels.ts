@@ -175,6 +175,36 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     flatShading: false
   });
 
+  // Worker reference-accurate materials (Nanite Utility Character Asset Library)
+  const workerRoughCanvasMat = new THREE.MeshStandardMaterial({
+    color: 0x82735e, // Coarse woven utility tunic canvas
+    roughness: 0.90,
+    metalness: 0.02,
+    flatShading: false
+  });
+  const workerRoughLeatherMat = new THREE.MeshStandardMaterial({
+    color: 0x5a3e26, // Tough work leather apron, jerkin tabs, and pouches
+    roughness: 0.78,
+    metalness: 0.06,
+    flatShading: false
+  });
+  const workerLacesMat = new THREE.MeshStandardMaterial({
+    color: 0x24180f, // Dark rawhide front chest lacing cords
+    roughness: 0.85,
+    flatShading: false
+  });
+  const workerBeardMat = new THREE.MeshStandardMaterial({
+    color: 0x3b2416, // Rugged trimmed laborer beard and mustache
+    roughness: 0.92,
+    flatShading: false
+  });
+  const ironPickMat = new THREE.MeshStandardMaterial({
+    color: 0x47505a, // Hand-forged hardened iron pickaxe head
+    roughness: 0.45,
+    metalness: 0.85,
+    flatShading: false
+  });
+
   // Dragon materials (Faithfully matching user photo reference)
   const dragonRedScalesMat = new THREE.MeshStandardMaterial({
     color: 0x941b1b, // Deep royal volcanic crimson/ruby
@@ -246,34 +276,40 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     legGroup.name = name;
     legGroup.position.set(xOffset, 0.44, 0);
 
-    // Thigh (Cuisses / Chausses) - slender realistic human proportion
+    // Thigh (Cuisses / Chausses) - pivoting from hip (0, 0, 0) down to knee (0, -0.22, 0)
     const thighGeom = new THREE.CylinderGeometry(0.048, 0.042, 0.22, 10);
     thighGeom.translate(0, -0.11, 0);
     const thigh = new THREE.Mesh(thighGeom, mat);
     thigh.castShadow = true;
     legGroup.add(thigh);
 
+    // Lower Leg Joint (Knee, Shin & Boot) pivoting at knee level (0, -0.22, 0) for fluid walking biomechanics
+    const lowerLeg = new THREE.Group();
+    lowerLeg.name = `${name}_shin`;
+    lowerLeg.position.set(0, -0.22, 0);
+
     // Articulated Knee Cop (Poleyn)
     const kneeGeom = new THREE.SphereGeometry(0.046, 8, 8);
     const knee = new THREE.Mesh(kneeGeom, isSteelGreave ? steelMat : mat);
-    knee.position.set(0, -0.22, 0.015);
+    knee.position.set(0, 0, 0.015);
     knee.castShadow = true;
-    legGroup.add(knee);
+    lowerLeg.add(knee);
 
     // Shin / Greave
     const shinGeom = new THREE.CylinderGeometry(0.044, 0.038, 0.20, 10);
-    shinGeom.translate(0, -0.32, 0);
+    shinGeom.translate(0, -0.10, 0);
     const shin = new THREE.Mesh(shinGeom, isSteelGreave ? steelMat : mat);
     shin.castShadow = true;
-    legGroup.add(shin);
+    lowerLeg.add(shin);
 
     // Foot / Riding Boot / Sabaton touching ground at y = 0
     const bootGeom = new THREE.BoxGeometry(0.075, 0.065, 0.14);
-    bootGeom.translate(0, -0.41, 0.035);
+    bootGeom.translate(0, -0.19, 0.035);
     const boot = new THREE.Mesh(bootGeom, isSteelGreave ? steelMat : darkLeatherMat);
     boot.castShadow = true;
-    legGroup.add(boot);
+    lowerLeg.add(boot);
 
+    legGroup.add(lowerLeg);
     return legGroup;
   };
 
@@ -626,62 +662,127 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
   // -------------------------------------------------------------
   switch (unit.type) {
     case 'worker': {
-      // 1. Torso with Leather Apron & Faction Tunic (Anatomical Medieval Villager)
+      // 1. Torso with Rough Canvas Tunic, Cross-Lacing & Utility Belt (Iron-Spike Laborer)
       const torsoGroup = new THREE.Group();
       torsoGroup.name = 'unit_torso';
       torsoGroup.position.y = 0.44; // Placed right at waist level above legs
 
-      // Tapered chest & tunic (width 0.28, height 0.25, depth 0.18)
-      const chestGeom = new THREE.BoxGeometry(0.28, 0.25, 0.18);
-      const chest = new THREE.Mesh(chestGeom, teamClothMat);
-      chest.position.y = 0.12;
+      // Rough Canvas Work Doublet / Tunic
+      const chestGeom = new THREE.BoxGeometry(0.28, 0.26, 0.18);
+      const chest = new THREE.Mesh(chestGeom, workerRoughCanvasMat);
+      chest.position.y = 0.13;
       torsoGroup.add(chest);
 
-      // Short tunic skirt (only reaches y = -0.08, leaving legs fully visible!)
-      const skirtGeom = new THREE.CylinderGeometry(0.15, 0.18, 0.14, 12);
+      // Rolled Leather Collar
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.04, 10), workerRoughLeatherMat);
+      collar.position.set(0, 0.26, 0);
+      torsoGroup.add(collar);
+
+      // Detailed Front Chest Lacing / Cross-Ties (Reference: Iron-Spike Laborer Inset)
+      const placket = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.20, 0.02), workerRoughLeatherMat);
+      placket.position.set(0, 0.14, 0.095);
+      torsoGroup.add(placket);
+
+      // 4 horizontal cross-laces with eyelets
+      for (let l = 0; l < 4; l++) {
+        const ly = 0.08 + l * 0.04;
+        const laceL = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.012, 0.012), workerLacesMat);
+        laceL.position.set(0, ly, 0.106);
+        torsoGroup.add(laceL);
+
+        // Brass eyelet studs
+        const eyeletL = new THREE.Mesh(new THREE.SphereGeometry(0.008, 4, 4), goldMat);
+        eyeletL.position.set(-0.025, ly, 0.108);
+        torsoGroup.add(eyeletL);
+
+        const eyeletR = new THREE.Mesh(new THREE.SphereGeometry(0.008, 4, 4), goldMat);
+        eyeletR.position.set(0.025, ly, 0.108);
+        torsoGroup.add(eyeletR);
+      }
+
+      // Leather Shoulder Tabs / Yoke
+      const shoulderL = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 0.14), workerRoughLeatherMat);
+      shoulderL.position.set(-0.14, 0.25, 0);
+      torsoGroup.add(shoulderL);
+
+      const shoulderR = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 0.14), workerRoughLeatherMat);
+      shoulderR.position.set(0.14, 0.25, 0);
+      torsoGroup.add(shoulderR);
+
+      // Doublet Peplum / Tunic Skirt
+      const skirtGeom = new THREE.CylinderGeometry(0.15, 0.19, 0.14, 12);
       skirtGeom.translate(0, -0.02, 0);
-      const skirt = new THREE.Mesh(skirtGeom, teamClothMat);
+      const skirt = new THREE.Mesh(skirtGeom, workerRoughCanvasMat);
       torsoGroup.add(skirt);
 
-      // Heavy Laborer Leather Apron bib & lap
-      const apronBib = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.04), leatherMat);
-      apronBib.position.set(0, 0.11, 0.1);
+      // Rough Leather Apron Flap
+      const apronBib = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.02), workerRoughLeatherMat);
+      apronBib.position.set(0, 0.06, 0.1);
       torsoGroup.add(apronBib);
 
-      const apronSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.04), leatherMat);
-      apronSkirt.position.set(0, -0.04, 0.1);
+      const apronSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.02), workerRoughLeatherMat);
+      apronSkirt.position.set(0, -0.07, 0.1);
       torsoGroup.add(apronSkirt);
 
-      // Utility Leather Belt with Gilded Buckle & Tool Pouch
+      // Utility Leather Belt with Gilded Buckle
       const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.165, 0.05, 12), darkLeatherMat);
       belt.position.y = 0.02;
       torsoGroup.add(belt);
 
-      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.03), goldMat);
-      buckle.position.set(0, 0.02, 0.12);
+      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.03), goldMat);
+      buckle.position.set(0, 0.02, 0.14);
       torsoGroup.add(buckle);
 
-      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 0.06), leatherMat);
-      pouch.position.set(-0.13, -0.02, 0.08);
+      // Modular Attachment Points (Belt Gear from reference card)
+      // Left Hip: Chisel Sheath with Cold Chisel
+      const chiselSheath = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.04), workerRoughLeatherMat);
+      chiselSheath.position.set(-0.15, -0.02, 0.04);
+      chiselSheath.rotation.z = 0.15;
+      torsoGroup.add(chiselSheath);
+
+      const chiselBit = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.02), steelMat);
+      chiselBit.position.set(-0.17, 0.07, 0.04);
+      chiselBit.rotation.z = 0.15;
+      torsoGroup.add(chiselBit);
+
+      // Right Hip: Gathered Pouch & Hammer Loop
+      const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), workerRoughLeatherMat);
+      pouch.position.set(0.15, -0.02, 0.05);
+      pouch.scale.set(1.0, 1.2, 0.8);
       torsoGroup.add(pouch);
 
-      // Slender Sleeved Arms & Hands
-      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
+      const toolLoop = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.008, 6, 8), darkLeatherMat);
+      toolLoop.position.set(0.16, 0.01, -0.02);
+      toolLoop.rotation.y = Math.PI / 2;
+      torsoGroup.add(toolLoop);
+
+      // Sleeved Arms with Forearm Bracers & Gloves
+      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), workerRoughCanvasMat);
       lArm.name = 'left_arm';
       lArm.position.set(-0.18, 0.1, 0);
       lArm.rotation.z = Math.PI / 10;
       torsoGroup.add(lArm);
 
-      const lHand = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), fleshMat);
+      const lBracer = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.042, 0.12, 8), workerRoughLeatherMat);
+      lBracer.position.set(-0.20, 0.04, 0);
+      lBracer.rotation.z = Math.PI / 10;
+      torsoGroup.add(lBracer);
+
+      const lHand = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), darkLeatherMat);
       lHand.position.set(-0.21, -0.05, 0);
       torsoGroup.add(lHand);
 
-      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
+      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), workerRoughCanvasMat);
       rArm.position.set(0.18, 0.1, 0);
       rArm.rotation.z = -Math.PI / 10;
       torsoGroup.add(rArm);
 
-      // Neck & Sculpted Head
+      const rBracer = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.042, 0.12, 8), workerRoughLeatherMat);
+      rBracer.position.set(0.20, 0.04, 0);
+      rBracer.rotation.z = -Math.PI / 10;
+      torsoGroup.add(rBracer);
+
+      // Neck & Rugged Laborer Head Sculpt
       const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.08, 8), fleshMat);
       neck.position.y = 0.26;
       torsoGroup.add(neck);
@@ -690,54 +791,69 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       head.position.y = 0.35;
       torsoGroup.add(head);
 
-      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2), hairBrownMat);
-      hair.position.set(0, 0.36, -0.015);
+      // Trimmed Laborer Beard & Stubble (Reference: Iron-Spike Laborer)
+      const beard = new THREE.Mesh(new THREE.SphereGeometry(0.108, 10, 8, 0, Math.PI, Math.PI / 3, Math.PI / 2), workerBeardMat);
+      beard.position.set(0, 0.33, 0.035);
+      beard.rotation.y = -Math.PI / 2;
+      torsoGroup.add(beard);
+
+      // Swept-Back Laborer Hair with Leather Headband
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.116, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2), hairBrownMat);
+      hair.position.set(0, 0.36, -0.02);
       torsoGroup.add(hair);
 
-      // Artisan Felt Cap with Turned-up Brim
-      const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.03, 14), darkLeatherMat);
-      hatBrim.position.y = 0.42;
-      torsoGroup.add(hatBrim);
+      const headband = new THREE.Mesh(new THREE.CylinderGeometry(0.114, 0.114, 0.025, 12), darkLeatherMat);
+      headband.position.set(0, 0.39, 0);
+      torsoGroup.add(headband);
 
-      const hatCrown = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.16, 14), teamDarkMat);
-      hatCrown.position.y = 0.5;
-      torsoGroup.add(hatCrown);
-
-      // Back-mounted Wicker Resource Hod / Gathering Basket
+      // Back-Mounted Wicker & Timber Resource Hod Basket (Wood-Gather & Gold-Carry)
       const basket = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.16), woodMat);
       basket.position.set(0, 0.12, -0.15);
       torsoGroup.add(basket);
 
+      const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.26, 0.16), darkLeatherMat);
+      strapL.position.set(-0.08, 0.14, -0.06);
+      torsoGroup.add(strapL);
+
+      const strapR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.26, 0.16), darkLeatherMat);
+      strapR.position.set(0.08, 0.14, -0.06);
+      torsoGroup.add(strapR);
+
       root.add(torsoGroup);
 
-      // 2. Articulated Legs & Sturdy Worker Boots (Distinctly visible from waist 0.44 down to 0)
-      root.add(createArticulatedLeg(darkLeatherMat, -0.09, 'left_leg'));
-      root.add(createArticulatedLeg(darkLeatherMat, 0.09, 'right_leg'));
+      // 2. Articulated Legs in Canvas Trousers & Heavy Laborer Boots
+      root.add(createArticulatedLeg(workerRoughCanvasMat, -0.09, 'left_leg'));
+      root.add(createArticulatedLeg(workerRoughCanvasMat, 0.09, 'right_leg'));
 
-      // 3. Tool Pivot (Masterwork AoE Pickaxe / Woodsman Axe)
+      // 3. Tool Pivot: Heavy Mining Pickaxe (Modular Pick ID: 03 - Gold/Stone/Logging)
       const toolPivot = new THREE.Group();
       toolPivot.name = 'tool_pivot';
       toolPivot.position.set(0.22, 0.48, 0.1);
 
-      const toolHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.68, 10), woodMat);
-      toolHandle.position.set(0, 0.18, 0);
+      // Ergonomic curved ash-wood handle
+      const toolHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.76, 10), woodMat);
+      toolHandle.position.set(0, 0.22, 0);
       toolHandle.rotation.z = Math.PI / 4.5;
       toolPivot.add(toolHandle);
 
-      // Dual-head Mining Pickaxe & Logging Axe
-      const pickHead = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.06), steelMat);
-      pickHead.position.set(0.18, 0.4, 0);
-      toolPivot.add(pickHead);
+      // Forged Iron Pick Head Collar & Langets
+      const pickCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.14, 8), ironPickMat);
+      pickCollar.position.set(0.23, 0.47, 0);
+      pickCollar.rotation.z = Math.PI / 4.5;
+      toolPivot.add(pickCollar);
 
-      const pickSpike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 8), steelMat);
-      pickSpike.position.set(0.32, 0.4, 0);
-      pickSpike.rotation.z = -Math.PI / 2;
+      // Curved Sharp Mining Pick Spike (Front - Gold Mining)
+      const pickSpikeGeom = new THREE.ConeGeometry(0.035, 0.26, 6);
+      pickSpikeGeom.rotateZ(-Math.PI / 2.3);
+      const pickSpike = new THREE.Mesh(pickSpikeGeom, ironPickMat);
+      pickSpike.position.set(0.38, 0.49, 0);
       toolPivot.add(pickSpike);
 
-      const axeBlade = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.14, 8), steelMat);
-      axeBlade.position.set(0.04, 0.4, 0);
-      axeBlade.rotation.z = Math.PI / 2;
-      toolPivot.add(axeBlade);
+      // Heavy Flat Rock Hammer / Chisel Poll (Back)
+      const hammerPoll = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.065, 0.055), ironPickMat);
+      hammerPoll.position.set(0.10, 0.45, 0);
+      hammerPoll.rotation.z = Math.PI / 4.5;
+      toolPivot.add(hammerPoll);
 
       root.add(toolPivot);
       break;

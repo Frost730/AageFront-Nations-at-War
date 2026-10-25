@@ -1529,30 +1529,60 @@ export class GameRenderer {
     // Standard Human Stride & March helpers
     const lLeg = this.getNamedPart(group, 'left_leg');
     const rLeg = this.getNamedPart(group, 'right_leg');
+    const lShin = this.getNamedPart(group, 'left_leg_shin');
+    const rShin = this.getNamedPart(group, 'right_leg_shin');
     const lArm = this.getNamedPart(group, 'left_arm');
     const torso = this.getNamedPart(group, 'unit_torso');
 
     const isHumanoid = unit.type !== 'cavalry' && unit.type !== 'scout' && unit.type !== 'siege_unit' && unit.type !== 'dragon';
 
-    // Universal Humanoid Movement Leg March Animation (Age of Empires II: DE)
+    // Universal Humanoid Movement Leg March Animation (Fluid Bio-Mechanical Walking Gait)
     if (isHumanoid) {
       if (isMoving && !isStationary) {
-        const strideRate = 9.5;
-        const stride = Math.sin(time * strideRate);
-        if (lLeg) lLeg.rotation.x = stride * 0.62;
-        if (rLeg) rLeg.rotation.x = -stride * 0.62;
-        if (lArm) lArm.rotation.x = -stride * 0.45;
+        // Natural human walking cadence: 6.2 rad/s (~1.5 steps per second)
+        const strideRate = 6.2;
+        const cycle = time * strideRate;
+        const strideL = Math.sin(cycle);
+        const strideR = Math.sin(cycle + Math.PI); // Half-cycle phase offset
+
+        // Hip swing (Upper thigh)
+        if (lLeg) lLeg.rotation.x = strideL * 0.58;
+        if (rLeg) rLeg.rotation.x = strideR * 0.58;
+
+        // Knee joint flexion: when swinging backward (push-off & pass), knee bends naturally up to 45°!
+        // When swinging forward to plant the foot, knee straightens smoothly.
+        if (lShin) {
+          lShin.rotation.x = Math.max(0, -strideL) * 0.78;
+        }
+        if (rShin) {
+          rShin.rotation.x = Math.max(0, -strideR) * 0.78;
+        }
+
+        // Arm swing in natural counterbalance to opposite leg
+        if (lArm) {
+          lArm.rotation.x = -strideL * 0.48;
+          lArm.rotation.z = Math.sin(cycle) * 0.05;
+        }
+
+        // Pelvic bobbing & counter-rotation (human walking gait center of mass oscillation)
         if (torso) {
           const baseTorsoY = 0.44;
-          torso.position.y = baseTorsoY + Math.abs(Math.sin(time * strideRate)) * 0.045;
-          torso.rotation.y = stride * 0.09;
-          torso.rotation.z = Math.cos(time * strideRate * 0.5) * 0.025;
+          // Torso rises at mid-stance (double stride frequency) and dips on heel strike
+          torso.position.y = baseTorsoY + Math.abs(Math.sin(cycle)) * 0.032;
+          torso.rotation.y = -strideL * 0.08; // Torso counter-rotates against hip swing
+          torso.rotation.z = Math.cos(cycle) * 0.024; // Subtle lateral hip sway
+          torso.rotation.x = 0.06; // Slight natural forward march posture
         }
       } else {
-        // Natural idle planted footing & gentle breathing - zero leg oscillation when idle!
+        // Natural idle planted footing & relaxed posture - zero leg oscillation when idle!
         if (lLeg) lLeg.rotation.x = 0;
         if (rLeg) rLeg.rotation.x = 0;
-        if (lArm) lArm.rotation.x = 0;
+        if (lShin) lShin.rotation.x = 0;
+        if (rShin) rShin.rotation.x = 0;
+        if (lArm) {
+          lArm.rotation.x = 0;
+          lArm.rotation.z = Math.PI / 10;
+        }
         if (torso) {
           const baseTorsoY = 0.44;
           torso.position.y = baseTorsoY + Math.sin(time * 2.2) * 0.012;
@@ -1635,10 +1665,14 @@ export class GameRenderer {
           toolPivot.rotation.x = slash * 1.25;
           if (torso) torso.rotation.y = slash * 0.22;
         } else if (isMoving) {
-          toolPivot.rotation.x = Math.sin(time * 8) * 0.25;
-          // When carrying resource bundle/basket, lean forward with weight
+          // Holding pickaxe with natural stride inertia (Wood-Gather-Walk / Gold-Gather-Carry from reference)
+          const strideL = Math.sin(time * 6.2);
+          toolPivot.rotation.x = -0.15 + strideL * 0.22;
+          toolPivot.rotation.z = 0.12;
+
+          // When carrying resource bundle/basket, lean forward into the weight
           if (torso && (unit as any).carriedResourceAmount > 0) {
-            torso.rotation.x = 0.12;
+            torso.rotation.x = 0.18; // Weighted laborer posture
           }
         } else {
           toolPivot.rotation.set(0, 0, 0);
