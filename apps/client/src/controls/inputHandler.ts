@@ -95,6 +95,9 @@ export class InputHandler {
     if (!def) return false;
     if (px < 1 || px + def.width >= this.mapWidth - 1 || py < 1 || py + def.height >= this.mapHeight - 1) return false;
 
+    const isWallOrGate = type === 'wall' || type === 'gate';
+    const minGap = 1;
+
     // Check map tiles: Cannot construct on restricted mountain tops, water, or impassable cliffs
     if (this.mapTiles) {
       for (let dx = 0; dx < def.width; dx++) {
@@ -108,17 +111,47 @@ export class InputHandler {
           }
         }
       }
+
+      // Non-wall buildings must be situated in the open, away from mountain cliffs and water edges
+      if (!isWallOrGate) {
+        for (let dx = -minGap; dx < def.width + minGap; dx++) {
+          for (let dy = -minGap; dy < def.height + minGap; dy++) {
+            const tx = px + dx;
+            const ty = py + dy;
+            if (tx >= 0 && tx < this.mapWidth && ty >= 0 && ty < this.mapHeight) {
+              const tile = this.mapTiles[ty * this.mapWidth + tx];
+              if (tile && (tile.terrain === 'mountain' || tile.terrain === 'water')) {
+                return false;
+              }
+            }
+          }
+        }
+      }
     }
 
-    // Collide with other buildings
+    // Clearance gap check against existing buildings (minimum 1 tile clearance gap)
     for (const b of this.activeBuildingsForSelection) {
-      if (
-        px < b.x + b.width &&
-        px + def.width > b.x &&
-        py < b.y + b.height &&
-        py + def.height > b.y
-      ) {
-        return false;
+      const otherIsWallOrGate = b.type === 'wall' || b.type === 'gate';
+      if (isWallOrGate && otherIsWallOrGate) {
+        // Walls & gates can connect seamlessly to each other (gap = 0 allowed)
+        if (
+          px < b.x + b.width &&
+          px + def.width > b.x &&
+          py < b.y + b.height &&
+          py + def.height > b.y
+        ) {
+          return false;
+        }
+      } else {
+        // Mandatory 1-tile clearance gap between buildings so units never get trapped
+        if (
+          px < b.x + b.width + minGap &&
+          px + def.width + minGap > b.x &&
+          py < b.y + b.height + minGap &&
+          py + def.height + minGap > b.y
+        ) {
+          return false;
+        }
       }
     }
 
@@ -137,6 +170,78 @@ export class InputHandler {
     return true;
   }
 
+  public getPlacementErrorMessage(type: BuildingType, px: number, py: number): string {
+    const def = BUILDING_DEFINITIONS[type];
+    if (!def) return '⚠️ Invalid construction blueprint!';
+    if (px < 1 || px + def.width >= this.mapWidth - 1 || py < 1 || py + def.height >= this.mapHeight - 1) {
+      return '⚠️ Restricted Area: Cannot build outside territory map borders!';
+    }
+
+    const isWallOrGate = type === 'wall' || type === 'gate';
+    const minGap = 1;
+
+    // Check building clearance proximity
+    for (const b of this.activeBuildingsForSelection) {
+      const otherIsWallOrGate = b.type === 'wall' || b.type === 'gate';
+      if (isWallOrGate && otherIsWallOrGate) {
+        if (
+          px < b.x + b.width &&
+          px + def.width > b.x &&
+          py < b.y + b.height &&
+          py + def.height > b.y
+        ) {
+          return '⚠️ Cannot place wall directly overlapping an existing wall!';
+        }
+      } else {
+        if (
+          px < b.x + b.width + minGap &&
+          px + def.width + minGap > b.x &&
+          py < b.y + b.height + minGap &&
+          py + def.height + minGap > b.y
+        ) {
+          return '⚠️ Buildings Too Close: Buildings require at least a 1-tile clearance gap for unit movement and roads!';
+        }
+      }
+    }
+
+    // Check resource overlap
+    for (const r of this.activeResourcesForSelection) {
+      if (r.amount > 0 && px <= r.x && r.x < px + def.width && py <= r.y && r.y < py + def.height) {
+        return '⚠️ Natural Obstruction: Cannot construct over natural resource deposits!';
+      }
+    }
+
+    // Check terrain
+    if (this.mapTiles) {
+      for (let dx = 0; dx < def.width; dx++) {
+        for (let dy = 0; dy < def.height; dy++) {
+          const tx = px + dx;
+          const ty = py + dy;
+          const tile = this.mapTiles[ty * this.mapWidth + tx];
+          if (tile && (tile.terrain === 'mountain' || tile.terrain === 'water')) {
+            return '⚠️ Restricted Terrain: Cannot construct on mountain peaks, cliffs, or deep water!';
+          }
+        }
+      }
+      if (!isWallOrGate) {
+        for (let dx = -minGap; dx < def.width + minGap; dx++) {
+          for (let dy = -minGap; dy < def.height + minGap; dy++) {
+            const tx = px + dx;
+            const ty = py + dy;
+            if (tx >= 0 && tx < this.mapWidth && ty >= 0 && ty < this.mapHeight) {
+              const tile = this.mapTiles[ty * this.mapWidth + tx];
+              if (tile && (tile.terrain === 'mountain' || tile.terrain === 'water')) {
+                return '⚠️ Mountain Hazard: Buildings must be situated in the open, away from mountain cliffs and water edges!';
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return '⚠️ Construction site is obstructed!';
+  }
+
   private setupMouseEvents(): void {
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -151,7 +256,7 @@ export class InputHandler {
             const isValid = this.isPlacementValid(this.placementBuildingType, px, py);
             if (!isValid) {
               soundManager.playError();
-              this.onPlacementError?.('⚠️ Restricted Terrain: Cannot construct on mountain peaks, cliffs, or deep water!');
+              this.onPlacementError?.(this.getPlacementErrorMessage(this.placementBuildingType, px, py));
               return;
             }
             const workerIds = Array.from(this.selection.selectedIds);

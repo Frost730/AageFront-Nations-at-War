@@ -126,7 +126,118 @@ export class SimulationEngine {
     this.recalculateTerritory();
   }
 
-  private spawnInitialBase(ownerId: string, team: number, pos: Vector2D): void {
+
+  public isValidBuildingPlacement(type: BuildingType, px: number, py: number, minGap: number = 1): boolean {
+    const def = BUILDING_DEFINITIONS[type];
+    if (!def) return false;
+
+    // Bounds check
+    if (px < 1 || px + def.width >= this.mapData.width - 1 || py < 1 || py + def.height >= this.mapData.height - 1) {
+      return false;
+    }
+
+    // Footprint walkability & terrain check (must not be mountain or water)
+    for (let dx = 0; dx < def.width; dx++) {
+      for (let dy = 0; dy < def.height; dy++) {
+        const tx = px + dx;
+        const ty = py + dy;
+        if (!this.pathfinder.isWalkable(tx, ty)) {
+          return false;
+        }
+        const tile = this.mapData.tiles[ty * this.mapData.width + tx];
+        if (!tile || !tile.walkable || tile.terrain === 'mountain' || tile.terrain === 'water') {
+          return false;
+        }
+      }
+    }
+
+    // Clearance gap check against existing buildings
+    const isWallOrGate = type === 'wall' || type === 'gate';
+    for (const b of this.buildings.values()) {
+      const otherIsWallOrGate = b.type === 'wall' || b.type === 'gate';
+      if (isWallOrGate && otherIsWallOrGate) {
+        // Walls and gates can connect directly (gap = 0 allowed), but cannot overlap
+        if (
+          px < b.x + b.width &&
+          px + def.width > b.x &&
+          py < b.y + b.height &&
+          py + def.height > b.y
+        ) {
+          return false;
+        }
+      } else {
+        // Mandatory minimum clearance gap (at least minGap tiles between building footprints)
+        if (
+          px < b.x + b.width + minGap &&
+          px + def.width + minGap > b.x &&
+          py < b.y + b.height + minGap &&
+          py + def.height + minGap > b.y
+        ) {
+          return false;
+        }
+      }
+    }
+
+    // Non-wall buildings cannot be placed directly adjacent to mountain cliffs or water edges
+    if (!isWallOrGate) {
+      for (let dx = -minGap; dx < def.width + minGap; dx++) {
+        for (let dy = -minGap; dy < def.height + minGap; dy++) {
+          const tx = px + dx;
+          const ty = py + dy;
+          if (tx >= 0 && tx < this.mapData.width && ty >= 0 && ty < this.mapData.height) {
+            const tile = this.mapData.tiles[ty * this.mapData.width + tx];
+            if (tile && (tile.terrain === 'mountain' || tile.terrain === 'water')) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  private findSafeStartingBasePosition(preferredPos: Vector2D): Vector2D {
+    const tcDef = BUILDING_DEFINITIONS.town_centre;
+    const isSpotOpen = (x: number, y: number): boolean => {
+      if (x < 4 || y < 4 || x + tcDef.width >= this.mapData.width - 4 || y + tcDef.height >= this.mapData.height - 4) {
+        return false;
+      }
+      for (let dx = -2; dx < tcDef.width + 2; dx++) {
+        for (let dy = -2; dy < tcDef.height + 2; dy++) {
+          const tx = x + dx;
+          const ty = y + dy;
+          const tile = this.mapData.tiles[ty * this.mapData.width + tx];
+          if (!tile || !tile.walkable || tile.terrain === 'mountain' || tile.terrain === 'water' || tile.elevation > 1) {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+
+    if (isSpotOpen(preferredPos.x, preferredPos.y)) {
+      return preferredPos;
+    }
+
+    for (let r = 1; r <= 20; r++) {
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dy = -r; dy <= r; dy++) {
+          if (Math.abs(dx) === r || Math.abs(dy) === r) {
+            const candX = preferredPos.x + dx;
+            const candY = preferredPos.y + dy;
+            if (isSpotOpen(candX, candY)) {
+              return { x: candX, y: candY };
+            }
+          }
+        }
+      }
+    }
+    return preferredPos;
+  }
+
+  private spawnInitialBase(ownerId: string, team: number, rawPos: Vector2D): void {
+    const pos = this.findSafeStartingBasePosition(rawPos);
     // Spawn Town Centre (4x4)
     const tcDef = BUILDING_DEFINITIONS.town_centre;
     const tcId = `bldg_${this.buildingIdCounter++}`;
@@ -550,17 +661,11 @@ export class SimulationEngine {
           return false;
         }
 
-        // Check tile placement validity
+        // Check tile placement validity: clearance gap and open terrain
         const px = Math.floor(cmd.position.x);
         const py = Math.floor(cmd.position.y);
-        for (let dx = 0; dx < def.width; dx++) {
-          for (let dy = 0; dy < def.height; dy++) {
-            const tx = px + dx;
-            const ty = py + dy;
-            if (!this.pathfinder.isWalkable(tx, ty)) {
-              return false; // Obstructed
-            }
-          }
+        if (!this.isValidBuildingPlacement(cmd.buildingType, px, py, 1)) {
+          return false;
         }
 
         // Deduct resources
@@ -3215,27 +3320,36 @@ export class SimulationEngine {
 
   public findExpansionPlacementSpot(nearX: number, nearY: number): Vector2D | null {
     const def = BUILDING_DEFINITIONS['town_centre'];
-    for (let r = 18; r <= 36; r += 3) {
-      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+    for (let r = 18; r <= 38; r += 3) {
+      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 10) {
         const px = Math.floor(nearX + Math.cos(angle) * r);
         const py = Math.floor(nearY + Math.sin(angle) * r);
 
-        if (px < 4 || py < 4 || px + def.width >= this.mapData.width - 4 || py + def.height >= this.mapData.height - 4) {
+        // Require 2-tile gap clearance for spacious municipal settlement
+        if (!this.isValidBuildingPlacement('town_centre', px, py, 2)) {
           continue;
         }
 
-        let valid = true;
-        for (let dx = 0; dx < def.width; dx++) {
-          for (let dy = 0; dy < def.height; dy++) {
-            if (!this.pathfinder.isWalkable(px + dx, py + dy)) {
-              valid = false;
+        // Open terrain rule: AI expansion Town Centres must be in wide open plains, away from mountains
+        let isOpenPlains = true;
+        for (let dx = -3; dx < def.width + 3; dx++) {
+          for (let dy = -3; dy < def.height + 3; dy++) {
+            const tx = px + dx;
+            const ty = py + dy;
+            if (tx < 0 || tx >= this.mapData.width || ty < 0 || ty >= this.mapData.height) {
+              isOpenPlains = false;
+              break;
+            }
+            const tile = this.mapData.tiles[ty * this.mapData.width + tx];
+            if (!tile || tile.terrain === 'mountain' || tile.terrain === 'water' || tile.elevation > 1) {
+              isOpenPlains = false;
               break;
             }
           }
-          if (!valid) break;
+          if (!isOpenPlains) break;
         }
 
-        if (valid) return { x: px, y: py };
+        if (isOpenPlains) return { x: px, y: py };
       }
     }
     return this.findBuildingPlacementSpot('town_centre', nearX, nearY);
@@ -3243,25 +3357,55 @@ export class SimulationEngine {
 
   private findBuildingPlacementSpot(type: BuildingType, nearX: number, nearY: number): Vector2D | null {
     const def = BUILDING_DEFINITIONS[type];
-    for (let r = 5; r <= 38; r += 2) {
-      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+    if (!def) return null;
+
+    // Search outward in rings
+    for (let r = 5; r <= 42; r += 2) {
+      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 10) {
         const px = Math.floor(nearX + Math.cos(angle) * r);
         const py = Math.floor(nearY + Math.sin(angle) * r);
 
-        let valid = true;
-        for (let dx = 0; dx < def.width; dx++) {
-          for (let dy = 0; dy < def.height; dy++) {
-            if (!this.pathfinder.isWalkable(px + dx, py + dy)) {
-              valid = false;
+        // 1. Check building placement clearance gap
+        if (!this.isValidBuildingPlacement(type, px, py, 1)) {
+          continue;
+        }
+
+        // 2. Open terrain rule: AI buildings must spawn in the open, NOT inside or touching mountain areas or steep slopes
+        let isOpenTerrain = true;
+        for (let dx = -2; dx < def.width + 2; dx++) {
+          for (let dy = -2; dy < def.height + 2; dy++) {
+            const tx = px + dx;
+            const ty = py + dy;
+            if (tx < 0 || tx >= this.mapData.width || ty < 0 || ty >= this.mapData.height) {
+              isOpenTerrain = false;
+              break;
+            }
+            const tile = this.mapData.tiles[ty * this.mapData.width + tx];
+            if (!tile || tile.terrain === 'mountain' || tile.terrain === 'water' || tile.elevation > 1) {
+              isOpenTerrain = false;
               break;
             }
           }
-          if (!valid) break;
+          if (!isOpenTerrain) break;
         }
 
-        if (valid) return { x: px, y: py };
+        if (isOpenTerrain) {
+          return { x: px, y: py };
+        }
       }
     }
+
+    // Fallback: If 2-tile open perimeter couldn't be satisfied on dense maps, use standard valid placement
+    for (let r = 5; r <= 44; r += 2) {
+      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+        const px = Math.floor(nearX + Math.cos(angle) * r);
+        const py = Math.floor(nearY + Math.sin(angle) * r);
+        if (this.isValidBuildingPlacement(type, px, py, 1)) {
+          return { x: px, y: py };
+        }
+      }
+    }
+
     return null;
   }
 

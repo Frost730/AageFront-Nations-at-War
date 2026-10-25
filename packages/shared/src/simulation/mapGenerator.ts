@@ -66,7 +66,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
   }
 
   // Clear area around start positions so base building is never blocked
-  const isNearStart = (x: number, y: number, dist: number = 10): boolean => {
+  const isNearStart = (x: number, y: number, dist: number = 14): boolean => {
     return startPositions.some(p => {
       const dx = p.x - x;
       const dy = p.y - y;
@@ -79,7 +79,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     // Rolling hills, scattered forests, gentle ponds, and majestic perimeter mountain ridges
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        if (isNearStart(x, y, 9)) continue;
+        if (isNearStart(x, y, 14)) continue;
 
         const noise1 = Math.sin(x * 0.1) + Math.cos(y * 0.1);
         const noise2 = Math.sin(x * 0.25 + 1.2) * Math.cos(y * 0.25 - 0.5);
@@ -106,7 +106,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     // High mountain massifs, towering snowy peaks, narrow strategic valleys
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        if (isNearStart(x, y, 9)) continue;
+        if (isNearStart(x, y, 14)) continue;
 
         const noiseRidge = Math.abs(Math.sin(x * 0.08 + y * 0.05) + Math.cos(x * 0.05 - y * 0.08));
         const tile = getTile(x, y)!;
@@ -144,6 +144,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
 
       for (let dy = -riverWidth; dy <= riverWidth; dy++) {
         const y = ry + dy;
+        if (isNearStart(x, y, 14)) continue;
         const tile = getTile(x, y);
         if (!tile) continue;
 
@@ -160,7 +161,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     // Mountain bluffs along valley edges and dense forests
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        if (isNearStart(x, y, 9)) continue;
+        if (isNearStart(x, y, 14)) continue;
         const tile = getTile(x, y)!;
         if (tile.terrain === 'water' || tile.terrain === 'sand') continue;
 
@@ -182,6 +183,23 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
       }
     }
   }
+
+
+  // Explicit Open Plains Guarantee: Ensure generous flat open ground (no mountain, no water, 0 elevation) around every player/AI spawn
+  startPositions.forEach(pos => {
+    for (let dy = -14; dy <= 14; dy++) {
+      for (let dx = -14; dx <= 14; dx++) {
+        if (dx * dx + dy * dy <= 196) {
+          const tile = getTile(pos.x + dx, pos.y + dy);
+          if (tile) {
+            tile.terrain = 'grass';
+            tile.elevation = 0;
+            tile.walkable = true;
+          }
+        }
+      }
+    }
+  });
 
   // Populate Resource Nodes:
   // 1. Guaranteed balanced starting resources around each player
