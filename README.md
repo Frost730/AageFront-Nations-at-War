@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="docs/logo.jpg" alt="Agefront: Nations at War Logo" width="500" style="border-radius: 8px; box-shadow: 0 12px 36px rgba(0,0,0,0.85); border: 2px solid #8c6a34;" />
+  <a href="https://github.com/Frost730/AageFront-Nations-at-War">
+    <img src="https://raw.githubusercontent.com/Frost730/AageFront-Nations-at-War/main/docs/logo-aoe.jpg" alt="Agefront: Nations at War - Age of Empires Masterpiece Edition Logo" width="560" />
+  </a>
 </p>
 
 # Agefront: Nations at War
