@@ -41,6 +41,7 @@ class GameApp {
   private isReplaying: boolean = false;
   private replayPaused: boolean = false;
   private replaySpeed: number = 1;
+  private replayAccumulator: number = 0;
 
   private hud: HudView;
   private mainMenu: MainMenuView;
@@ -368,6 +369,7 @@ class GameApp {
     this.isReplaying = true;
     this.replayPaused = false;
     this.replaySpeed = 1;
+    this.replayAccumulator = 0;
     this.replayPlayer = new MatchReplayPlayer(replayData);
 
     const firstPlayer = replayData.initialPlayers[0];
@@ -393,10 +395,49 @@ class GameApp {
     );
 
     this.hud.showReplayControls(
-      (isPaused) => { this.replayPaused = isPaused; },
-      (speed) => { this.replaySpeed = speed; }
+      (isPaused) => {
+        this.replayPaused = isPaused;
+        if (!isPaused && this.replayPlayer && this.replayPlayer.isFinished) {
+          this.replayPlayer.reset();
+          this.syncReplaySnapshot();
+        }
+      },
+      (speed) => {
+        this.replaySpeed = speed;
+      },
+      (fraction) => {
+        if (!this.replayPlayer) return;
+        const targetTick = Math.round(fraction * this.replayPlayer.replayData.totalTicks);
+        this.replayPlayer.seek(targetTick);
+        this.syncReplaySnapshot();
+      },
+      () => {
+        if (!this.replayPlayer) return;
+        this.replayPlayer.reset();
+        this.replayPaused = false;
+        this.syncReplaySnapshot();
+        this.hud.showNotification('⏮ Replay restarted from beginning.');
+      },
+      () => {
+        this.endGame();
+      }
     );
     this.hud.showNotification('Match Replay Mode Loaded (.afr)');
+  }
+
+  private syncReplaySnapshot(): void {
+    if (!this.replayPlayer) return;
+    const snap = this.replayPlayer.sim.getSnapshot();
+    this.currentUnits = snap.units;
+    this.currentBuildings = snap.buildings;
+    this.currentPlayers = snap.players;
+    this.inputHandler.activeUnitsForSelection = this.currentUnits;
+    this.inputHandler.activeBuildingsForSelection = this.currentBuildings;
+    this.hud.updateReplayTime(
+      this.replayPlayer.currentTick * 0.05,
+      this.replayPlayer.replayData.totalTicks * 0.05,
+      this.replayPaused
+    );
   }
 
   private handleGameStart(data: GameStartData): void {
@@ -619,22 +660,40 @@ class GameApp {
     if (this.inGame) {
       // Update Three.js entities and render
       
-    if (this.isReplaying && this.replayPlayer && !this.replayPaused) {
-      for (let s = 0; s < this.replaySpeed; s++) {
-        const hasMore = this.replayPlayer.step(0.05);
-        if (!hasMore) {
-          this.replayPaused = true;
-          this.hud.showNotification('Replay Reached End of Match.');
-          break;
+    if (this.isReplaying && this.replayPlayer) {
+      if (!this.replayPaused) {
+        this.replayAccumulator += dt * this.replaySpeed;
+        const tickStep = 0.05; // 20 ticks per second (AoE match simulation rate)
+        let stepsTaken = 0;
+        const maxStepsPerFrame = 16;
+
+        while (this.replayAccumulator >= tickStep && stepsTaken < maxStepsPerFrame) {
+          const hasMore = this.replayPlayer.step(tickStep);
+          this.replayAccumulator -= tickStep;
+          stepsTaken++;
+
+          if (!hasMore) {
+            this.replayPaused = true;
+            this.replayAccumulator = 0;
+            this.hud.showNotification('Replay Reached End of Match.');
+            break;
+          }
         }
+
+        if (this.replayAccumulator > tickStep * 4) {
+          this.replayAccumulator = 0;
+        }
+
+        if (stepsTaken > 0) {
+          this.syncReplaySnapshot();
+        }
+      } else {
+        this.hud.updateReplayTime(
+          this.replayPlayer.currentTick * 0.05,
+          this.replayPlayer.replayData.totalTicks * 0.05,
+          true
+        );
       }
-      const snap = this.replayPlayer.sim.getSnapshot();
-      this.currentUnits = snap.units;
-      this.currentBuildings = snap.buildings;
-      this.currentPlayers = snap.players;
-      this.inputHandler.activeUnitsForSelection = this.currentUnits;
-      this.inputHandler.activeBuildingsForSelection = this.currentBuildings;
-      this.hud.updateReplayTime(this.replayPlayer.currentTick * 0.05, this.replayPlayer.replayData.totalTicks * 0.05);
     }
 
     this.renderer.updateEntities(

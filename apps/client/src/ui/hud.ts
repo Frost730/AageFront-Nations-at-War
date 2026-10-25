@@ -366,56 +366,100 @@ export class HudView {
 
   public showReplayControls(
     onTogglePause: (isPaused: boolean) => void,
-    onSetSpeed: (speed: number) => void
+    onSetSpeed: (speed: number) => void,
+    onSeek: (fraction: number) => void,
+    onRestart: () => void,
+    onExit: () => void
   ): void {
     if (this.replayBarElem) return;
     this.replayBarElem = document.createElement('div');
     this.replayBarElem.className = 'cinzel';
+    this.replayBarElem.id = 'replay-controls-bar';
     this.replayBarElem.style.cssText = `
       position: absolute;
-      top: 48px;
+      top: 54px;
       left: 50%;
       transform: translateX(-50%);
       background: linear-gradient(180deg, #2b1d0c 0%, #150d05 100%);
       border: 2px solid #8c6a34;
       border-radius: 8px;
-      padding: 6px 16px;
+      padding: 6px 14px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.85), inset 0 0 10px rgba(140, 106, 52, 0.4);
       z-index: 999;
       color: #fef08a;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
+      pointer-events: auto;
+      user-select: none;
     `;
     this.replayBarElem.innerHTML = `
-      <span style="display: flex; align-items: center; gap: 4px;"><strong>REPLAY MODE</strong></span>
-      <span id="replay-time-display" style="color: #cbd5e1; font-family: monospace; font-size: 13px;">00:00 / 00:00</span>
-      <button id="btn-replay-pause" class="aoe3-action-btn" style="padding: 2px 8px; font-size: 12px; cursor: pointer;">⏸ Pause</button>
-      <div style="display: flex; gap: 4px;">
-        <button class="btn-replay-spd aoe3-action-btn" data-spd="1" style="padding: 2px 6px; font-size: 10px; cursor: pointer; border-color: #fef08a;">1x</button>
-        <button class="btn-replay-spd aoe3-action-btn" data-spd="2" style="padding: 2px 6px; font-size: 10px; cursor: pointer;">2x</button>
-        <button class="btn-replay-spd aoe3-action-btn" data-spd="4" style="padding: 2px 6px; font-size: 10px; cursor: pointer;">4x</button>
-        <button class="btn-replay-spd aoe3-action-btn" data-spd="8" style="padding: 2px 6px; font-size: 10px; cursor: pointer;">8x</button>
+      <span style="display: flex; align-items: center; gap: 4px; color: #f59e0b; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">
+        <strong>REPLAY</strong>
+      </span>
+      <span id="replay-time-display" style="color: #cbd5e1; font-family: monospace; font-size: 12px; min-width: 90px; text-align: center;">00:00 / 00:00</span>
+      <input id="replay-scrubber" type="range" min="0" max="1000" value="0" style="width: 140px; cursor: pointer; accent-color: #f59e0b;" title="Seek Timeline">
+      <button id="btn-replay-pause" class="aoe3-action-btn" style="padding: 3px 10px; font-size: 11px; cursor: pointer; border-color: #f59e0b;">⏸ Pause</button>
+      <button id="btn-replay-restart" class="aoe3-action-btn" style="padding: 3px 8px; font-size: 11px; cursor: pointer;" title="Restart from beginning">⏮</button>
+      <div style="display: flex; gap: 3px; align-items: center;">
+        <button class="btn-replay-spd aoe3-action-btn" data-spd="0.5" style="padding: 2px 5px; font-size: 10px; cursor: pointer;">0.5x</button>
+        <button class="btn-replay-spd aoe3-action-btn" data-spd="1" style="padding: 2px 5px; font-size: 10px; cursor: pointer; border-color: #fef08a; color: #fef08a;">1x</button>
+        <button class="btn-replay-spd aoe3-action-btn" data-spd="2" style="padding: 2px 5px; font-size: 10px; cursor: pointer;">2x</button>
+        <button class="btn-replay-spd aoe3-action-btn" data-spd="4" style="padding: 2px 5px; font-size: 10px; cursor: pointer;">4x</button>
+        <button class="btn-replay-spd aoe3-action-btn" data-spd="8" style="padding: 2px 5px; font-size: 10px; cursor: pointer;">8x</button>
       </div>
+      <button id="btn-replay-exit" class="aoe3-action-btn" style="padding: 3px 8px; font-size: 11px; cursor: pointer; border-color: #ef4444; color: #fca5a5;" title="Exit Replay">✖ Exit</button>
     `;
 
-    this.replayBarElem.querySelector('#btn-replay-pause')?.addEventListener('click', (e) => {
+    const pauseBtn = this.replayBarElem.querySelector<HTMLButtonElement>('#btn-replay-pause');
+    pauseBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.isReplayPaused = !this.isReplayPaused;
-      (e.target as HTMLElement).innerText = this.isReplayPaused ? '▶ Play' : '⏸ Pause';
+      pauseBtn.innerText = this.isReplayPaused ? '▶ Play' : '⏸ Pause';
+      pauseBtn.style.borderColor = this.isReplayPaused ? '#22c55e' : '#f59e0b';
       soundManager.playClick();
       onTogglePause(this.isReplayPaused);
+    });
+
+    const restartBtn = this.replayBarElem.querySelector<HTMLButtonElement>('#btn-replay-restart');
+    restartBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.isReplayPaused = false;
+      if (pauseBtn) {
+        pauseBtn.innerText = '⏸ Pause';
+        pauseBtn.style.borderColor = '#f59e0b';
+      }
+      soundManager.playClick();
+      onRestart();
+    });
+
+    const exitBtn = this.replayBarElem.querySelector<HTMLButtonElement>('#btn-replay-exit');
+    exitBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      soundManager.playClick();
+      onExit();
+    });
+
+    const scrubber = this.replayBarElem.querySelector<HTMLInputElement>('#replay-scrubber');
+    scrubber?.addEventListener('input', (e) => {
+      e.stopPropagation();
+      const frac = parseFloat((e.target as HTMLInputElement).value) / 1000;
+      onSeek(frac);
     });
 
     this.replayBarElem.querySelectorAll('.btn-replay-spd').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const spd = parseInt((btn as HTMLElement).dataset.spd || '1', 10);
+        const spd = parseFloat((btn as HTMLElement).dataset.spd || '1');
         this.currentReplaySpeed = spd;
-        this.replayBarElem?.querySelectorAll('.btn-replay-spd').forEach(b => (b as HTMLElement).style.borderColor = '#8c6a34');
+        this.replayBarElem?.querySelectorAll('.btn-replay-spd').forEach(b => {
+          (b as HTMLElement).style.borderColor = '#8c6a34';
+          (b as HTMLElement).style.color = '#e2e8f0';
+        });
         (btn as HTMLElement).style.borderColor = '#fef08a';
+        (btn as HTMLElement).style.color = '#fef08a';
         soundManager.playClick();
         onSetSpeed(spd);
       });
@@ -424,14 +468,31 @@ export class HudView {
     this.rootElem.appendChild(this.replayBarElem);
   }
 
-  public updateReplayTime(currentSec: number, totalSec: number): void {
-    const disp = this.replayBarElem?.querySelector('#replay-time-display');
+  public updateReplayTime(currentSec: number, totalSec: number, isPaused?: boolean): void {
+    if (!this.replayBarElem) return;
+
+    const disp = this.replayBarElem.querySelector('#replay-time-display');
     if (disp) {
       const curM = Math.floor(currentSec / 60);
       const curS = Math.floor(currentSec % 60).toString().padStart(2, '0');
       const totM = Math.floor(totalSec / 60);
       const totS = Math.floor(totalSec % 60).toString().padStart(2, '0');
       disp.textContent = `${curM}:${curS} / ${totM}:${totS}`;
+    }
+
+    const scrubber = this.replayBarElem.querySelector<HTMLInputElement>('#replay-scrubber');
+    if (scrubber && document.activeElement !== scrubber) {
+      const safeTot = Math.max(0.1, totalSec);
+      scrubber.value = Math.min(1000, Math.round((currentSec / safeTot) * 1000)).toString();
+    }
+
+    if (isPaused !== undefined && isPaused !== this.isReplayPaused) {
+      this.isReplayPaused = isPaused;
+      const pauseBtn = this.replayBarElem.querySelector<HTMLButtonElement>('#btn-replay-pause');
+      if (pauseBtn) {
+        pauseBtn.innerText = isPaused ? '▶ Play' : '⏸ Pause';
+        pauseBtn.style.borderColor = isPaused ? '#22c55e' : '#f59e0b';
+      }
     }
   }
 
