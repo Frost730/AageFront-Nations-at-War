@@ -142,6 +142,15 @@ export class GameRenderer {
   private buildingStatusLastState: Map<string, string> = new Map();
   private buildingStatusLastTime: Map<string, number> = new Map();
   private rotatorObjects: { bldgId: string; obj: THREE.Object3D; speed: number; axis: string }[] = [];
+  private windObjects: {
+    bldgId: string;
+    obj: THREE.Object3D;
+    type: 'wheat' | 'banner';
+    baseRotX: number;
+    baseRotY: number;
+    baseRotZ: number;
+    phase: number;
+  }[] = [];
 
   private placementGhostGroup: THREE.Group | null = null;
   private placementFootprintMesh: THREE.Mesh | null = null;
@@ -229,6 +238,7 @@ export class GameRenderer {
     }
     this.buildingMeshes.clear();
     this.rotatorObjects = [];
+    this.windObjects = [];
 
     // 3. Remove all selection rings
     for (const ring of this.selectionRings.values()) {
@@ -511,6 +521,7 @@ export class GameRenderer {
         if (group) {
           this.scene.remove(group);
           this.rotatorObjects = this.rotatorObjects.filter(r => r.bldgId !== bldg.id);
+          this.windObjects = this.windObjects.filter(w => w.bldgId !== bldg.id);
         }
         const teamColor = playerColorMap.get(bldg.ownerId) || '#3b82f6';
         group = createBuildingModel(bldg, teamColor);
@@ -518,7 +529,7 @@ export class GameRenderer {
         this.buildingMeshes.set(bldg.id, group);
         this.scene.add(group);
 
-        // Cache rotators for 0-overhead animation loop
+        // Cache rotators & wind-animated foliage/banners for 0-overhead animation loop
         group.traverse((child: any) => {
           if (child.userData?.isRotator) {
             this.rotatorObjects.push({
@@ -526,6 +537,26 @@ export class GameRenderer {
               obj: child,
               speed: child.userData.rotSpeed || 1.0,
               axis: child.userData.rotAxis || 'z'
+            });
+          } else if (child.userData?.isWindWheat) {
+            this.windObjects.push({
+              bldgId: bldg.id,
+              obj: child,
+              type: 'wheat',
+              baseRotX: child.rotation.x,
+              baseRotY: child.rotation.y,
+              baseRotZ: child.rotation.z,
+              phase: bldg.x * 2.1 + bldg.y * 1.7 + (child.userData.baseZ || 0) * 3.0
+            });
+          } else if (child.userData?.isWindBanner) {
+            this.windObjects.push({
+              bldgId: bldg.id,
+              obj: child,
+              type: 'banner',
+              baseRotX: child.rotation.x,
+              baseRotY: child.rotation.y,
+              baseRotZ: child.rotation.z,
+              phase: bldg.x * 1.5 + bldg.y * 1.2
             });
           }
         });
@@ -565,6 +596,7 @@ export class GameRenderer {
         this.removeHealthBar(id);
         this.removeBuildingStatusBar(id);
         this.rotatorObjects = this.rotatorObjects.filter(r => r.bldgId !== id);
+        this.windObjects = this.windObjects.filter(w => w.bldgId !== id);
       }
     }
 
@@ -2059,6 +2091,23 @@ export class GameRenderer {
       if (rot.axis === 'z') rot.obj.rotation.z += rot.speed * dt;
       else if (rot.axis === 'y') rot.obj.rotation.y += rot.speed * dt;
       else if (rot.axis === 'x') rot.obj.rotation.x += rot.speed * dt;
+    }
+
+    // Animate wind physics on wheat crops and royal banners
+    const nowSec = now * 0.001;
+    for (let i = 0; i < this.windObjects.length; i++) {
+      const w = this.windObjects[i];
+      const bldgMesh = this.buildingMeshes.get(w.bldgId);
+      if (!bldgMesh || !bldgMesh.visible) continue;
+      if (w.type === 'wheat') {
+        // Organic undulating sway across the field
+        w.obj.rotation.x = w.baseRotX + Math.sin(nowSec * 3.4 + w.phase) * 0.12;
+        w.obj.rotation.z = w.baseRotZ + Math.cos(nowSec * 2.6 + w.phase) * 0.06;
+      } else if (w.type === 'banner') {
+        // Fluttering cloth in the breeze
+        w.obj.rotation.y = w.baseRotY + Math.sin(nowSec * 4.4 + w.phase) * 0.32 + 0.18;
+        w.obj.rotation.z = w.baseRotZ + Math.cos(nowSec * 5.8 + w.phase) * 0.12;
+      }
     }
 
     

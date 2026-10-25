@@ -210,6 +210,43 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
   // -------------------------------------------------------------
   // DETAILED COMPLETED BUILDINGS
   // -------------------------------------------------------------
+  // Helper for dynamic wind-fluttered royal banners & pennants
+  const createFlutteringBanner = (poleHeight: number, bTeamColor: string, bannerWidth = 0.65, bannerHeight = 0.35): THREE.Group => {
+    const bannerGroup = new THREE.Group();
+
+    // Wooden flagpole
+    const poleGeom = new THREE.CylinderGeometry(0.025, 0.035, poleHeight, 6);
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x3d2817, roughness: 0.8 });
+    const pole = new THREE.Mesh(poleGeom, poleMat);
+    pole.position.y = poleHeight / 2;
+    bannerGroup.add(pole);
+
+    // Gilded finial topper
+    const finial = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), new THREE.MeshStandardMaterial({ color: 0xeab308, metalness: 0.8, roughness: 0.2 }));
+    finial.position.y = poleHeight;
+    bannerGroup.add(finial);
+
+    // Banner cloth pivot attached to pole
+    const bannerPivot = new THREE.Group();
+    bannerPivot.position.set(0, poleHeight - bannerHeight * 0.55, 0);
+    bannerPivot.userData = { isWindBanner: true };
+
+    // Pennant cloth with pivot at mast edge
+    const clothGeom = new THREE.PlaneGeometry(bannerWidth, bannerHeight, 4, 1);
+    clothGeom.translate(bannerWidth / 2, 0, 0);
+    const clothMat = new THREE.MeshStandardMaterial({
+      color: bTeamColor,
+      roughness: 0.65,
+      metalness: 0.05,
+      side: THREE.DoubleSide
+    });
+    const clothMesh = new THREE.Mesh(clothGeom, clothMat);
+    bannerPivot.add(clothMesh);
+
+    bannerGroup.add(bannerPivot);
+    return bannerGroup;
+  };
+
   // Age of Empires Ground Foundation Apron (Cobblestone / Beaten Earth Lot)
   // Grounds every building seamlessly into the terrain landscape
   if (bldg.type !== 'farm' && bldg.type !== 'wall') {
@@ -319,14 +356,10 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       gateFrame.position.set(0, 0.85, 1.84);
       root.add(gateFrame);
 
-      // 6. High Faction Heraldic Banner
-      const flagpole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 10), goldMat);
-      flagpole.position.set(0, 6.4, 0);
-      root.add(flagpole);
-
-      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.85, 1.3), teamMat);
-      flag.position.set(0, 6.7, 0.65);
-      root.add(flag);
+      // 6. High Faction Heraldic Banner (Wind Animated)
+      const tcBanner = createFlutteringBanner(2.2, teamColor, 1.3, 0.75);
+      tcBanner.position.set(0, 6.1, 0);
+      root.add(tcBanner);
 
       // Flanking lanterns
       addLantern(-0.9, 1.0, 1.85);
@@ -385,12 +418,13 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       soil.position.y = 0.08;
       root.add(soil);
 
-      // 2. Golden Wheat Rows
+      // 2. Golden Wheat Rows (Wind Animated)
       const wheatGeom = new THREE.BoxGeometry(1.65, 0.32, 0.16);
       const wheatMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.8, flatShading: false });
       for (let z = -0.65; z <= 0.65; z += 0.32) {
         const row = new THREE.Mesh(wheatGeom, wheatMat);
         row.position.set(0.1, 0.3, z);
+        row.userData = { isWindWheat: true, baseZ: z };
         root.add(row);
       }
 
@@ -906,8 +940,9 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       spire.position.y = 4.9;
       root.add(spire);
 
-      const pennant = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.45, 0.8), teamDarkMat);
-      pennant.position.set(0, 5.5, 0.4);
+      // Wind-fluttering Tower Pennant
+      const pennant = createFlutteringBanner(0.9, teamColor, 0.7, 0.35);
+      pennant.position.set(0, 5.6, 0);
       root.add(pennant);
 
       // Mounted Swivel Ballista / Watch Lantern
@@ -939,8 +974,9 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
         cap.position.set(dx, 4.2, dz);
         root.add(cap);
 
-        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6, 0.9), teamMat);
-        flag.position.set(dx, 4.9, dz + 0.45);
+        // Wind-fluttering Bastion Pennant
+        const flag = createFlutteringBanner(0.85, teamColor, 0.6, 0.3);
+        flag.position.set(dx, 4.85, dz);
         root.add(flag);
       });
 
@@ -953,6 +989,11 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       citadelSpire.position.set(0, 4.7, 0);
       citadelSpire.rotation.y = Math.PI / 4;
       root.add(citadelSpire);
+
+      // Imperial Grand Citadel Banner
+      const citadelBanner = createFlutteringBanner(1.5, teamColor, 1.1, 0.55);
+      citadelBanner.position.set(0, 5.5, 0);
+      root.add(citadelBanner);
 
       // 4. Iron Portcullis & Drawbridge Chains
       const gateArch = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.3), ironMat);
@@ -998,6 +1039,15 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
       capR.position.set(0.75, 2.45, 0);
       capR.rotation.y = Math.PI / 4;
       root.add(capR);
+
+      // Twin Gatehouse Pennants
+      const gateBannerL = createFlutteringBanner(0.8, teamColor, 0.55, 0.28);
+      gateBannerL.position.set(-0.75, 2.8, 0);
+      root.add(gateBannerL);
+
+      const gateBannerR = createFlutteringBanner(0.8, teamColor, 0.55, 0.28);
+      gateBannerR.position.set(0.75, 2.8, 0);
+      root.add(gateBannerR);
 
       // 2. Heavy Stone Lintel & Machicolation
       const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.45, 0.7), darkStoneMat);

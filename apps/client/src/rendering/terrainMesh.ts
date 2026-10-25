@@ -35,6 +35,7 @@ export class TerrainMesh {
   private restrictedBorderGroup: THREE.Group;
   private treesGroup: THREE.Group;
   private tiles: MapTile[];
+  private windUniforms = { uTime: { value: 0.0 } };
 
   
   public getElevationAt(x: number, z: number): number {
@@ -636,6 +637,29 @@ export class TerrainMesh {
         else oakSpots.push(p);
       });
 
+      // Apply wind physics vertex animation shader hook
+      const applyWindHook = (mat: THREE.MeshStandardMaterial) => {
+        mat.onBeforeCompile = (shader) => {
+          shader.uniforms.uTime = this.windUniforms.uTime;
+          shader.vertexShader = `
+            uniform float uTime;
+            ${shader.vertexShader}
+          `;
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `
+            #include <begin_vertex>
+            // Wind physics: sway branches and crowns naturally based on height and local phase
+            float branchHeight = max(0.0, position.y);
+            float windGust = sin(uTime * 2.2 + position.x * 2.0 + position.z * 1.5);
+            float swayAmt = branchHeight * 0.055 * windGust;
+            transformed.x += swayAmt;
+            transformed.z += swayAmt * 0.7;
+            `
+          );
+        };
+      };
+
       // Conifer Meshes
       if (coniferSpots.length > 0) {
         const cTrunkGeom = new THREE.CylinderGeometry(0.12, 0.18, 1.05, 8);
@@ -649,6 +673,10 @@ export class TerrainMesh {
         const coniferMat1 = new THREE.MeshStandardMaterial({ color: 0x183b15, roughness: 0.76, flatShading: false });
         const coniferMat2 = new THREE.MeshStandardMaterial({ color: 0x224c1f, roughness: 0.72, flatShading: false });
         const coniferMat3 = new THREE.MeshStandardMaterial({ color: 0x2d6129, roughness: 0.68, flatShading: false });
+
+        applyWindHook(coniferMat1);
+        applyWindHook(coniferMat2);
+        applyWindHook(coniferMat3);
 
         const instCTrunk = new THREE.InstancedMesh(cTrunkGeom, trunkMat, coniferSpots.length);
         const instCCone1 = new THREE.InstancedMesh(cCone1Geom, coniferMat1, coniferSpots.length);
@@ -698,6 +726,10 @@ export class TerrainMesh {
         const oakMat1 = new THREE.MeshStandardMaterial({ color: 0x2e5b1f, roughness: 0.75, flatShading: false });
         const oakMat2 = new THREE.MeshStandardMaterial({ color: 0x3d7329, roughness: 0.72, flatShading: false });
         const oakMat3 = new THREE.MeshStandardMaterial({ color: 0x4d8a34, roughness: 0.68, flatShading: false });
+
+        applyWindHook(oakMat1);
+        applyWindHook(oakMat2);
+        applyWindHook(oakMat3);
 
         const instOTrunk = new THREE.InstancedMesh(oTrunkGeom, trunkMat, oakSpots.length);
         const instOCrown1 = new THREE.InstancedMesh(oCrown1Geom, oakMat1, oakSpots.length);
@@ -892,6 +924,9 @@ export class TerrainMesh {
       this.shorelineFoamMat.opacity = 0.64 + Math.sin(time * 3.2) * 0.20;
       this.shorelineFoamTex.offset.x = (time * 0.032) % 1.0;
     }
+
+    // 4. Wind Physics Uniform for Swaying Forest Canopies
+    this.windUniforms.uTime.value = time;
   }
 
   // Update glowing civilization territory borders on the terrain
