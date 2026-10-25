@@ -103,6 +103,40 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     flatShading: false
   });
 
+  // Archer & Royal Guard reference-accurate materials (Units & Character Models reference)
+  const archerGreenTunicMat = new THREE.MeshStandardMaterial({
+    color: 0x3d6628, // Quilted forest-green doublet / gambeson (Silent Quill)
+    roughness: 0.82,
+    metalness: 0.05,
+    flatShading: false
+  });
+  const archerBrownLeatherMat = new THREE.MeshStandardMaterial({
+    color: 0x6e4526, // Hardened leather pauldron, bracers, and back quiver
+    roughness: 0.72,
+    metalness: 0.08,
+    flatShading: false
+  });
+  const archerHairBlondeMat = new THREE.MeshStandardMaterial({
+    color: 0xba9667, // Elven hair
+    roughness: 0.82,
+    flatShading: false
+  });
+  const crimsonVelvetMat = new THREE.MeshStandardMaterial({
+    color: 0x881337, // Royal crimson velvet cloak, arming skirt, and shield field
+    roughness: 0.84,
+    metalness: 0.04,
+    flatShading: false
+  });
+  const crimsonPlumeMat = new THREE.MeshStandardMaterial({
+    color: 0x991b1b, // Helmet comb horsehair plumage
+    roughness: 0.65,
+    metalness: 0.08,
+    flatShading: false
+  });
+  const fletchGoldMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.6 });
+  const fletchGreenMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.6 });
+  const fletchRedMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.6 });
+
   // Dragon materials (Faithfully matching user photo reference)
   const dragonRedScalesMat = new THREE.MeshStandardMaterial({
     color: 0x941b1b, // Deep royal volcanic crimson/ruby
@@ -824,88 +858,186 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     }
 
     case 'ranged_infantry': {
-      // 1. Archer in Leather Brigandine, Armguard & Hood
+      // 1. Archer (Elven) in Quilted Forest-Green Gambeson & Leather Pauldron (Silent Quill reference)
       const torsoGroup = new THREE.Group();
       torsoGroup.name = 'unit_torso';
       torsoGroup.position.y = 0.44;
 
-      const chestGeom = new THREE.BoxGeometry(0.27, 0.24, 0.17);
-      const chest = new THREE.Mesh(chestGeom, teamClothMat);
-      chest.position.y = 0.12;
-      torsoGroup.add(chest);
+      // Quilted Forest-Green Gambeson / Doublet
+      const gambeson = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.26, 0.18), archerGreenTunicMat);
+      gambeson.position.y = 0.13;
+      torsoGroup.add(gambeson);
 
-      const leatherVest = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.18), leatherMat);
-      leatherVest.position.y = 0.12;
-      torsoGroup.add(leatherVest);
+      // Leather Chest Harness & Cross-straps
+      const harness = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.05, 0.19), darkLeatherMat);
+      harness.position.set(0, 0.17, 0);
+      torsoGroup.add(harness);
 
-      // Short tunic skirt
-      const tunicSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.12, 12), teamClothMat);
-      tunicSkirt.position.y = -0.02;
+      const diagonalStrap = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.28, 0.19), darkLeatherMat);
+      diagonalStrap.position.set(0.02, 0.13, 0.01);
+      diagonalStrap.rotation.z = Math.PI / 6;
+      torsoGroup.add(diagonalStrap);
+
+      // Molded Hardened Leather Pauldron on Left Shoulder with Gold Rivets (Pedestal A)
+      const lPauldron = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 0.14, 8), archerBrownLeatherMat);
+      lPauldron.position.set(-0.19, 0.22, 0);
+      lPauldron.rotation.z = -Math.PI / 7;
+      torsoGroup.add(lPauldron);
+
+      const pauldronRivet = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 4), goldMat);
+      pauldronRivet.position.set(-0.24, 0.24, 0);
+      torsoGroup.add(pauldronRivet);
+
+      // Quilted Gambeson Tunic Skirt over Thighs
+      const tunicSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.16, 12), archerGreenTunicMat);
+      tunicSkirt.position.y = -0.04;
       torsoGroup.add(tunicSkirt);
 
-      // Arms
-      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
-      lArm.position.set(-0.17, 0.09, 0);
-      lArm.rotation.z = Math.PI / 10;
-      torsoGroup.add(lArm);
+      // Leather Belt with Brass Buckle & Hip Pouch
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.04, 0.19), darkLeatherMat);
+      belt.position.y = 0.02;
+      torsoGroup.add(belt);
 
-      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
-      rArm.position.set(0.17, 0.09, 0);
-      rArm.rotation.z = -Math.PI / 10;
-      torsoGroup.add(rArm);
+      const hipPouch = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.07), archerBrownLeatherMat);
+      hipPouch.position.set(0.15, -0.02, 0.04);
+      torsoGroup.add(hipPouch);
 
-      // Archer's Hood & Face
+      // Arms: Forest-Green Sleeves with Hardened Leather Bracers
+      const lUpperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.15, 8), archerGreenTunicMat);
+      lUpperArm.position.set(-0.17, 0.14, 0);
+      lUpperArm.rotation.z = Math.PI / 10;
+      torsoGroup.add(lUpperArm);
+
+      const lBracer = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.038, 0.16, 8), archerBrownLeatherMat);
+      lBracer.position.set(-0.19, 0.01, 0.06);
+      lBracer.rotation.set(Math.PI / 6, 0, Math.PI / 12);
+      torsoGroup.add(lBracer);
+
+      const rUpperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.15, 8), archerGreenTunicMat);
+      rUpperArm.position.set(0.17, 0.14, 0);
+      rUpperArm.rotation.z = -Math.PI / 10;
+      torsoGroup.add(rUpperArm);
+
+      const rBracer = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.038, 0.16, 8), archerBrownLeatherMat);
+      rBracer.position.set(0.19, 0.01, 0.04);
+      rBracer.rotation.set(-Math.PI / 8, 0, -Math.PI / 12);
+      torsoGroup.add(rBracer);
+
+      // Sculpted Head with Elven Features & Tied-Back Hair
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), fleshMat);
-      head.position.y = 0.34;
+      head.position.y = 0.35;
       torsoGroup.add(head);
 
-      const hood = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.26, 12), teamDarkMat);
-      hood.position.y = 0.44;
-      torsoGroup.add(hood);
+      // Pointed Elven Ears
+      const earL = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.09, 4), fleshMat);
+      earL.position.set(-0.1, 0.36, -0.01);
+      earL.rotation.set(-0.3, 0, -Math.PI / 3);
+      torsoGroup.add(earL);
+
+      const earR = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.09, 4), fleshMat);
+      earR.position.set(0.1, 0.36, -0.01);
+      earR.rotation.set(-0.3, 0, Math.PI / 3);
+      torsoGroup.add(earR);
+
+      // Tied-Back Elven Hair
+      const hairCrown = new THREE.Mesh(new THREE.SphereGeometry(0.108, 10, 8), archerHairBlondeMat);
+      hairCrown.position.set(0, 0.37, -0.02);
+      torsoGroup.add(hairCrown);
+
+      const hairTail = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.015, 0.22, 6), archerHairBlondeMat);
+      hairTail.position.set(0, 0.3, -0.12);
+      hairTail.rotation.x = -Math.PI / 4;
+      torsoGroup.add(hairTail);
+
+      // Forehead Browband
+      const browband = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.025, 12), darkLeatherMat);
+      browband.position.set(0, 0.39, 0);
+      torsoGroup.add(browband);
+
+      // Back-Slung Embossed Leather Quiver with Colorful Arrows (Pedestal A)
+      const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.05, 0.52, 10), archerBrownLeatherMat);
+      quiver.position.set(-0.13, 0.38, -0.16);
+      quiver.rotation.set(-Math.PI / 10, 0, Math.PI / 6);
+      torsoGroup.add(quiver);
+
+      const quiverRim = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.065, 0.04, 10), goldMat);
+      quiverRim.position.set(-0.19, 0.62, -0.19);
+      quiverRim.rotation.set(-Math.PI / 10, 0, Math.PI / 6);
+      torsoGroup.add(quiverRim);
+
+      // Multi-Colored Fletched Arrows in Quiver (Yellow, Green, Red feathers)
+      const fletchMats = [fletchGoldMat, fletchGreenMat, fletchRedMat, fletchGreenMat, fletchGoldMat];
+      for (let a = 0; a < 5; a++) {
+        const arrowTail = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.12, 0.05), fletchMats[a]);
+        const ox = (a - 2) * 0.02;
+        const oz = ((a % 2) - 0.5) * 0.03;
+        arrowTail.position.set(-0.2 + ox, 0.72 + (a % 2) * 0.04, -0.2 + oz);
+        arrowTail.rotation.set(-Math.PI / 10, 0, Math.PI / 6);
+        torsoGroup.add(arrowTail);
+      }
 
       root.add(torsoGroup);
 
-      // 2. Masterwork Recurve Yew Longbow with Horn Nocks & Drawn String
+      // 2. Masterwork Recurve Composite Bow ("Silent Quill Unit" in reference)
       const bowPivot = new THREE.Group();
       bowPivot.name = 'bow_pivot';
-      bowPivot.position.set(0.24, 0.48, 0.15);
+      bowPivot.position.set(0.22, 0.48, 0.18);
 
-      const bowLimb = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.024, 8, 20, Math.PI * 0.95), woodMat);
-      bowLimb.rotation.y = Math.PI / 2;
-      bowPivot.add(bowLimb);
+      // Central Leather Riser Grip
+      const bowGrip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.16, 8), darkLeatherMat);
+      bowPivot.add(bowGrip);
 
-      const bowString = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.68, 6), canvasMat);
-      bowString.position.set(0, 0, -0.13);
+      // Upper Recurve Limb
+      const upperLimb = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.012, 0.45, 8), woodMat);
+      upperLimb.position.set(0, 0.26, -0.06);
+      upperLimb.rotation.x = -Math.PI / 8;
+      bowPivot.add(upperLimb);
+
+      const upperSiyah = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.008, 0.14, 8), goldMat);
+      upperSiyah.position.set(0, 0.46, -0.01);
+      upperSiyah.rotation.x = Math.PI / 5;
+      bowPivot.add(upperSiyah);
+
+      // Lower Recurve Limb
+      const lowerLimb = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.45, 8), woodMat);
+      lowerLimb.position.set(0, -0.26, -0.06);
+      lowerLimb.rotation.x = Math.PI / 8;
+      bowPivot.add(lowerLimb);
+
+      const lowerSiyah = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.14, 8), goldMat);
+      lowerSiyah.position.set(0, -0.46, -0.01);
+      lowerSiyah.rotation.x = -Math.PI / 5;
+      bowPivot.add(lowerSiyah);
+
+      // Taut Bowstring
+      const bowString = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.98, 6), canvasMat);
+      bowString.position.set(0, 0, -0.16);
       bowPivot.add(bowString);
 
-      // Notched bodkin arrow ready to loose
-      const arrowShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.58, 6), woodMat);
-      arrowShaft.position.set(0, 0, 0.06);
+      // Nocked Bodkin Arrow ready to loose
+      const arrowShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.65, 6), woodMat);
+      arrowShaft.position.set(0, 0, 0.08);
       arrowShaft.rotation.x = Math.PI / 2;
       bowPivot.add(arrowShaft);
 
-      const arrowTip = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.07, 6), steelMat);
-      arrowTip.position.set(0, 0, 0.36);
+      const arrowTip = new THREE.Mesh(new THREE.ConeGeometry(0.024, 0.08, 6), steelMat);
+      arrowTip.position.set(0, 0, 0.42);
       arrowTip.rotation.x = Math.PI / 2;
       bowPivot.add(arrowTip);
 
+      const fletch1 = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.1), fletchGreenMat);
+      fletch1.position.set(0, 0.02, -0.2);
+      bowPivot.add(fletch1);
+
+      const fletch2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.008, 0.1), fletchGoldMat);
+      fletch2.position.set(0, 0, -0.2);
+      bowPivot.add(fletch2);
+
       root.add(bowPivot);
 
-      // 3. Side Quiver with Fletched Goose-Feather Arrows
-      const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.055, 0.48, 10), darkLeatherMat);
-      quiver.position.set(-0.16, 0.55, -0.16);
-      quiver.rotation.z = Math.PI / 5;
-      root.add(quiver);
-
-      for (let a = 0; a < 3; a++) {
-        const arrowTail = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.1, 0.06), teamMat);
-        arrowTail.position.set(-0.14 - a * 0.025, 0.82 + a * 0.015, -0.16);
-        root.add(arrowTail);
-      }
-
-      // Articulated Legs
-      root.add(createArticulatedLeg(darkLeatherMat, -0.09, 'left_leg'));
-      root.add(createArticulatedLeg(darkLeatherMat, 0.09, 'right_leg'));
+      // 3. Articulated Legs with High Cuffed Ranger Boots
+      root.add(createArticulatedLeg(darkLeatherMat, -0.09, 'left_leg', 0.42, true));
+      root.add(createArticulatedLeg(darkLeatherMat, 0.09, 'right_leg', 0.42, true));
       break;
     }
 
@@ -1177,96 +1309,216 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     }
 
     case 'advanced_unit': {
-      // 1. Royal Champion / Teutonic Knight in Gilded Imperial Plate Armor
+      // 1. Royal Guard in Full Gothic Fluted Plate Armor with Crimson Plumage & Regalia (Crimson Talon Defender)
       const torsoGroup = new THREE.Group();
       torsoGroup.name = 'unit_torso';
       torsoGroup.position.y = 0.44;
 
-      // Heavy Fluted Gothic Steel Cuirass (Anatomical torso)
-      const cuirassGeom = new THREE.BoxGeometry(0.32, 0.28, 0.22);
-      const cuirass = new THREE.Mesh(cuirassGeom, steelMat);
-      cuirass.position.y = 0.14;
+      // Heavy Fluted Gothic Steel Breastplate with Tapul Ridge
+      const cuirass = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.32, 0.24), steelMat);
+      cuirass.position.y = 0.15;
       torsoGroup.add(cuirass);
 
-      // Gilded Royal Filigree Trims & Imperial Double Eagle Emblem
-      const goldTrim = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.05, 0.23), goldMat);
-      goldTrim.position.y = 0.18;
-      torsoGroup.add(goldTrim);
+      // Embossed Gold Filigree Borders (Neckline, Waist, Plating)
+      const goldCollar = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.05, 0.25), goldMat);
+      goldCollar.position.y = 0.29;
+      torsoGroup.add(goldCollar);
 
-      const chestEmblem = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), goldMat);
-      chestEmblem.position.set(0, 0.18, 0.12);
-      torsoGroup.add(chestEmblem);
+      const goldWaist = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.05, 0.25), goldMat);
+      goldWaist.position.y = 0.02;
+      torsoGroup.add(goldWaist);
 
-      // Gothic Plate Fauld / Tassets (protects hips, stops at y = -0.06 leaving legs fully visible!)
-      const fauldGeom = new THREE.CylinderGeometry(0.17, 0.21, 0.14, 12);
-      fauldGeom.translate(0, -0.02, 0);
-      const fauld = new THREE.Mesh(fauldGeom, steelMat);
-      torsoGroup.add(fauld);
+      // Imperial Golden Double-Headed Eagle Medallion on Chest (Pedestal reference)
+      const eagleMedallion = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.04), goldMat);
+      eagleMedallion.position.set(0, 0.18, 0.13);
+      torsoGroup.add(eagleMedallion);
 
-      // Sculpted Lion-Head Pauldrons with Gold Crests
-      const lPauldron = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.2), goldMat);
-      lPauldron.position.set(-0.24, 0.22, 0);
-      torsoGroup.add(lPauldron);
+      // Solid Steel Gorget Collar Protecting Throat
+      const gorget = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.1, 14), steelMat);
+      gorget.position.y = 0.32;
+      torsoGroup.add(gorget);
 
-      const rPauldron = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.2), goldMat);
-      rPauldron.position.set(0.24, 0.22, 0);
-      torsoGroup.add(rPauldron);
+      // Massive Multi-Tiered Gothic Pauldrons with Gold Filigree Edges
+      for (let side = -1; side <= 1; side += 2) {
+        // Upper pauldron plate
+        const pauldronUpper = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.24), steelMat);
+        pauldronUpper.position.set(side * 0.26, 0.26, 0);
+        pauldronUpper.rotation.z = side * -Math.PI / 9;
+        torsoGroup.add(pauldronUpper);
 
-      // Steel plate arms
-      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.28, 8), steelMat);
-      lArm.position.set(-0.21, 0.1, 0);
-      lArm.rotation.z = Math.PI / 10;
-      torsoGroup.add(lArm);
+        const pauldronTrim = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.04, 0.25), goldMat);
+        pauldronTrim.position.set(side * 0.26, 0.31, 0);
+        pauldronTrim.rotation.z = side * -Math.PI / 9;
+        torsoGroup.add(pauldronTrim);
 
-      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.28, 8), steelMat);
-      rArm.position.set(0.21, 0.1, 0);
-      rArm.rotation.z = -Math.PI / 10;
-      torsoGroup.add(rArm);
+        // Lower articulated tier
+        const pauldronLower = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.22), steelMat);
+        pauldronLower.position.set(side * 0.27, 0.16, 0);
+        torsoGroup.add(pauldronLower);
 
-      // Visored Frogmouth Helm with Horned / Winged Royal Crest
-      const helmGeom = new THREE.CylinderGeometry(0.13, 0.15, 0.24, 14);
-      const helm = new THREE.Mesh(helmGeom, steelMat);
-      helm.position.y = 0.42;
-      torsoGroup.add(helm);
+        // Circular Fluted Besagew (Armpit deflector with gold stud)
+        const besagew = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.03, 12), goldMat);
+        besagew.position.set(side * 0.23, 0.18, 0.12);
+        besagew.rotation.x = Math.PI / 2;
+        torsoGroup.add(besagew);
 
-      const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.24, 8), goldMat);
-      hornL.position.set(-0.14, 0.54, -0.04);
-      hornL.rotation.set(-Math.PI / 8, 0, -Math.PI / 4);
-      torsoGroup.add(hornL);
+        // Articulated Steel Arm Armor (Rerebrace, Couter Elbow Spike, Vambrace)
+        const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.18, 8), steelMat);
+        upperArm.position.set(side * 0.25, 0.11, 0);
+        upperArm.rotation.z = side * -Math.PI / 12;
+        torsoGroup.add(upperArm);
 
-      const hornR = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.24, 8), goldMat);
-      hornR.position.set(0.14, 0.54, -0.04);
-      hornR.rotation.set(-Math.PI / 8, 0, Math.PI / 4);
-      torsoGroup.add(hornR);
+        // Pointed Couter (Elbow guard)
+        const couter = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.1, 6), steelMat);
+        couter.position.set(side * 0.28, 0.01, -0.04);
+        couter.rotation.set(-Math.PI / 4, 0, side * Math.PI / 3);
+        torsoGroup.add(couter);
 
-      // Flowing Imperial Cape in Faction Colors
-      const cape = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.65, 0.05), teamClothMat);
-      cape.position.set(0, 0.06, -0.16);
-      cape.rotation.x = Math.PI / 16;
+        const vambrace = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.18, 8), steelMat);
+        vambrace.position.set(side * 0.25, -0.07, 0.04);
+        vambrace.rotation.set(Math.PI / 8, 0, side * -Math.PI / 14);
+        torsoGroup.add(vambrace);
+
+        // Hourglass Steel Gauntlet
+        const gauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 0.09), goldMat);
+        gauntlet.position.set(side * 0.25, -0.16, 0.08);
+        torsoGroup.add(gauntlet);
+      }
+
+      // Pleated Royal Crimson Velvet Arming Skirt with Gold Hem
+      const armingSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.18, 14), crimsonVelvetMat);
+      armingSkirt.position.y = -0.06;
+      torsoGroup.add(armingSkirt);
+
+      const skirtGoldHem = new THREE.Mesh(new THREE.CylinderGeometry(0.255, 0.265, 0.035, 14), goldMat);
+      skirtGoldHem.position.y = -0.14;
+      torsoGroup.add(skirtGoldHem);
+
+      // Steel Plate Tassets (Front Thigh Armor) with Gold Borders
+      for (let side = -1; side <= 1; side += 2) {
+        const tasset = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.04), steelMat);
+        tasset.position.set(side * 0.09, -0.08, 0.13);
+        tasset.rotation.set(Math.PI / 12, 0, side * -0.08);
+        torsoGroup.add(tasset);
+
+        const tassetTrim = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.03, 0.045), goldMat);
+        tassetTrim.position.set(side * 0.09, -0.15, 0.14);
+        tassetTrim.rotation.set(Math.PI / 12, 0, side * -0.08);
+        torsoGroup.add(tassetTrim);
+      }
+
+      // Royal Crimson Velvet Cape with Gold Shoulder Clasps (Billowing behind)
+      const cape = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.72, 0.04), crimsonVelvetMat);
+      cape.position.set(0, 0.02, -0.16);
+      cape.rotation.x = Math.PI / 18;
       torsoGroup.add(cape);
+
+      const capeGoldHem = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.04, 0.045), goldMat);
+      capeGoldHem.position.set(0, -0.33, -0.19);
+      capeGoldHem.rotation.x = Math.PI / 18;
+      torsoGroup.add(capeGoldHem);
+
+      // Close-Helm / Armet with Visor Prow & Flowing Crimson Plumage (Reference Accurate)
+      const helmSkull = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), steelMat);
+      helmSkull.position.set(0, 0.44, 0);
+      torsoGroup.add(helmSkull);
+
+      // Pointed Visor with Eye Slit
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.14), steelMat);
+      visor.position.set(0, 0.42, 0.07);
+      torsoGroup.add(visor);
+
+      const eyeSlit = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.04), darkIronMat);
+      eyeSlit.position.set(0, 0.45, 0.14);
+      torsoGroup.add(eyeSlit);
+
+      const visorGoldTrim = new THREE.Mesh(new THREE.BoxGeometry(0.185, 0.025, 0.05), goldMat);
+      visorGoldTrim.position.set(0, 0.465, 0.135);
+      torsoGroup.add(visorGoldTrim);
+
+      // High Arched Helmet Comb
+      const helmComb = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.22), goldMat);
+      helmComb.position.set(0, 0.54, 0.01);
+      torsoGroup.add(helmComb);
+
+      // Flowing Crimson Horsehair Plumage / Crest arching up and back
+      const plumeBase = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.22, 8), crimsonPlumeMat);
+      plumeBase.position.set(0, 0.62, 0.06);
+      plumeBase.rotation.x = Math.PI / 5;
+      torsoGroup.add(plumeBase);
+
+      const plumeTail = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.03, 0.32, 8), crimsonPlumeMat);
+      plumeTail.position.set(0, 0.54, -0.1);
+      plumeTail.rotation.x = -Math.PI / 4;
+      torsoGroup.add(plumeTail);
+
+      // 2. Ornate Crimson Talon Defender Kite / Heater Shield (Mounted on Left Arm)
+      const shieldGroup = new THREE.Group();
+      shieldGroup.position.set(-0.35, 0.08, 0.12);
+      shieldGroup.rotation.set(0, Math.PI / 6, -Math.PI / 20);
+
+      // Shield Body (Heater Shape)
+      const shieldBody = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.55, 0.05), crimsonVelvetMat);
+      shieldGroup.add(shieldBody);
+
+      // Embossed Heavy Gold Filigree Border
+      const shieldBorder = new THREE.Mesh(new THREE.BoxGeometry(0.39, 0.58, 0.04), goldMat);
+      shieldBorder.position.z = -0.01;
+      shieldGroup.add(shieldBorder);
+
+      // Golden Imperial Double-Headed Eagle Shield Boss
+      const eagleShieldBoss = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), goldMat);
+      eagleShieldBoss.position.set(0, 0.06, 0.04);
+      eagleShieldBoss.scale.set(1.4, 1.2, 0.4);
+      shieldGroup.add(eagleShieldBoss);
+
+      torsoGroup.add(shieldGroup);
 
       root.add(torsoGroup);
 
-      // 2. Heavy Swiss Halberd / Crescent Poleaxe
+      // 3. Heavy Crimson Talon Poleaxe / Halberd (Mounted in halberd_pivot)
       const halberdPivot = new THREE.Group();
       halberdPivot.name = 'halberd_pivot';
-      halberdPivot.position.set(0.26, 0.52, 0.14);
+      halberdPivot.position.set(0.28, 0.52, 0.16);
 
-      const halberdShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 2.4, 10), darkIronMat);
-      halberdShaft.position.set(0, 0.65, 0);
+      // Polished Hardwood Shaft with Steel Langets
+      const halberdShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 2.45, 10), woodMat);
+      halberdShaft.position.set(0, 0.68, 0);
       halberdPivot.add(halberdShaft);
 
-      const axeBlade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 0.34), goldMat);
-      axeBlade.position.set(0, 1.45, 0.1);
+      // Steel Langet Reinforcing Strips
+      const langet = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.9, 0.032), steelMat);
+      langet.position.set(0, 1.2, 0);
+      halberdPivot.add(langet);
+
+      // Broad Curved Crescent Axe Blade (Pedestal reference)
+      const axeBlade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.48, 0.38), steelMat);
+      axeBlade.position.set(0, 1.5, 0.18);
       halberdPivot.add(axeBlade);
 
-      const topSpike = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.38, 10), steelMat);
-      topSpike.position.set(0, 1.82, 0);
-      halberdPivot.add(topSpike);
+      const axeGoldInlay = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.32, 0.2), goldMat);
+      axeGoldInlay.position.set(0, 1.5, 0.12);
+      halberdPivot.add(axeGoldInlay);
+
+      // Rear Armor-Piercing Hooked Fluke / Beak
+      const rearBeak = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.28, 6), steelMat);
+      rearBeak.position.set(0, 1.5, -0.16);
+      rearBeak.rotation.x = -Math.PI / 2.2;
+      halberdPivot.add(rearBeak);
+
+      // Long Diamond-Section Top Spear Point
+      const spearSpike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.48, 8), steelMat);
+      spearSpike.position.set(0, 1.95, 0);
+      halberdPivot.add(spearSpike);
+
+      // Bottom Brass Ferrule & Pommel
+      const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.12, 8), goldMat);
+      ferrule.position.set(0, -0.52, 0);
+      halberdPivot.add(ferrule);
 
       root.add(halberdPivot);
 
-      // Articulated Steel Plate Greaves (Distinctly visible running legs)
+      // 4. Articulated Gothic Plate Leg Harness (Cuisses, Winged Poleyns, Greaves, Sabatons)
       root.add(createArticulatedLeg(steelMat, -0.11, 'left_leg', 0.42, true));
       root.add(createArticulatedLeg(steelMat, 0.11, 'right_leg', 0.42, true));
       break;
