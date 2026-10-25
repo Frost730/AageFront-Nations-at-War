@@ -164,53 +164,26 @@ export class MainMenuView {
         <div class="aoe-corner-rivet" style="bottom: 10px; left: 10px;"></div>
         <div class="aoe-corner-rivet" style="bottom: 10px; right: 10px;"></div>
 
-        <!-- Age of Empires Sculpted Gold Crest Logo -->
+        <!-- Age of Empires Masterpiece Franchise Logo -->
         <div style="display: flex; flex-direction: column; align-items: center;">
-          <div style="position: relative; margin-bottom: 12px;">
-            <img src="/logo.jpg" alt="Agefront Logo" style="
-              width: 112px;
-              height: 112px;
-              border-radius: 50%;
-              object-fit: cover;
-              border: 3px double #d4af37;
-              box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 20px rgba(212, 175, 55, 0.4);
-            " />
-          </div>
-
-          <!-- Carved Gold Roman Wordmark -->
-          <div style="font-size: 15px; color: #854d0e; letter-spacing: 6px; margin-bottom: 2px;">⚜ &bull; ⚜ &bull; ⚜</div>
-          <h1 class="cinzel" style="
-            font-size: 42px;
-            font-weight: 900;
-            letter-spacing: 5px;
-            margin: 0;
-            background: linear-gradient(180deg, #fffbeb 0%, #fde047 30%, #ca8a04 70%, #713f12 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 16px rgba(234, 179, 8, 0.45));
-          ">
-            AGEFRONT
-          </h1>
-
-          <!-- Crimson Banner Ribbon -->
           <div style="
-            margin-top: 6px;
-            background: linear-gradient(180deg, #991b1b 0%, #600808 100%);
-            border-top: 1.5px solid #eab308;
-            border-bottom: 1.5px solid #eab308;
-            padding: 3px 26px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-            border-radius: 2px;
+            position: relative;
+            max-width: 440px;
+            width: 100%;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #8c6a34;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), inset 0 0 20px rgba(0,0,0,0.5);
+            margin-bottom: 6px;
+            background: #0d0603;
           ">
-            <span class="cinzel" style="
-              font-size: 13px;
-              font-weight: 800;
-              color: #fef08a;
-              letter-spacing: 5px;
-              text-shadow: 0 1px 2px #000;
-            ">
-              NATIONS AT WAR
-            </span>
+            <img src="/logo.jpg" alt="Agefront: Nations at War Logo" style="
+              width: 100%;
+              height: auto;
+              max-height: 215px;
+              object-fit: cover;
+              display: block;
+            " />
           </div>
         </div>
 
