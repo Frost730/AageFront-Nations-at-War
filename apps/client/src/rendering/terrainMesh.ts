@@ -213,10 +213,19 @@ export class TerrainMesh {
         }
       }
 
-      // Slope Cliff Shading: Any steep slope automatically turns into striated rock cliff face
-      if (tile.terrain !== 'water' && tile.terrain !== 'sand' && ny < 0.72) {
-        const cliffColor = new THREE.Color(0x323a42); // Dark granite cliff wall
-        const cliffMix = Math.min(1.0, (0.72 - ny) * 3.5);
+      // Wet Sand / Shoreline transition when near water level (Age of Empires II: DE damp beach)
+      if (tile.terrain === 'sand' && vy < 0.14) {
+        const wetness = Math.max(0, 1.0 - vy / 0.14);
+        color.lerp(new THREE.Color(0x5c4832), wetness * 0.48); // Dark glistening wet shoreline sand
+      }
+
+      // Slope Cliff Shading: Any steep slope automatically turns into striated rock cliff face (AoE II: DE style)
+      if (tile.terrain !== 'water' && tile.terrain !== 'sand' && ny < 0.75) {
+        const strata = Math.sin(vy * 9.0 + Math.sin(vx * 1.5 + vz * 1.2) * 1.2) * 0.5 + 0.5;
+        const cliffDark = new THREE.Color(0x2d343c); // Dark slate crevice
+        const cliffLight = new THREE.Color(0x5a636e); // Exposed stone ledge strata
+        const cliffColor = cliffDark.clone().lerp(cliffLight, strata * 0.5);
+        const cliffMix = Math.min(1.0, (0.75 - ny) * 3.8);
         color.lerp(cliffColor, cliffMix);
       }
 
