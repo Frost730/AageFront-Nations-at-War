@@ -1,47 +1,66 @@
 import * as THREE from 'three';
 import { BuildingData } from '@agefront/shared';
+import {
+  getStoneBrickTexture,
+  getStoneBrickBumpTexture,
+  getTerracottaRoofTexture,
+  getWoodPlankTexture,
+  getCobblestoneTexture
+} from './proceduralTextures.js';
 
 export function createBuildingModel(bldg: BuildingData, teamColor: string): THREE.Group {
   const root = new THREE.Group();
   root.position.set(bldg.x + bldg.width / 2, 0, bldg.y + bldg.height / 2);
 
   // -------------------------------------------------------------
-  // HIGH-FIDELITY PBR MATERIAL PALETTE
+  // HIGH-FIDELITY PBR MATERIAL PALETTE (Age of Empires II: DE)
   // -------------------------------------------------------------
+  const stoneTex = getStoneBrickTexture();
+  const stoneBumpTex = getStoneBrickBumpTexture();
+  const cobblestoneTex = getCobblestoneTexture();
+  const roofTex = getTerracottaRoofTexture();
+  const woodTex = getWoodPlankTexture();
+
   // Dressed Ashlar Stone & Foundations
   const stoneMat = new THREE.MeshStandardMaterial({
-    color: 0x94a3b8, // Light granite stone
-    roughness: 0.82,
+    map: stoneTex,
+    bumpMap: stoneBumpTex,
+    bumpScale: 0.04,
+    roughness: 0.78,
     metalness: 0.08,
     flatShading: false
   });
   const darkStoneMat = new THREE.MeshStandardMaterial({
-    color: 0x475569, // Dark slate & plinth bedrock
-    roughness: 0.88,
+    map: cobblestoneTex,
+    bumpScale: 0.05,
+    roughness: 0.85,
     metalness: 0.12,
     flatShading: false
   });
   const marbleMat = new THREE.MeshStandardMaterial({
     color: 0xf1f5f9, // Polished white marble for academy
-    roughness: 0.45,
+    roughness: 0.35,
     metalness: 0.15,
     flatShading: false
   });
 
   // Heavy Timber & Wood Planks
   const timberMat = new THREE.MeshStandardMaterial({
-    color: 0x451a03, // Dark oak structural timber
-    roughness: 0.85,
+    map: woodTex,
+    color: 0x5c2c10, // Dark oak structural timber
+    roughness: 0.82,
     metalness: 0.05,
     flatShading: false
   });
   const plankWoodMat = new THREE.MeshStandardMaterial({
-    color: 0x78350f, // Hewn pine planks
+    map: woodTex,
+    color: 0x8a4515, // Hewn pine planks
     roughness: 0.75,
     metalness: 0.05,
     flatShading: false
   });
   const lightWoodMat = new THREE.MeshStandardMaterial({
+    map: woodTex,
     color: 0xb45309, // Light scaffolding timber
     roughness: 0.7,
     flatShading: false
@@ -49,14 +68,15 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
 
   // Roof Shingles & Clay Tiles
   const tileRoofMat = new THREE.MeshStandardMaterial({
-    color: 0x991b1b, // Weathered terracotta red tile
-    roughness: 0.55,
-    metalness: 0.1,
+    map: roofTex,
+    roughness: 0.52,
+    metalness: 0.08,
     flatShading: false
   });
   const slateRoofMat = new THREE.MeshStandardMaterial({
-    color: 0x1e293b, // Dark charcoal slate
-    roughness: 0.5,
+    map: roofTex,
+    color: 0x334155, // Dark slate
+    roughness: 0.48,
     metalness: 0.18,
     flatShading: false
   });

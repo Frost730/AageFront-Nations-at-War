@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import { MapTile, ResourceNodeData } from '@agefront/shared';
+import {
+  getTerrainGrassTexture,
+  getTerrainBumpTexture,
+  getWaterRippleTexture,
+  getWoodPlankTexture
+} from './proceduralTextures.js';
 
 export class TerrainMesh {
   public group: THREE.Group;
@@ -132,10 +138,19 @@ export class TerrainMesh {
     geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geom.computeVertexNormals();
 
+    // High-resolution seamless AoE terrain texture & micro-relief bump map
+    const grassTex = getTerrainGrassTexture();
+    const bumpTex = getTerrainBumpTexture();
+    grassTex.repeat.set(width / 3.5, height / 3.5);
+    bumpTex.repeat.set(width / 3.5, height / 3.5);
+
     const groundMat = new THREE.MeshStandardMaterial({
+      map: grassTex,
+      bumpMap: bumpTex,
+      bumpScale: 0.05,
       vertexColors: true,
-      roughness: 0.86,
-      metalness: 0.04,
+      roughness: 0.82,
+      metalness: 0.05,
       flatShading: false
     });
 
@@ -204,14 +219,19 @@ export class TerrainMesh {
       waterGeom.setIndex(indices);
       waterGeom.computeVertexNormals();
 
+      const waterRipple = getWaterRippleTexture();
+      waterRipple.repeat.set(width / 4, height / 4);
+
       const waterMat = new THREE.MeshStandardMaterial({
-        color: 0x1b74ab, // Vibrant aquatic river blue (Age of Empires II style)
+        color: 0x1873aa, // Vibrant aquatic river blue (Age of Empires II style)
         emissive: 0x0c3e5e, // Clear aquatic luminescence
         emissiveIntensity: 0.22,
+        bumpMap: waterRipple,
+        bumpScale: 0.04,
         roughness: 0.12,
-        metalness: 0.18,
+        metalness: 0.22,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.88,
         depthWrite: false
       });
 
@@ -405,49 +425,120 @@ export class TerrainMesh {
       }
     });
 
-    // 1. Diverse Forest Trees: Conifer Pines & Noble Firs (AoE / RoN style)
+    // 1. Diverse Forest Trees: Conifer Pines & Noble Broadleaf Oaks (AoE style)
     if (forestSpots.length > 0) {
-      const trunkGeom = new THREE.CylinderGeometry(0.12, 0.18, 0.95, 8);
-      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3d2613, roughness: 0.92, flatShading: false });
-
-      const cone1Geom = new THREE.ConeGeometry(0.88, 1.25, 8);
-      cone1Geom.translate(0, 0.9, 0);
-      const cone2Geom = new THREE.ConeGeometry(0.68, 1.05, 8);
-      cone2Geom.translate(0, 1.55, 0);
-
-      const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x1e4b1a, roughness: 0.74, flatShading: false });
-      const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x275e22, roughness: 0.70, flatShading: false });
-
-      const instTrunk = new THREE.InstancedMesh(trunkGeom, trunkMat, forestSpots.length);
-      const instCone1 = new THREE.InstancedMesh(cone1Geom, foliageMat1, forestSpots.length);
-      const instCone2 = new THREE.InstancedMesh(cone2Geom, foliageMat2, forestSpots.length);
-
-      const dummy = new THREE.Object3D();
-      forestSpots.forEach((pos, idx) => {
-        // Natural organic cluster jitter so trees don't align in a grid
-        const jitterX = (((idx * 17 + 7) % 15) / 14 - 0.5) * 0.52;
-        const jitterZ = (((idx * 31 + 11) % 15) / 14 - 0.5) * 0.52;
-        dummy.position.set(pos.x + jitterX, pos.y, pos.z + jitterZ);
-
-        const scale = 0.85 + ((idx * 23) % 35) * 0.012;
-        dummy.scale.set(scale, scale * (0.9 + ((idx * 7) % 25) * 0.01), scale);
-        dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
-        dummy.rotation.x = (((idx * 13) % 9) - 4) * 0.015;
-        dummy.rotation.z = (((idx * 19) % 9) - 4) * 0.015;
-        dummy.updateMatrix();
-
-        instTrunk.setMatrixAt(idx, dummy.matrix);
-        instCone1.setMatrixAt(idx, dummy.matrix);
-        instCone2.setMatrixAt(idx, dummy.matrix);
+      const woodTex = getWoodPlankTexture();
+      const trunkMat = new THREE.MeshStandardMaterial({
+        map: woodTex,
+        color: 0x5a3419,
+        roughness: 0.9,
+        flatShading: false
       });
 
-      instTrunk.castShadow = true;
-      instCone1.castShadow = true;
-      instCone2.castShadow = true;
+      // Conifers (50% of trees)
+      const coniferSpots: THREE.Vector3[] = [];
+      const oakSpots: THREE.Vector3[] = [];
 
-      this.treesGroup.add(instTrunk);
-      this.treesGroup.add(instCone1);
-      this.treesGroup.add(instCone2);
+      forestSpots.forEach((p, idx) => {
+        if (idx % 2 === 0) coniferSpots.push(p);
+        else oakSpots.push(p);
+      });
+
+      // Conifer Meshes
+      if (coniferSpots.length > 0) {
+        const cTrunkGeom = new THREE.CylinderGeometry(0.12, 0.18, 1.05, 8);
+        const cCone1Geom = new THREE.ConeGeometry(0.95, 1.1, 10);
+        cCone1Geom.translate(0, 0.9, 0);
+        const cCone2Geom = new THREE.ConeGeometry(0.75, 0.95, 10);
+        cCone2Geom.translate(0, 1.45, 0);
+        const cCone3Geom = new THREE.ConeGeometry(0.52, 0.8, 10);
+        cCone3Geom.translate(0, 1.92, 0);
+
+        const coniferMat1 = new THREE.MeshStandardMaterial({ color: 0x183b15, roughness: 0.76, flatShading: false });
+        const coniferMat2 = new THREE.MeshStandardMaterial({ color: 0x224c1f, roughness: 0.72, flatShading: false });
+        const coniferMat3 = new THREE.MeshStandardMaterial({ color: 0x2d6129, roughness: 0.68, flatShading: false });
+
+        const instCTrunk = new THREE.InstancedMesh(cTrunkGeom, trunkMat, coniferSpots.length);
+        const instCCone1 = new THREE.InstancedMesh(cCone1Geom, coniferMat1, coniferSpots.length);
+        const instCCone2 = new THREE.InstancedMesh(cCone2Geom, coniferMat2, coniferSpots.length);
+        const instCCone3 = new THREE.InstancedMesh(cCone3Geom, coniferMat3, coniferSpots.length);
+
+        const dummy = new THREE.Object3D();
+        coniferSpots.forEach((pos, idx) => {
+          const jx = (((idx * 17 + 7) % 15) / 14 - 0.5) * 0.52;
+          const jz = (((idx * 31 + 11) % 15) / 14 - 0.5) * 0.52;
+          dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
+
+          const scale = 0.88 + ((idx * 23) % 35) * 0.012;
+          dummy.scale.set(scale, scale * (0.92 + ((idx * 7) % 25) * 0.01), scale);
+          dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
+          dummy.rotation.x = (((idx * 13) % 9) - 4) * 0.015;
+          dummy.rotation.z = (((idx * 19) % 9) - 4) * 0.015;
+          dummy.updateMatrix();
+
+          instCTrunk.setMatrixAt(idx, dummy.matrix);
+          instCCone1.setMatrixAt(idx, dummy.matrix);
+          instCCone2.setMatrixAt(idx, dummy.matrix);
+          instCCone3.setMatrixAt(idx, dummy.matrix);
+        });
+
+        instCTrunk.castShadow = true;
+        instCCone1.castShadow = true;
+        instCCone2.castShadow = true;
+        instCCone3.castShadow = true;
+
+        this.treesGroup.add(instCTrunk);
+        this.treesGroup.add(instCCone1);
+        this.treesGroup.add(instCCone2);
+        this.treesGroup.add(instCCone3);
+      }
+
+      // Broadleaf Oaks (50% of trees - lush multi-spherical organic canopies)
+      if (oakSpots.length > 0) {
+        const oTrunkGeom = new THREE.CylinderGeometry(0.15, 0.24, 1.15, 8);
+        const oCrown1Geom = new THREE.DodecahedronGeometry(0.85, 2);
+        oCrown1Geom.translate(0, 1.45, 0);
+        const oCrown2Geom = new THREE.DodecahedronGeometry(0.68, 2);
+        oCrown2Geom.translate(-0.35, 1.25, 0.22);
+        const oCrown3Geom = new THREE.DodecahedronGeometry(0.72, 2);
+        oCrown3Geom.translate(0.36, 1.32, -0.18);
+
+        const oakMat1 = new THREE.MeshStandardMaterial({ color: 0x2e5b1f, roughness: 0.75, flatShading: false });
+        const oakMat2 = new THREE.MeshStandardMaterial({ color: 0x3d7329, roughness: 0.72, flatShading: false });
+        const oakMat3 = new THREE.MeshStandardMaterial({ color: 0x4d8a34, roughness: 0.68, flatShading: false });
+
+        const instOTrunk = new THREE.InstancedMesh(oTrunkGeom, trunkMat, oakSpots.length);
+        const instOCrown1 = new THREE.InstancedMesh(oCrown1Geom, oakMat1, oakSpots.length);
+        const instOCrown2 = new THREE.InstancedMesh(oCrown2Geom, oakMat2, oakSpots.length);
+        const instOCrown3 = new THREE.InstancedMesh(oCrown3Geom, oakMat3, oakSpots.length);
+
+        const dummy = new THREE.Object3D();
+        oakSpots.forEach((pos, idx) => {
+          const jx = (((idx * 29 + 5) % 15) / 14 - 0.5) * 0.52;
+          const jz = (((idx * 13 + 9) % 15) / 14 - 0.5) * 0.52;
+          dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
+
+          const scale = 0.85 + ((idx * 19) % 35) * 0.012;
+          dummy.scale.set(scale, scale, scale);
+          dummy.rotation.y = ((idx * 53) % 360) * (Math.PI / 180);
+          dummy.updateMatrix();
+
+          instOTrunk.setMatrixAt(idx, dummy.matrix);
+          instOCrown1.setMatrixAt(idx, dummy.matrix);
+          instOCrown2.setMatrixAt(idx, dummy.matrix);
+          instOCrown3.setMatrixAt(idx, dummy.matrix);
+        });
+
+        instOTrunk.castShadow = true;
+        instOCrown1.castShadow = true;
+        instOCrown2.castShadow = true;
+        instOCrown3.castShadow = true;
+
+        this.treesGroup.add(instOTrunk);
+        this.treesGroup.add(instOCrown1);
+        this.treesGroup.add(instOCrown2);
+        this.treesGroup.add(instOCrown3);
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { UnitData } from '@agefront/shared';
+import { getWoodPlankTexture } from './proceduralTextures.js';
 
 export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group {
   const root = new THREE.Group();
@@ -35,8 +36,8 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
   });
   const steelMat = new THREE.MeshStandardMaterial({
     color: 0x94a3b8, // Polished steel armor & weapons
-    roughness: 0.22,
-    metalness: 0.82,
+    roughness: 0.16,
+    metalness: 0.92,
     flatShading: false
   });
   const darkIronMat = new THREE.MeshStandardMaterial({
@@ -68,9 +69,12 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     roughness: 0.85,
     flatShading: false
   });
+  const woodTex = getWoodPlankTexture();
   const woodMat = new THREE.MeshStandardMaterial({
-    color: 0x78350f, // Ash & oak shafts
+    map: woodTex,
+    color: 0x82491a,
     roughness: 0.72,
+    metalness: 0.05,
     flatShading: false
   });
   const horseCoatMat = new THREE.MeshStandardMaterial({
