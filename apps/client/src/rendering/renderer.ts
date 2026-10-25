@@ -725,22 +725,12 @@ export class GameRenderer {
   ): void {
     const def = BUILDING_DEFINITIONS[bldg.type];
 
-    // Determine if building should show an overhead status / progress bar
+    // In Age of Empires, overhead progress indicators appear ONLY during active construction, active recruitment/research, or damage
     const isUnderConstruction = !bldg.isConstructed;
     const hasQueue = bldg.productionQueue && bldg.productionQueue.length > 0;
-    const isFarm = bldg.type === 'farm';
-    const isResearchHall = bldg.type === 'research_hall';
-    const isCamp = bldg.type === 'lumber_camp' || bldg.type === 'quarry' || bldg.type === 'mining_camp';
     const isDamaged = bldg.hp < bldg.maxHp;
 
-    const shouldShow =
-      isUnderConstruction ||
-      hasQueue ||
-      (isFarm && activeWorkers > 0) ||
-      isResearchHall ||
-      (isCamp && activeWorkers > 0) ||
-      isDamaged ||
-      isSelected;
+    const shouldShow = isUnderConstruction || hasQueue || isDamaged;
 
     if (!shouldShow) {
       this.removeBuildingStatusBar(bldg.id);
@@ -750,13 +740,13 @@ export class GameRenderer {
     let sprite = this.buildingStatusBars.get(bldg.id);
     if (!sprite) {
       const canvas = document.createElement('canvas');
-      canvas.width = 160;
-      canvas.height = 42;
+      canvas.width = 180;
+      canvas.height = 46;
       const texture = new THREE.CanvasTexture(canvas);
       texture.minFilter = THREE.LinearFilter;
       const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
       sprite = new THREE.Sprite(mat);
-      sprite.scale.set(3.2, 0.84, 1);
+      sprite.scale.set(3.4, 0.87, 1);
       this.scene.add(sprite);
       this.buildingStatusBars.set(bldg.id, sprite);
     }
@@ -764,8 +754,7 @@ export class GameRenderer {
     const heightOffset = bldg.type === 'town_centre' ? 4.6 : (bldg.type === 'fort' || bldg.type === 'watchtower') ? 4.2 : (bldg.type === 'farm') ? 2.2 : 3.5;
     sprite.position.set(pos.x, pos.y + heightOffset, pos.z);
 
-    // Throttle canvas texture re-draws:
-    // Only re-draw if 100ms has elapsed (~10 FPS) or if critical building state changed
+    // Throttle canvas texture re-draws (10 FPS or on state change)
     const now = performance.now();
     const lastTime = this.buildingStatusLastTime.get(bldg.id) || 0;
     const queueProgress = bldg.productionQueue && bldg.productionQueue.length > 0
@@ -782,132 +771,105 @@ export class GameRenderer {
 
     const canvas = (sprite.material.map as THREE.CanvasTexture).image as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 160, 42);
+    ctx.clearRect(0, 0, 180, 46);
 
-    // Pill background
-    ctx.fillStyle = 'rgba(9, 14, 26, 0.9)';
+    // 1. Aged Deckled Parchment Card Background (AoE theme)
+    const cardGrad = ctx.createLinearGradient(0, 0, 0, 46);
+    cardGrad.addColorStop(0, '#fffbf0');
+    cardGrad.addColorStop(0.5, '#edd8a8');
+    cardGrad.addColorStop(1, '#d8b975');
+    ctx.fillStyle = cardGrad;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(0, 0, 160, 42, 6);
-    else ctx.rect(0, 0, 160, 42);
+    if (ctx.roundRect) ctx.roundRect(0, 0, 180, 46, 5);
+    else ctx.rect(0, 0, 180, 46);
     ctx.fill();
 
-    // Border
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(51, 65, 85, 0.85)';
+    // 2. Antique Gilded Bronze Outer Border
+    ctx.lineWidth = isSelected ? 2.5 : 1.8;
+    ctx.strokeStyle = isSelected ? '#b45309' : '#8c6a34';
     ctx.stroke();
+
+    // 3. Four Iron Corner Rivets
+    const rivets = [[5, 5], [175, 5], [5, 41], [175, 41]];
+    rivets.forEach(([rx, ry]) => {
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.arc(rx, ry, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
     // Determine state, title, progress fill, and colors
     let stateLabel = '';
     let percentText = '';
-    let barColor = '#38bdf8';
+    let fillGradStart = '#b91c1c';
+    let fillGradEnd = '#6b0e0e';
     let progress = 0;
-    let showWorkingPulse = false;
 
     if (isUnderConstruction) {
-      stateLabel = '🔨 BUILDING';
+      stateLabel = '🔨 RAISING STRUCTURE';
       progress = Math.min(1.0, Math.max(0, bldg.constructionProgress / 100));
       percentText = `${Math.floor(bldg.constructionProgress)}%`;
-      barColor = '#f59e0b'; // Amber
-      showWorkingPulse = true;
+      fillGradStart = '#d97706';
+      fillGradEnd = '#92400e';
     } else if (hasQueue) {
       const item = bldg.productionQueue[0];
       const itemName = item.itemType.replace('_', ' ').toUpperCase();
       const countSuffix = bldg.productionQueue.length > 1 ? ` (+${bldg.productionQueue.length - 1})` : '';
-      stateLabel = `⚙️ ${itemName}${countSuffix}`;
+      stateLabel = `⚜️ ${itemName}${countSuffix}`;
       progress = Math.min(1.0, Math.max(0, item.progress / 100));
       percentText = `${Math.floor(item.progress)}%`;
-      barColor = '#06b6d4'; // Cyan
-      showWorkingPulse = true;
-    } else if (isFarm) {
-      if (activeWorkers > 0) {
-        stateLabel = `🌾 FARMING (${activeWorkers}w)`;
-        progress = ((performance.now() * 0.001) % 1.0);
-        percentText = 'WORKING';
-        barColor = '#22c55e'; // Emerald
-        showWorkingPulse = true;
-      } else {
-        stateLabel = '🌾 FARM IDLE';
-        progress = 0;
-        percentText = 'NEED WORKER';
-        barColor = '#64748b';
-      }
-    } else if (isResearchHall) {
-      stateLabel = '🧪 ACADEMY';
-      progress = ((performance.now() * 0.0008) % 1.0);
-      percentText = '+1/SEC';
-      barColor = '#a855f7'; // Purple
-      showWorkingPulse = true;
-    } else if (isCamp && activeWorkers > 0) {
-      stateLabel = `📦 DEPOT ACTIVE (${activeWorkers}w)`;
-      progress = ((performance.now() * 0.001) % 1.0);
-      percentText = 'WORKING';
-      barColor = '#3b82f6';
-      showWorkingPulse = true;
+      fillGradStart = '#b91c1c';
+      fillGradEnd = '#6b0e0e';
     } else if (isDamaged) {
-      stateLabel = '🛡️ INTEGRITY';
+      stateLabel = '🛡️ FORTIFICATION INTEGRITY';
       progress = Math.min(1.0, Math.max(0, bldg.hp / bldg.maxHp));
       percentText = `${Math.ceil(bldg.hp)}/${bldg.maxHp}`;
-      barColor = progress > 0.5 ? '#22c55e' : progress > 0.25 ? '#eab308' : '#ef4444';
-    } else {
-      stateLabel = `🏛️ ${def.name.toUpperCase()}`;
-      progress = 1.0;
-      percentText = 'READY';
-      barColor = '#38bdf8';
+      fillGradStart = progress > 0.5 ? '#15803d' : progress > 0.25 ? '#ca8a04' : '#b91c1c';
+      fillGradEnd = progress > 0.5 ? '#14532d' : progress > 0.25 ? '#854d0e' : '#7f1d1d';
     }
 
-    // Working pulse indicator (Glowing green dot)
-    if (showWorkingPulse) {
-      const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.008);
-      ctx.fillStyle = `rgba(34, 197, 94, ${0.4 + 0.6 * pulse})`;
-      ctx.beginPath();
-      ctx.arc(10, 13, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // 4. Header Label Text (Classical Roman Serif Typography)
+    ctx.font = '800 10.5px "Cinzel", Georgia, serif';
+    ctx.fillStyle = '#381c08'; // Deep antique walnut
+    ctx.fillText(stateLabel, 10, 16);
 
-    // Header Label Text
-    ctx.font = 'bold 9px system-ui, sans-serif';
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillText(stateLabel, showWorkingPulse ? 18 : 8, 14);
-
-    // Percent / Status Badge Text
-    ctx.fillStyle = barColor;
+    // 5. Percent / Status Badge Text
+    ctx.font = '800 10.5px "Cinzel", Georgia, serif';
+    ctx.fillStyle = '#854d0e';
     const textWidth = ctx.measureText(percentText).width;
-    ctx.fillText(percentText, 152 - textWidth, 14);
+    ctx.fillText(percentText, 170 - textWidth, 16);
 
-    // Main Progress Bar (Trough)
-    const hasSubHp = isDamaged && (isUnderConstruction || hasQueue || isFarm || isResearchHall);
-    const barY = hasSubHp ? 19 : 21;
-    const barH = hasSubHp ? 10 : 13;
+    // 6. Main Progress Bar Trough (Carved dark walnut wood)
+    const barY = 22;
+    const barH = 14;
+    const barW = 158;
 
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = '#261307';
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(8, barY, 144, barH, 3);
-    else ctx.rect(8, barY, 144, barH);
+    if (ctx.roundRect) ctx.roundRect(11, barY, barW, barH, 3);
+    else ctx.rect(11, barY, barW, barH);
     ctx.fill();
 
-    // Progress Bar Fill
-    const fillW = Math.max(2, Math.floor(144 * progress));
-    ctx.fillStyle = barColor;
+    // Trough Bronze Border
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#8c6a34';
+    ctx.stroke();
+
+    // 7. Progress Bar Fill (Royal Crimson / Amber Gold)
+    const fillW = Math.max(2, Math.floor(barW * progress));
+    const fillGrad = ctx.createLinearGradient(11, barY, 11, barY + barH);
+    fillGrad.addColorStop(0, fillGradStart);
+    fillGrad.addColorStop(1, fillGradEnd);
+    ctx.fillStyle = fillGrad;
+
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(8, barY, fillW, barH, 3);
-    else ctx.rect(8, barY, fillW, barH);
+    if (ctx.roundRect) ctx.roundRect(11, barY, fillW, barH, 3);
+    else ctx.rect(11, barY, fillW, barH);
     ctx.fill();
 
-    // Secondary HP bar if building is also damaged
-    if (hasSubHp) {
-      const hpRatio = Math.min(1.0, Math.max(0, bldg.hp / bldg.maxHp));
-      ctx.fillStyle = '#0f172a';
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(8, 33, 144, 4, 2);
-      else ctx.rect(8, 33, 144, 4);
-      ctx.fill();
-
-      ctx.fillStyle = hpRatio > 0.5 ? '#22c55e' : hpRatio > 0.25 ? '#eab308' : '#ef4444';
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(8, 33, Math.max(2, Math.floor(144 * hpRatio)), 4, 2);
-      else ctx.rect(8, 33, Math.max(2, Math.floor(144 * hpRatio)), 4);
-      ctx.fill();
-    }
+    // Beveled gold top highlight lip on progress bar
+    ctx.fillStyle = 'rgba(254, 240, 138, 0.45)';
+    ctx.fillRect(11, barY, fillW, 2);
 
     (sprite.material.map as THREE.CanvasTexture).needsUpdate = true;
   }

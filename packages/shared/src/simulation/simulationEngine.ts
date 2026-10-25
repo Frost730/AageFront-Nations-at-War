@@ -500,7 +500,11 @@ export class SimulationEngine {
         if (!bldg || bldg.ownerId !== playerId || !bldg.isConstructed) return false;
 
         const udef = UNIT_DEFINITIONS[cmd.unitType];
-        const isAllowedProducer = udef && (udef.producedAt === bldg.type || (cmd.unitType === 'dragon' && (bldg.type === 'town_centre' || bldg.type === 'fort')));
+        const isAllowedProducer = udef && (
+          udef.producedAt === bldg.type ||
+          (cmd.unitType === 'dragon' && (bldg.type === 'town_centre' || bldg.type === 'fort')) ||
+          (cmd.unitType === 'advanced_unit' && (bldg.type === 'fort' || bldg.type === 'barracks'))
+        );
         if (!udef || !isAllowedProducer) return false;
 
         // Check age

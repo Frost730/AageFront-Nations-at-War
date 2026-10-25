@@ -1116,7 +1116,7 @@ export class HudView {
       trainWorkerBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const curPlayer = this.currentPlayer || player;
-        if (curPlayer.population >= curPlayer.maxPopulation) {
+      if (curPlayer.population >= curPlayer.maxPopulation) {
           soundManager.playError();
           this.showNotification(`⚠️ Population cap reached (${curPlayer.population}/${curPlayer.maxPopulation})! Construct Houses.`);
           return;
@@ -1267,6 +1267,12 @@ export class HudView {
         return;
       }
       const udef = UNIT_DEFINITIONS[unitType];
+      const ageRank = (a: any) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
+      if (udef && ageRank(curPlayer.age) < ageRank(udef.requiredAge)) {
+        soundManager.playError();
+        this.showNotification(`🔒 ${label} requires ${udef.requiredAge}! Advance your civilization first.`);
+        return;
+      }
       if (udef) {
         const canAfford =
           curPlayer.resources.food >= udef.cost.food &&
