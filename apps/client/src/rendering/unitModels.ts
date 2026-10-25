@@ -121,6 +121,43 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
   });
 
   // -------------------------------------------------------------
+  // ARTICULATED LIMB FACTORIES (AoE Animation Skeletons)
+  // -------------------------------------------------------------
+  const createArticulatedLeg = (mat: THREE.Material, xOffset: number, name: string, height: number = 0.36): THREE.Group => {
+    const legGroup = new THREE.Group();
+    legGroup.name = name;
+    legGroup.position.set(xOffset, 0.35, 0);
+    const thighGeom = new THREE.CylinderGeometry(0.08, 0.07, height, 8);
+    thighGeom.translate(0, -height / 2, 0);
+    const thigh = new THREE.Mesh(thighGeom, mat);
+    thigh.castShadow = true;
+    legGroup.add(thigh);
+    const bootGeom = new THREE.BoxGeometry(0.1, 0.09, 0.16);
+    bootGeom.translate(0, -height - 0.02, 0.04);
+    const boot = new THREE.Mesh(bootGeom, mat);
+    boot.castShadow = true;
+    legGroup.add(boot);
+    return legGroup;
+  };
+
+  const createHorseLeg = (mat: THREE.Material, x: number, z: number, name: string, length: number = 0.52): THREE.Group => {
+    const legGroup = new THREE.Group();
+    legGroup.name = name;
+    legGroup.position.set(x, -0.15, z);
+    const legGeom = new THREE.CylinderGeometry(0.075, 0.06, length, 8);
+    legGeom.translate(0, -length / 2, 0);
+    const leg = new THREE.Mesh(legGeom, mat);
+    leg.castShadow = true;
+    legGroup.add(leg);
+    const hoofGeom = new THREE.BoxGeometry(0.1, 0.08, 0.13);
+    hoofGeom.translate(0, -length - 0.02, 0.03);
+    const hoof = new THREE.Mesh(hoofGeom, darkLeatherMat);
+    hoof.castShadow = true;
+    legGroup.add(hoof);
+    return legGroup;
+  };
+
+  // -------------------------------------------------------------
   // UNIT ARCHETYPES
   // -------------------------------------------------------------
   switch (unit.type) {
@@ -147,6 +184,7 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
 
       // Shoulders & Arms
       const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.38, 8), teamClothMat);
+      lArm.name = 'left_arm';
       lArm.position.set(-0.25, 0.12, 0);
       lArm.rotation.z = Math.PI / 10;
       torsoGroup.add(lArm);
@@ -177,14 +215,9 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
 
       root.add(torsoGroup);
 
-      // 2. Legs & Boots
-      const lLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.35, 8), darkLeatherMat);
-      lLeg.position.set(-0.1, 0.18, 0);
-      root.add(lLeg);
-
-      const rLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.35, 8), darkLeatherMat);
-      rLeg.position.set(0.1, 0.18, 0);
-      root.add(rLeg);
+      // 2. Articulated Legs & Boots
+      root.add(createArticulatedLeg(darkLeatherMat, -0.1, 'left_leg'));
+      root.add(createArticulatedLeg(darkLeatherMat, 0.1, 'right_leg'));
 
       // 3. Tool Pivot (Chopping Axe / Pickaxe / Hammer)
       const toolPivot = new THREE.Group();
@@ -218,6 +251,7 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
 
       // Neck & Muzzle
       const neck = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.48, 0.45), horseCoatMat);
+      neck.name = 'horse_neck';
       neck.position.set(0, 0.38, 0.48);
       neck.rotation.x = -Math.PI / 7;
       horse.add(neck);
@@ -231,17 +265,11 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       mane.position.set(0, 0.45, 0.38);
       horse.add(mane);
 
-      // 4 Legs
-      const legGeom = new THREE.CylinderGeometry(0.07, 0.06, 0.5, 8);
-      const legPositions = [
-        [-0.18, -0.32, 0.35], [0.18, -0.32, 0.35],
-        [-0.18, -0.32, -0.35], [0.18, -0.32, -0.35]
-      ];
-      legPositions.forEach(([lx, ly, lz]) => {
-        const leg = new THREE.Mesh(legGeom, horseCoatMat);
-        leg.position.set(lx, ly, lz);
-        horse.add(leg);
-      });
+      // 4 Articulated Gallop Legs
+      horse.add(createHorseLeg(horseCoatMat, -0.18, 0.35, 'horse_leg_fl'));
+      horse.add(createHorseLeg(horseCoatMat, 0.18, 0.35, 'horse_leg_fr'));
+      horse.add(createHorseLeg(horseCoatMat, -0.18, -0.35, 'horse_leg_bl'));
+      horse.add(createHorseLeg(horseCoatMat, 0.18, -0.35, 'horse_leg_br'));
 
       // Saddlecloth in faction color
       const saddlecloth = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.65), teamMat);
@@ -330,14 +358,9 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
 
       root.add(torsoGroup);
 
-      // 2. Greaves & Sabatons (Legs & armored boots)
-      const lGreave = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.36, 8), steelMat);
-      lGreave.position.set(-0.11, 0.18, 0);
-      root.add(lGreave);
-
-      const rGreave = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.36, 8), steelMat);
-      rGreave.position.set(0.11, 0.18, 0);
-      root.add(rGreave);
+      // 2. Articulated Greaves & Sabatons
+      root.add(createArticulatedLeg(steelMat, -0.11, 'left_leg'));
+      root.add(createArticulatedLeg(steelMat, 0.11, 'right_leg'));
 
       // 3. Sword Pivot with Broad Arming Sword
       const swordPivot = new THREE.Group();
@@ -424,9 +447,14 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
 
       // Forearm Buckler Shield
       const buckler = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.05, 8), steelMat);
+      buckler.name = 'left_arm';
       buckler.position.set(-0.28, 0.55, 0.1);
       buckler.rotation.z = Math.PI / 2;
       root.add(buckler);
+
+      // Articulated Legs
+      root.add(createArticulatedLeg(darkIronMat, -0.11, 'left_leg'));
+      root.add(createArticulatedLeg(darkIronMat, 0.11, 'right_leg'));
       break;
     }
 
@@ -481,6 +509,10 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
         arrowTail.position.set(-0.16 - a * 0.04, 0.98 + a * 0.03, -0.2);
         root.add(arrowTail);
       }
+
+      // Articulated Legs
+      root.add(createArticulatedLeg(darkLeatherMat, -0.1, 'left_leg'));
+      root.add(createArticulatedLeg(darkLeatherMat, 0.1, 'right_leg'));
       break;
     }
 
@@ -497,6 +529,7 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
 
       // Muscular Neck & Head with Steel Chamfron
       const neck = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.52, 0.5), whiteHorseMat);
+      neck.name = 'horse_neck';
       neck.position.set(0, 0.42, 0.52);
       neck.rotation.x = -Math.PI / 6;
       horse.add(neck);
@@ -509,17 +542,11 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       chamfron.position.set(0, 0.72, 0.88);
       horse.add(chamfron);
 
-      // 4 Powerful Armored Legs
-      const legGeom = new THREE.CylinderGeometry(0.08, 0.07, 0.55, 8);
-      const legOffsets = [
-        [-0.2, -0.36, 0.38], [0.2, -0.36, 0.38],
-        [-0.2, -0.36, -0.38], [0.2, -0.36, -0.38]
-      ];
-      legOffsets.forEach(([lx, ly, lz]) => {
-        const leg = new THREE.Mesh(legGeom, whiteHorseMat);
-        leg.position.set(lx, ly, lz);
-        horse.add(leg);
-      });
+      // 4 Powerful Articulated Warhorse Legs
+      horse.add(createHorseLeg(whiteHorseMat, -0.2, 0.38, 'horse_leg_fl', 0.58));
+      horse.add(createHorseLeg(whiteHorseMat, 0.2, 0.38, 'horse_leg_fr', 0.58));
+      horse.add(createHorseLeg(whiteHorseMat, -0.2, -0.38, 'horse_leg_bl', 0.58));
+      horse.add(createHorseLeg(whiteHorseMat, 0.2, -0.38, 'horse_leg_br', 0.58));
 
       root.add(horse);
 
@@ -562,6 +589,7 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     case 'siege_unit': {
       // 1. Reinforced Timber Chassis & Heavy Wheels
       const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.32, 1.7), woodMat);
+      chassis.name = 'siege_chassis';
       chassis.position.y = 0.32;
       root.add(chassis);
 
@@ -580,8 +608,10 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
         [-0.68, 0.32, -0.6], [0.68, 0.32, -0.6],
         [-0.68, 0.32, 0.6], [0.68, 0.32, 0.6]
       ];
-      wheels.forEach(([wx, wy, wz]) => {
+      const wheelNames = ['wheel_fl', 'wheel_fr', 'wheel_bl', 'wheel_br'];
+      wheels.forEach(([wx, wy, wz], wIdx) => {
         const wheel = new THREE.Mesh(wheelGeom, darkIronMat);
+        wheel.name = wheelNames[wIdx];
         wheel.position.set(wx, wy, wz);
         root.add(wheel);
 
@@ -692,6 +722,10 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       halberdPivot.add(topSpike);
 
       root.add(halberdPivot);
+
+      // Articulated Plate Greaves
+      root.add(createArticulatedLeg(steelMat, -0.13, 'left_leg', 0.42));
+      root.add(createArticulatedLeg(steelMat, 0.13, 'right_leg', 0.42));
       break;
     }
 

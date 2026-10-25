@@ -933,44 +933,122 @@ export class GameRenderer {
   ): void {
     const time = now * 0.001;
 
+    // Standard Human Stride & March helpers
+    const lLeg = group.getObjectByName('left_leg');
+    const rLeg = group.getObjectByName('right_leg');
+    const lArm = group.getObjectByName('left_arm');
+    const torso = group.getObjectByName('unit_torso');
+
+    const isHumanoid = unit.type !== 'cavalry' && unit.type !== 'scout' && unit.type !== 'siege_unit' && unit.type !== 'dragon';
+
+    // Universal Humanoid Movement Leg March Animation (Age of Empires II: DE)
+    if (isHumanoid) {
+      if (unit.state === 'moving') {
+        const strideRate = 9.5;
+        const stride = Math.sin(time * strideRate);
+        if (lLeg) lLeg.rotation.x = stride * 0.62;
+        if (rLeg) rLeg.rotation.x = -stride * 0.62;
+        if (lArm) lArm.rotation.x = -stride * 0.45;
+        if (torso) {
+          const baseTorsoY = unit.type === 'advanced_unit' ? 0.62 : unit.type === 'spearman' ? 0.5 : 0.48;
+          torso.position.y = baseTorsoY + Math.abs(Math.sin(time * strideRate)) * 0.045;
+          torso.rotation.y = stride * 0.09;
+          torso.rotation.z = Math.cos(time * strideRate * 0.5) * 0.025;
+        }
+      } else if (unit.state !== 'attacking' && unit.state !== 'gathering') {
+        // Natural idle planted footing & gentle breathing
+        if (lLeg) lLeg.rotation.x = 0;
+        if (rLeg) rLeg.rotation.x = 0;
+        if (lArm) lArm.rotation.x = 0;
+        if (torso) {
+          const baseTorsoY = unit.type === 'advanced_unit' ? 0.62 : unit.type === 'spearman' ? 0.5 : 0.48;
+          torso.position.y = baseTorsoY + Math.sin(time * 2.2) * 0.012;
+          torso.rotation.set(0, 0, 0);
+        }
+      }
+    }
+
     switch (unit.type) {
       case 'worker': {
         const toolPivot = group.getObjectByName('tool_pivot');
-        const torso = group.getObjectByName('unit_torso');
         if (!toolPivot) break;
 
         if (unit.state === 'gathering') {
-          // Dynamic chopping or pickaxe swing
-          const swing = Math.sin(time * 12);
-          toolPivot.rotation.x = -0.3 + swing * 1.1;
-          toolPivot.rotation.z = Math.cos(time * 12) * 0.2;
-          if (torso) torso.rotation.y = swing * 0.15;
+          // Detect resource type or target to perform authentic AoE gathering actions
+          const resType = (unit as any).carriedResourceType || 'wood';
+          if (resType === 'wood') {
+            // Authentic AoE Lumberjack Axe Chop: 2-stage windup and overhead down-stroke
+            const chopCycle = (time * 2.2) % 1.0;
+            if (chopCycle < 0.45) {
+              // High windup overhead
+              const p = chopCycle / 0.45;
+              toolPivot.rotation.x = -0.2 - p * 1.25;
+              if (torso) {
+                torso.rotation.x = -p * 0.15;
+                torso.position.y = 0.45 + p * 0.04;
+              }
+            } else if (chopCycle < 0.6) {
+              // Violent down-stroke into timber trunk!
+              const p = (chopCycle - 0.45) / 0.15;
+              toolPivot.rotation.x = -1.45 + p * 2.4;
+              if (torso) {
+                torso.rotation.x = -0.15 + p * 0.35;
+                torso.position.y = 0.49 - p * 0.08;
+              }
+            } else {
+              // Impact recoil & recovery
+              const p = (chopCycle - 0.6) / 0.4;
+              toolPivot.rotation.x = 0.95 - p * 1.15;
+              if (torso) {
+                torso.rotation.x = 0.2 * (1.0 - p);
+                torso.position.y = 0.41 + p * 0.04;
+              }
+            }
+          } else if (resType === 'food') {
+            // Forager / Farmer Sickle Action: stooping to harvest crops
+            const farmCycle = Math.sin(time * 6);
+            if (torso) {
+              torso.position.y = 0.34 + farmCycle * 0.03;
+              torso.rotation.x = 0.4 + farmCycle * 0.08;
+            }
+            toolPivot.rotation.x = 0.4 + farmCycle * 0.5;
+            toolPivot.rotation.z = Math.cos(time * 6) * 0.3;
+          } else {
+            // Stone / Gold Mining: Diagonal pickaxe driving stroke
+            const mineCycle = (time * 2.5) % 1.0;
+            if (mineCycle < 0.5) {
+              toolPivot.rotation.x = -0.2 - (mineCycle / 0.5) * 1.1;
+              toolPivot.rotation.z = -(mineCycle / 0.5) * 0.25;
+            } else {
+              const strike = (mineCycle - 0.5) / 0.5;
+              toolPivot.rotation.x = -1.3 + strike * 2.2;
+              toolPivot.rotation.z = -0.25 + strike * 0.25;
+            }
+          }
         } else if (unit.state === 'building' || unit.state === 'repairing') {
-          // Hammering rhythm
-          const hammer = Math.sin(time * 9);
-          toolPivot.rotation.x = -0.5 + hammer * 0.85;
-          toolPivot.rotation.z = 0;
-          if (torso) torso.position.y = 0.45 + hammer * 0.04;
+          // Authentic AoE Villager Double-Tap Hammer Rhythm ("tink-tink... pause... tink-tink")
+          const hammerCycle = (time * 3.5) % 2.0;
+          let hammerAngle = -0.3;
+          if (hammerCycle < 0.3) {
+            hammerAngle = -0.3 + Math.sin(hammerCycle / 0.3 * Math.PI) * 0.95;
+          } else if (hammerCycle > 0.4 && hammerCycle < 0.7) {
+            hammerAngle = -0.3 + Math.sin((hammerCycle - 0.4) / 0.3 * Math.PI) * 0.95;
+          }
+          toolPivot.rotation.x = hammerAngle;
+          if (torso) torso.position.y = 0.45 + (hammerAngle > 0.2 ? -0.04 : 0);
         } else if (unit.state === 'attacking') {
-          // Aggressive improvised attack chop
-          const swing = Math.sin(time * 14);
-          toolPivot.rotation.x = swing * 1.2;
-          if (torso) torso.rotation.y = swing * 0.25;
+          // Aggressive improvised axe slash
+          const slash = Math.sin(time * 12);
+          toolPivot.rotation.x = slash * 1.25;
+          if (torso) torso.rotation.y = slash * 0.22;
         } else if (unit.state === 'moving') {
-          // Running stride bob
-          toolPivot.rotation.x = Math.sin(time * 8) * 0.35;
-          toolPivot.rotation.z = 0;
-          if (torso) {
-            torso.position.y = 0.45 + Math.abs(Math.sin(time * 10)) * 0.06;
-            torso.rotation.y = Math.sin(time * 10) * 0.08;
+          toolPivot.rotation.x = Math.sin(time * 8) * 0.25;
+          // When carrying resource bundle/basket, lean forward with weight
+          if (torso && (unit as any).carriedResourceAmount > 0) {
+            torso.rotation.x = 0.12;
           }
         } else {
-          // Idle breathing
           toolPivot.rotation.set(0, 0, 0);
-          if (torso) {
-            torso.position.y = 0.45 + Math.sin(time * 2) * 0.015;
-            torso.rotation.set(0, 0, 0);
-          }
         }
         break;
       }
@@ -978,35 +1056,55 @@ export class GameRenderer {
       case 'basic_infantry': {
         const swordPivot = group.getObjectByName('sword_pivot');
         const shieldPivot = group.getObjectByName('shield_pivot');
-        const torso = group.getObjectByName('unit_torso');
 
         if (unit.state === 'attacking') {
-          const slash = Math.sin(time * 13);
-          if (swordPivot) {
-            swordPivot.rotation.x = slash * 1.25;
-            swordPivot.rotation.y = Math.cos(time * 13) * 0.4;
+          // Authentic AoE 3-Phase Sword Slash & Shield Defense
+          const slashCycle = (time * 2.2) % 1.0;
+          if (slashCycle < 0.35) {
+            // Windup: raises sword, braces shield to chin
+            const p = slashCycle / 0.35;
+            if (swordPivot) {
+              swordPivot.rotation.x = -p * 1.15;
+              swordPivot.rotation.y = -p * 0.45;
+            }
+            if (shieldPivot) {
+              shieldPivot.position.z = 0.12 + p * 0.1;
+              shieldPivot.rotation.y = 0.35;
+            }
+            if (torso) torso.rotation.y = -p * 0.28;
+          } else if (slashCycle < 0.58) {
+            // Explosive downward diagonal cut!
+            const p = (slashCycle - 0.35) / 0.23;
+            if (swordPivot) {
+              swordPivot.rotation.x = -1.15 + p * 2.45;
+              swordPivot.rotation.y = -0.45 + p * 0.95;
+            }
+            if (shieldPivot) shieldPivot.position.z = 0.22;
+            if (torso) {
+              torso.rotation.y = -0.28 + p * 0.65;
+              torso.position.z = p * 0.12;
+            }
+          } else {
+            // Recovery back to guard
+            const p = (slashCycle - 0.58) / 0.42;
+            if (swordPivot) {
+              swordPivot.rotation.x = 1.3 * (1.0 - p);
+              swordPivot.rotation.y = 0.5 * (1.0 - p);
+            }
+            if (shieldPivot) shieldPivot.position.z = 0.22 - p * 0.1;
+            if (torso) {
+              torso.rotation.y = 0.37 * (1.0 - p);
+              torso.position.z = 0.12 * (1.0 - p);
+            }
           }
-          if (shieldPivot) {
-            shieldPivot.position.z = 0.15 + Math.sin(time * 13) * 0.08;
-            shieldPivot.rotation.y = 0.25;
-          }
-          if (torso) torso.rotation.y = slash * 0.25;
         } else if (unit.state === 'moving') {
-          if (swordPivot) swordPivot.rotation.x = Math.sin(time * 8) * 0.3;
-          if (shieldPivot) shieldPivot.rotation.x = -Math.sin(time * 8) * 0.25;
-          if (torso) {
-            torso.position.y = 0.48 + Math.abs(Math.sin(time * 10)) * 0.05;
-            torso.rotation.y = Math.sin(time * 10) * 0.08;
-          }
+          if (swordPivot) swordPivot.rotation.x = Math.sin(time * 9.5) * 0.3;
+          if (shieldPivot) shieldPivot.position.z = 0.12;
         } else {
           if (swordPivot) swordPivot.rotation.set(0, 0, 0);
           if (shieldPivot) {
-            shieldPivot.position.set(-0.28, 0.52, 0.1);
+            shieldPivot.position.set(-0.3, 0.54, 0.1);
             shieldPivot.rotation.set(0, 0, 0);
-          }
-          if (torso) {
-            torso.position.y = 0.48 + Math.sin(time * 2) * 0.015;
-            torso.rotation.set(0, 0, 0);
           }
         }
         break;
@@ -1014,32 +1112,46 @@ export class GameRenderer {
 
       case 'spearman': {
         const pikePivot = group.getObjectByName('pike_pivot');
-        const torso = group.getObjectByName('unit_torso');
 
         if (unit.state === 'attacking') {
-          const thrust = Math.max(0, Math.sin(time * 13));
-          if (pikePivot) {
-            pikePivot.position.z = 0.15 + thrust * 0.7;
-            pikePivot.rotation.x = Math.PI / 16 - thrust * 0.12;
+          // Authentic AoE Phalanx Pike Thrust
+          const thrustCycle = (time * 2.0) % 1.0;
+          if (thrustCycle < 0.3) {
+            // Coil back
+            const p = thrustCycle / 0.3;
+            if (pikePivot) pikePivot.position.z = 0.15 - p * 0.28;
+            if (torso) torso.position.z = -p * 0.1;
+          } else if (thrustCycle < 0.52) {
+            // Deep lunging forward thrust!
+            const p = (thrustCycle - 0.3) / 0.22;
+            if (pikePivot) {
+              pikePivot.position.z = -0.13 + p * 1.05;
+              pikePivot.rotation.x = Math.PI / 18 - p * 0.08;
+            }
+            if (torso) torso.position.z = -0.1 + p * 0.3;
+            if (lLeg) lLeg.rotation.x = p * 0.42;
+            if (rLeg) rLeg.rotation.x = -p * 0.42;
+          } else {
+            // Retract
+            const p = (thrustCycle - 0.52) / 0.48;
+            if (pikePivot) {
+              pikePivot.position.z = 0.92 - p * 0.77;
+              pikePivot.rotation.x = Math.PI / 18;
+            }
+            if (torso) torso.position.z = 0.2 * (1.0 - p);
+            if (lLeg) lLeg.rotation.x = 0.42 * (1.0 - p);
+            if (rLeg) rLeg.rotation.x = -0.42 * (1.0 - p);
           }
-          if (torso) torso.position.z = thrust * 0.12;
         } else if (unit.state === 'moving') {
           if (pikePivot) {
-            pikePivot.position.z = 0.15;
-            pikePivot.rotation.x = Math.PI / 16 + Math.sin(time * 8) * 0.12;
-          }
-          if (torso) {
-            torso.position.y = 0.48 + Math.abs(Math.sin(time * 10)) * 0.05;
-            torso.position.z = 0;
+            // Held upright in march
+            pikePivot.position.set(0.28, 0.6, 0.15);
+            pikePivot.rotation.x = Math.PI / 16 + Math.sin(time * 9.5) * 0.08;
           }
         } else {
           if (pikePivot) {
-            pikePivot.position.set(0.26, 0.6, 0.15);
+            pikePivot.position.set(0.28, 0.6, 0.15);
             pikePivot.rotation.set(0, 0, 0);
-          }
-          if (torso) {
-            torso.position.set(0, 0.48 + Math.sin(time * 2) * 0.015, 0);
-            torso.rotation.set(0, 0, 0);
           }
         }
         break;
@@ -1047,33 +1159,51 @@ export class GameRenderer {
 
       case 'ranged_infantry': {
         const bowPivot = group.getObjectByName('bow_pivot');
-        const torso = group.getObjectByName('unit_torso');
 
         if (unit.state === 'attacking') {
-          const drawCycle = (time * 2.5) % 1.0;
-          const drawPull = Math.sin(drawCycle * Math.PI);
-          if (bowPivot) {
-            bowPivot.position.z = 0.15 - drawPull * 0.22;
-            bowPivot.rotation.x = -Math.PI / 8;
+          // Authentic AoE 4-Phase Archery Sequence (Nock -> Draw -> Hold -> Loose)
+          const archerCycle = (time * 1.8) % 1.0;
+          if (archerCycle < 0.42) {
+            // Phase 1: Draw string back to cheek, torso turns sideways into firing stance
+            const p = archerCycle / 0.42;
+            if (bowPivot) {
+              bowPivot.position.z = 0.18 - p * 0.25;
+              bowPivot.rotation.x = -p * (Math.PI / 9);
+            }
+            if (torso) torso.rotation.y = p * 0.45;
+          } else if (archerCycle < 0.65) {
+            // Phase 2: Steady aim at target with tense bowstring
+            if (bowPivot) {
+              bowPivot.position.z = -0.07;
+              bowPivot.rotation.x = -Math.PI / 9;
+            }
+            if (torso) torso.rotation.y = 0.45;
+          } else if (archerCycle < 0.78) {
+            // Phase 3: Loose / Release! Bow kicks forward with recoil
+            const p = (archerCycle - 0.65) / 0.13;
+            if (bowPivot) {
+              bowPivot.position.z = -0.07 + p * 0.18;
+              bowPivot.rotation.x = -Math.PI / 9 + p * 0.1;
+            }
+            if (torso) torso.rotation.y = 0.45 - p * 0.2;
+          } else {
+            // Phase 4: Re-nock arrow from hip quiver
+            const p = (archerCycle - 0.78) / 0.22;
+            if (bowPivot) {
+              bowPivot.position.z = 0.11 + p * 0.07;
+              bowPivot.rotation.x = 0;
+            }
+            if (torso) torso.rotation.y = 0.25 * (1.0 - p);
           }
-          if (torso) torso.rotation.y = 0.35;
         } else if (unit.state === 'moving') {
           if (bowPivot) {
-            bowPivot.position.z = 0.15;
-            bowPivot.rotation.x = 0;
-          }
-          if (torso) {
-            torso.position.y = 0.48 + Math.abs(Math.sin(time * 10)) * 0.05;
-            torso.rotation.y = 0;
+            bowPivot.position.set(0.28, 0.55, 0.18);
+            bowPivot.rotation.x = Math.sin(time * 9.5) * 0.15;
           }
         } else {
           if (bowPivot) {
-            bowPivot.position.set(0.26, 0.55, 0.15);
+            bowPivot.position.set(0.28, 0.55, 0.18);
             bowPivot.rotation.set(0, 0, 0);
-          }
-          if (torso) {
-            torso.position.y = 0.48 + Math.sin(time * 2) * 0.015;
-            torso.rotation.set(0, 0, 0);
           }
         }
         break;
@@ -1082,88 +1212,180 @@ export class GameRenderer {
       case 'cavalry':
       case 'scout': {
         const horse = group.getObjectByName('horse_body');
+        const horseNeck = group.getObjectByName('horse_neck');
         const lancePivot = group.getObjectByName('lance_pivot');
+        const legFL = group.getObjectByName('horse_leg_fl');
+        const legFR = group.getObjectByName('horse_leg_fr');
+        const legBL = group.getObjectByName('horse_leg_bl');
+        const legBR = group.getObjectByName('horse_leg_br');
+
+        const baseHorseY = unit.type === 'cavalry' ? 0.58 : 0.52;
 
         if (unit.state === 'attacking') {
-          const thrust = Math.sin(time * 11);
-          if (lancePivot) {
-            lancePivot.position.z = 0.3 + thrust * 0.55;
-            lancePivot.rotation.x = Math.PI / 3 - thrust * 0.25;
-          }
+          // Warhorse Rearing Up & Heavy Mounted Lance Thrust
+          const rearCycle = Math.sin(time * 9);
           if (horse) {
-            horse.rotation.x = Math.sin(time * 11) * 0.15;
-            horse.position.y = 0.55 + Math.abs(Math.sin(time * 11)) * 0.12;
+            horse.rotation.x = -0.32 + rearCycle * 0.15;
+            horse.position.y = baseHorseY + 0.18 + Math.max(0, rearCycle) * 0.1;
           }
+          if (horseNeck) horseNeck.rotation.x = -Math.PI / 6 - 0.2;
+          if (lancePivot) {
+            lancePivot.position.z = 0.35 + rearCycle * 0.55;
+            lancePivot.rotation.x = Math.PI / 3 - rearCycle * 0.3;
+          }
+          // Front hooves flail slightly when rearing
+          if (legFL) legFL.rotation.x = 0.4 + rearCycle * 0.25;
+          if (legFR) legFR.rotation.x = 0.2 - rearCycle * 0.25;
+          if (legBL) legBL.rotation.x = -0.3;
+          if (legBR) legBR.rotation.x = -0.3;
         } else if (unit.state === 'moving') {
+          // Authentic 4-Beat Equine Gallop Cadence
+          const gallop = time * 14.0;
+          const strideL = Math.sin(gallop);
+          const strideR = Math.sin(gallop + 0.6);
+
+          if (legFL) legFL.rotation.x = strideL * 0.72;
+          if (legFR) legFR.rotation.x = strideR * 0.72;
+          if (legBL) legBL.rotation.x = -strideL * 0.72;
+          if (legBR) legBR.rotation.x = -strideR * 0.72;
+
           if (horse) {
-            horse.rotation.x = Math.sin(time * 13) * 0.14;
-            horse.position.y = 0.55 + Math.abs(Math.sin(time * 13)) * 0.12;
+            horse.position.y = baseHorseY + Math.abs(Math.sin(gallop)) * 0.14;
+            horse.rotation.x = Math.sin(gallop) * 0.1;
+          }
+          if (horseNeck) {
+            horseNeck.rotation.x = -Math.PI / 6 + Math.sin(gallop * 2) * 0.12;
           }
           if (lancePivot) {
-            lancePivot.position.z = 0.3;
-            lancePivot.rotation.x = Math.PI / 3 + Math.sin(time * 6) * 0.1;
+            lancePivot.position.set(0.38, 1.1, 0.35);
+            lancePivot.rotation.x = Math.PI / 3.2 + Math.sin(time * 7) * 0.08;
           }
         } else {
+          // Standing idle horse
           if (horse) {
             horse.rotation.x = 0;
-            horse.position.y = 0.55;
+            horse.position.y = baseHorseY;
           }
+          if (horseNeck) horseNeck.rotation.x = -Math.PI / 6 + Math.sin(time * 2.0) * 0.04;
           if (lancePivot) {
-            lancePivot.position.set(0.36, 1.0, 0.3);
+            lancePivot.position.set(0.38, 1.1, 0.35);
             lancePivot.rotation.set(0, 0, 0);
           }
+          if (legFL) legFL.rotation.x = 0;
+          if (legFR) legFR.rotation.x = 0;
+          if (legBL) legBL.rotation.x = 0;
+          if (legBR) legBR.rotation.x = 0;
         }
         break;
       }
 
       case 'siege_unit': {
         const armPivot = group.getObjectByName('arm_pivot');
-        if (!armPivot) break;
+        const chassis = group.getObjectByName('siege_chassis');
+        const wheelFL = group.getObjectByName('wheel_fl');
+        const wheelFR = group.getObjectByName('wheel_fr');
+        const wheelBL = group.getObjectByName('wheel_bl');
+        const wheelBR = group.getObjectByName('wheel_br');
 
-        if (unit.state === 'attacking') {
-          const cycle = (time * 1.5) % 1.0;
-          let angle = -Math.PI / 4;
-          if (cycle < 0.6) {
-            // Pull arm back to load
-            angle = -Math.PI / 4 - (cycle / 0.6) * 0.45;
-          } else if (cycle < 0.75) {
-            // Violent launch snap forward!
-            const snap = (cycle - 0.6) / 0.15;
-            angle = -Math.PI / 4 - 0.45 + snap * 1.35;
+        if (unit.state === 'moving') {
+          // Continuous 4-wheel rotation when rolling across battlefield
+          const rollRate = dt * 6.5;
+          [wheelFL, wheelFR, wheelBL, wheelBR].forEach(w => {
+            if (w) w.rotation.x += rollRate;
+          });
+          if (armPivot) armPivot.rotation.x = -Math.PI / 4.2 + Math.sin(time * 8) * 0.05;
+          if (chassis) chassis.position.y = 0.32 + Math.sin(time * 12) * 0.015;
+        } else if (unit.state === 'attacking') {
+          // Authentic AoE Mangonel / Onager Launch & Recoil
+          const launchCycle = (time * 1.4) % 1.0;
+          if (launchCycle < 0.55) {
+            // Arm winching back down
+            const p = launchCycle / 0.55;
+            if (armPivot) armPivot.rotation.x = -Math.PI / 4.2 - p * 0.45;
+            if (chassis) chassis.position.z = 0;
+          } else if (launchCycle < 0.72) {
+            // Explosive release! Arm snaps forward 125° and slams crossbeam
+            const p = (launchCycle - 0.55) / 0.17;
+            if (armPivot) armPivot.rotation.x = -Math.PI / 4.2 - 0.45 + p * 1.5;
+            // Massive chassis recoil backwards!
+            if (chassis) {
+              chassis.position.z = -p * 0.18;
+              chassis.rotation.x = -p * 0.08;
+            }
+            [wheelFL, wheelFR, wheelBL, wheelBR].forEach(w => {
+              if (w) w.rotation.x -= p * 0.2;
+            });
           } else {
-            // Settle arm back down
-            const settle = (cycle - 0.75) / 0.25;
-            angle = -Math.PI / 4 + 0.9 * (1.0 - settle);
+            // Recoil settling
+            const p = (launchCycle - 0.72) / 0.28;
+            if (armPivot) armPivot.rotation.x = 0.8 - p * (0.8 + Math.PI / 4.2);
+            if (chassis) {
+              chassis.position.z = -0.18 * (1.0 - p);
+              chassis.rotation.x = -0.08 * (1.0 - p);
+            }
           }
-          armPivot.rotation.x = angle;
         } else {
-          armPivot.rotation.x = -Math.PI / 4;
+          if (armPivot) armPivot.rotation.x = -Math.PI / 4.2;
+          if (chassis) {
+            chassis.position.set(0, 0.32, 0);
+            chassis.rotation.set(0, 0, 0);
+          }
         }
         break;
       }
 
       case 'advanced_unit': {
         const halberdPivot = group.getObjectByName('halberd_pivot');
-        const torso = group.getObjectByName('unit_torso');
 
         if (unit.state === 'attacking') {
-          const cleave = Math.sin(time * 8);
-          if (halberdPivot) {
-            halberdPivot.rotation.x = cleave * 1.4;
-            halberdPivot.position.y = 0.9 + Math.cos(time * 8) * 0.25;
+          // Authentic AoE Champion Two-Handed Halberd Cleave
+          const cleaveCycle = (time * 1.9) % 1.0;
+          if (cleaveCycle < 0.42) {
+            // Lifts massive halberd blade high over helmet
+            const p = cleaveCycle / 0.42;
+            if (halberdPivot) {
+              halberdPivot.rotation.x = -p * 1.55;
+              halberdPivot.position.y = 0.95 + p * 0.25;
+            }
+            if (torso) {
+              torso.rotation.y = -p * 0.35;
+              torso.position.y = 0.62 + p * 0.05;
+            }
+          } else if (cleaveCycle < 0.62) {
+            // Powerful downward cleave!
+            const p = (cleaveCycle - 0.42) / 0.2;
+            if (halberdPivot) {
+              halberdPivot.rotation.x = -1.55 + p * 2.85;
+              halberdPivot.position.y = 1.2 - p * 0.45;
+            }
+            if (torso) {
+              torso.rotation.y = -0.35 + p * 0.75;
+              torso.position.y = 0.67 - p * 0.1;
+              torso.position.z = p * 0.16;
+            }
+            if (lLeg) lLeg.rotation.x = p * 0.35;
+            if (rLeg) rLeg.rotation.x = -p * 0.35;
+          } else {
+            // Recovery
+            const p = (cleaveCycle - 0.62) / 0.38;
+            if (halberdPivot) {
+              halberdPivot.rotation.x = 1.3 * (1.0 - p);
+              halberdPivot.position.y = 0.75 + p * 0.2;
+            }
+            if (torso) {
+              torso.rotation.y = 0.4 * (1.0 - p);
+              torso.position.y = 0.57 + p * 0.05;
+              torso.position.z = 0.16 * (1.0 - p);
+            }
+            if (lLeg) lLeg.rotation.x = 0.35 * (1.0 - p);
+            if (rLeg) rLeg.rotation.x = -0.35 * (1.0 - p);
           }
-          if (torso) torso.rotation.y = cleave * 0.35;
         } else if (unit.state === 'moving') {
-          if (halberdPivot) halberdPivot.rotation.x = Math.sin(time * 7) * 0.25;
-          if (torso) torso.position.y = 0.6 + Math.abs(Math.sin(time * 8)) * 0.06;
+          if (halberdPivot) halberdPivot.rotation.x = Math.sin(time * 9.5) * 0.25;
         } else {
           if (halberdPivot) {
-            halberdPivot.position.set(0.36, 0.9, 0.15);
+            halberdPivot.position.set(0.38, 0.95, 0.18);
             halberdPivot.rotation.set(0, 0, 0);
-          }
-          if (torso) {
-            torso.position.y = 0.6 + Math.sin(time * 2) * 0.015;
-            torso.rotation.set(0, 0, 0);
           }
         }
         break;
