@@ -1506,10 +1506,21 @@ export class GameRenderer {
 
     const time = now * 0.001;
 
-    // Movement & Combat Range Evaluation
+    // Real Frame-to-Frame Physical Velocity & Movement Detection
+    const lastX = group.userData.lastPosX !== undefined ? group.userData.lastPosX : group.position.x;
+    const lastZ = group.userData.lastPosZ !== undefined ? group.userData.lastPosZ : group.position.z;
+    const dx = group.position.x - lastX;
+    const dz = group.position.z - lastZ;
+    const distMoved = Math.hypot(dx, dz);
+    const frameSpeed = distMoved / Math.max(0.0001, dt);
+    group.userData.lastPosX = group.position.x;
+    group.userData.lastPosZ = group.position.z;
+
     const hasPath = Boolean(unit.path && unit.path.length > 0);
-    const isMoving = unit.state === 'moving' || (unit.state === 'attacking' && hasPath);
-    const isStationary = unit.state === 'idle' || (!isMoving && unit.state !== 'attacking');
+    const isNavigating = unit.state === 'moving' || unit.state === 'returning_resources';
+    const isTaskWalking = (unit.state === 'gathering' || unit.state === 'building' || unit.state === 'repairing' || unit.state === 'trading') && (hasPath || distMoved > 0.0003);
+    const isMoving = isNavigating || isTaskWalking || (unit.state === 'attacking' && hasPath) || (frameSpeed > 0.06);
+    const isStationary = !isMoving && (unit.state === 'idle' || unit.state === 'dead');
 
     // Check if within genuine combat range of current target
     let inRangeOfTarget = false;
@@ -1532,6 +1543,7 @@ export class GameRenderer {
     const lShin = this.getNamedPart(group, 'left_leg_shin');
     const rShin = this.getNamedPart(group, 'right_leg_shin');
     const lArm = this.getNamedPart(group, 'left_arm');
+    const rArm = this.getNamedPart(group, 'right_arm');
     const torso = this.getNamedPart(group, 'unit_torso');
 
     const isHumanoid = unit.type !== 'cavalry' && unit.type !== 'scout' && unit.type !== 'siege_unit' && unit.type !== 'dragon';
@@ -1539,39 +1551,42 @@ export class GameRenderer {
     // Universal Humanoid Movement Leg March Animation (Fluid Bio-Mechanical Walking Gait)
     if (isHumanoid) {
       if (isMoving && !isStationary) {
-        // Natural human walking cadence: 6.2 rad/s (~1.5 steps per second)
-        const strideRate = 6.2;
-        const cycle = time * strideRate;
+        // Dynamic walking cadence driven by actual movement speed (6.4 - 8.5 rad/s)
+        const strideRate = frameSpeed > 0.2 ? Math.min(9.5, Math.max(5.8, frameSpeed * 3.4)) : 6.4;
+        if (group.userData.walkCycle === undefined) group.userData.walkCycle = 0;
+        group.userData.walkCycle += strideRate * dt;
+        const cycle = group.userData.walkCycle;
+
         const strideL = Math.sin(cycle);
         const strideR = Math.sin(cycle + Math.PI); // Half-cycle phase offset
 
         // Hip swing (Upper thigh)
-        if (lLeg) lLeg.rotation.x = strideL * 0.58;
-        if (rLeg) rLeg.rotation.x = strideR * 0.58;
+        if (lLeg) lLeg.rotation.x = strideL * 0.62;
+        if (rLeg) rLeg.rotation.x = strideR * 0.62;
 
-        // Knee joint flexion: when swinging backward (push-off & pass), knee bends naturally up to 45°!
+        // Knee joint flexion: when swinging backward (push-off & pass), knee bends naturally up to 48°!
         // When swinging forward to plant the foot, knee straightens smoothly.
         if (lShin) {
-          lShin.rotation.x = Math.max(0, -strideL) * 0.78;
+          lShin.rotation.x = Math.max(0, -strideL) * 0.85;
         }
         if (rShin) {
-          rShin.rotation.x = Math.max(0, -strideR) * 0.78;
+          rShin.rotation.x = Math.max(0, -strideR) * 0.85;
         }
 
         // Arm swing in natural counterbalance to opposite leg
         if (lArm) {
-          lArm.rotation.x = -strideL * 0.48;
-          lArm.rotation.z = Math.sin(cycle) * 0.05;
+          lArm.rotation.x = -strideL * 0.50;
+          lArm.rotation.z = Math.sin(cycle) * 0.06;
         }
 
         // Pelvic bobbing & counter-rotation (human walking gait center of mass oscillation)
         if (torso) {
           const baseTorsoY = 0.44;
           // Torso rises at mid-stance (double stride frequency) and dips on heel strike
-          torso.position.y = baseTorsoY + Math.abs(Math.sin(cycle)) * 0.032;
-          torso.rotation.y = -strideL * 0.08; // Torso counter-rotates against hip swing
-          torso.rotation.z = Math.cos(cycle) * 0.024; // Subtle lateral hip sway
-          torso.rotation.x = 0.06; // Slight natural forward march posture
+          torso.position.y = baseTorsoY + Math.abs(Math.sin(cycle)) * 0.034;
+          torso.rotation.y = -strideL * 0.10; // Torso counter-rotates against hip swing
+          torso.rotation.z = Math.cos(cycle) * 0.028; // Subtle lateral hip sway
+          torso.rotation.x = 0.07; // Natural slight forward march posture
         }
       } else {
         // Natural idle planted footing & relaxed posture - zero leg oscillation when idle!
@@ -1596,85 +1611,128 @@ export class GameRenderer {
         const toolPivot = this.getNamedPart(group, 'tool_pivot');
         if (!toolPivot) break;
 
-        if (unit.state === 'gathering') {
-          // Detect resource type or target to perform authentic AoE gathering actions
-          const resType = (unit as any).carriedResourceType || 'wood';
-          if (resType === 'wood') {
-            // Authentic AoE Lumberjack Axe Chop: 2-stage windup and overhead down-stroke
-            const chopCycle = (time * 2.2) % 1.0;
-            if (chopCycle < 0.45) {
-              // High windup overhead
-              const p = chopCycle / 0.45;
-              toolPivot.rotation.x = -0.2 - p * 1.25;
-              if (torso) {
-                torso.rotation.x = -p * 0.15;
-                torso.position.y = 0.45 + p * 0.04;
-              }
-            } else if (chopCycle < 0.6) {
-              // Violent down-stroke into timber trunk!
-              const p = (chopCycle - 0.45) / 0.15;
-              toolPivot.rotation.x = -1.45 + p * 2.4;
-              if (torso) {
-                torso.rotation.x = -0.15 + p * 0.35;
-                torso.position.y = 0.49 - p * 0.08;
-              }
-            } else {
-              // Impact recoil & recovery
-              const p = (chopCycle - 0.6) / 0.4;
-              toolPivot.rotation.x = 0.95 - p * 1.15;
-              if (torso) {
-                torso.rotation.x = 0.2 * (1.0 - p);
-                torso.position.y = 0.41 + p * 0.04;
-              }
-            }
-          } else if (resType === 'food') {
-            // Forager / Farmer Sickle Action: stooping to harvest crops
-            const farmCycle = Math.sin(time * 6);
-            if (torso) {
-              torso.position.y = 0.34 + farmCycle * 0.03;
-              torso.rotation.x = 0.4 + farmCycle * 0.08;
-            }
-            toolPivot.rotation.x = 0.4 + farmCycle * 0.5;
-            toolPivot.rotation.z = Math.cos(time * 6) * 0.3;
-          } else {
-            // Stone / Gold Mining: Diagonal pickaxe driving stroke
-            const mineCycle = (time * 2.5) % 1.0;
-            if (mineCycle < 0.5) {
-              toolPivot.rotation.x = -0.2 - (mineCycle / 0.5) * 1.1;
-              toolPivot.rotation.z = -(mineCycle / 0.5) * 0.25;
-            } else {
-              const strike = (mineCycle - 0.5) / 0.5;
-              toolPivot.rotation.x = -1.3 + strike * 2.2;
-              toolPivot.rotation.z = -0.25 + strike * 0.25;
-            }
+        const cycle = group.userData.walkCycle || 0;
+        const resType = (unit as any).carriedResourceType || 'wood';
+        const isWoodTask = unit.state === 'gathering' && resType === 'wood';
+        const isFarmTask = unit.state === 'gathering' && resType === 'food';
+        const isBuildTask = unit.state === 'building' || unit.state === 'repairing';
+
+        if (isMoving && !isStationary) {
+          // Natural stride arm & pickaxe cadence during walking
+          const strideSwing = Math.sin(cycle);
+          if (rArm) {
+            rArm.rotation.x = strideSwing * 0.35;
+            rArm.rotation.z = -0.10;
           }
-        } else if (unit.state === 'building' || unit.state === 'repairing') {
-          // Authentic AoE Villager Double-Tap Hammer Rhythm ("tink-tink... pause... tink-tink")
-          const hammerCycle = (time * 3.5) % 2.0;
-          let hammerAngle = -0.3;
-          if (hammerCycle < 0.3) {
-            hammerAngle = -0.3 + Math.sin(hammerCycle / 0.3 * Math.PI) * 0.95;
-          } else if (hammerCycle > 0.4 && hammerCycle < 0.7) {
-            hammerAngle = -0.3 + Math.sin((hammerCycle - 0.4) / 0.3 * Math.PI) * 0.95;
-          }
-          toolPivot.rotation.x = hammerAngle;
-          if (torso) torso.position.y = 0.45 + (hammerAngle > 0.2 ? -0.04 : 0);
-        } else if (isAttacking) {
-          // Aggressive improvised axe slash
-          const slash = Math.sin(time * 12);
-          toolPivot.rotation.x = slash * 1.25;
-          if (torso) torso.rotation.y = slash * 0.22;
-        } else if (isMoving) {
-          // Holding pickaxe with natural stride inertia (Wood-Gather-Walk / Gold-Gather-Carry from reference)
-          const strideL = Math.sin(time * 6.2);
-          toolPivot.rotation.x = -0.15 + strideL * 0.22;
-          toolPivot.rotation.z = 0.12;
+          toolPivot.rotation.x = strideSwing * 0.12;
 
           // When carrying resource bundle/basket, lean forward into the weight
-          if (torso && (unit as any).carriedResourceAmount > 0) {
-            torso.rotation.x = 0.18; // Weighted laborer posture
+          if (torso && (unit.carriedResourceAmount || 0) > 0) {
+            torso.rotation.x = 0.16; // Weighted laborer posture
           }
+        } else if (unit.state === 'gathering') {
+          if (isWoodTask) {
+            // Authentic 2-stage wood-chopping swing
+            const chopCycle = (time * 2.2) % 1.0;
+            if (chopCycle < 0.45) {
+              const p = chopCycle / 0.45;
+              if (rArm) rArm.rotation.x = -p * 1.35;
+              toolPivot.rotation.x = -p * 0.55;
+              if (torso) {
+                torso.rotation.x = -p * 0.15;
+                torso.position.y = 0.44 + p * 0.03;
+              }
+            } else if (chopCycle < 0.62) {
+              const p = (chopCycle - 0.45) / 0.17;
+              if (rArm) rArm.rotation.x = -1.35 + p * 2.35;
+              toolPivot.rotation.x = -0.55 + p * 1.25;
+              if (torso) {
+                torso.rotation.x = -0.15 + p * 0.35;
+                torso.position.y = 0.47 - p * 0.06;
+              }
+            } else {
+              const p = (chopCycle - 0.62) / 0.38;
+              if (rArm) rArm.rotation.x = 1.0 - p * 1.0;
+              toolPivot.rotation.x = 0.70 - p * 0.70;
+              if (torso) {
+                torso.rotation.x = 0.20 * (1.0 - p);
+                torso.position.y = 0.41 + p * 0.03;
+              }
+            }
+          } else if (isFarmTask) {
+            // Sickle / foraging reaping action
+            const farmCycle = Math.sin(time * 6);
+            if (rArm) rArm.rotation.x = 0.35 + farmCycle * 0.45;
+            toolPivot.rotation.x = farmCycle * 0.3;
+            if (torso) {
+              torso.position.y = 0.40 + farmCycle * 0.02;
+              torso.rotation.x = 0.32 + farmCycle * 0.08;
+            }
+          } else {
+            // Gold / Stone Mining: Overhead pickaxe drive into the bedrock!
+            const mineCycle = (time * 2.4) % 1.0;
+            if (mineCycle < 0.48) {
+              // High windup over right shoulder
+              const p = mineCycle / 0.48;
+              if (rArm) {
+                rArm.rotation.x = -p * 1.45;
+                rArm.rotation.y = p * 0.25;
+              }
+              toolPivot.rotation.x = -p * 0.45;
+              if (torso) {
+                torso.rotation.x = -p * 0.14;
+                torso.rotation.y = p * 0.18;
+                torso.position.y = 0.44 + p * 0.035;
+              }
+            } else if (mineCycle < 0.66) {
+              // Powerful downward impact!
+              const p = (mineCycle - 0.48) / 0.18;
+              if (rArm) {
+                rArm.rotation.x = -1.45 + p * 2.50;
+                rArm.rotation.y = 0.25 - p * 0.30;
+              }
+              toolPivot.rotation.x = -0.45 + p * 1.30;
+              if (torso) {
+                torso.rotation.x = -0.14 + p * 0.40;
+                torso.rotation.y = 0.18 - p * 0.22;
+                torso.position.y = 0.475 - p * 0.07;
+              }
+            } else {
+              // Impact recoil & lift off rock face
+              const p = (mineCycle - 0.66) / 0.34;
+              if (rArm) {
+                rArm.rotation.x = 1.05 - p * 1.05;
+                rArm.rotation.y = -0.05 * (1.0 - p);
+              }
+              toolPivot.rotation.x = 0.85 - p * 0.85;
+              if (torso) {
+                torso.rotation.x = 0.26 * (1.0 - p);
+                torso.rotation.y = -0.04 * (1.0 - p);
+                torso.position.y = 0.405 + p * 0.035;
+              }
+            }
+          }
+        } else if (isBuildTask) {
+          // Double-tap construction hammer rhythm
+          const hammerCycle = (time * 3.6) % 2.0;
+          let hAngle = 0;
+          if (hammerCycle < 0.32) {
+            hAngle = Math.sin((hammerCycle / 0.32) * Math.PI) * 0.85;
+          } else if (hammerCycle > 0.42 && hammerCycle < 0.74) {
+            hAngle = Math.sin(((hammerCycle - 0.42) / 0.32) * Math.PI) * 0.85;
+          }
+          if (rArm) rArm.rotation.x = 0.25 + hAngle * 0.7;
+          toolPivot.rotation.x = hAngle * 0.8;
+          if (torso) torso.position.y = 0.44 + (hAngle > 0.3 ? -0.03 : 0);
+        } else if (isAttacking) {
+          // Improvised combat pick slash
+          const slash = Math.sin(time * 11);
+          if (rArm) rArm.rotation.x = slash * 1.1;
+          toolPivot.rotation.x = slash * 0.6;
+          if (torso) torso.rotation.y = slash * 0.20;
         } else {
+          // Idle resting posture
+          if (rArm) rArm.rotation.set(0, 0, -0.08);
           toolPivot.rotation.set(0, 0, 0);
         }
         break;

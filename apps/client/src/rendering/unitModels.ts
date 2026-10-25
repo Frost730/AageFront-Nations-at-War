@@ -772,15 +772,117 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       lHand.position.set(-0.21, -0.05, 0);
       torsoGroup.add(lHand);
 
-      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), workerRoughCanvasMat);
-      rArm.position.set(0.18, 0.1, 0);
-      rArm.rotation.z = -Math.PI / 10;
-      torsoGroup.add(rArm);
+      // Articulated Right Arm with Forearm Bracer & Glove (pivoting from right shoulder)
+      const rArmGroup = new THREE.Group();
+      rArmGroup.name = 'right_arm';
+      rArmGroup.position.set(0.18, 0.18, 0);
 
-      const rBracer = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.042, 0.12, 8), workerRoughLeatherMat);
-      rBracer.position.set(0.20, 0.04, 0);
-      rBracer.rotation.z = -Math.PI / 10;
-      torsoGroup.add(rBracer);
+      // Upper arm with rolled canvas sleeve
+      const rUpperArmGeom = new THREE.CylinderGeometry(0.045, 0.042, 0.16, 8);
+      rUpperArmGeom.translate(0, -0.08, 0);
+      const rUpperArm = new THREE.Mesh(rUpperArmGeom, workerRoughCanvasMat);
+      rArmGroup.add(rUpperArm);
+
+      // Forearm with fitted rugged leather bracer
+      const rForearmGroup = new THREE.Group();
+      rForearmGroup.position.set(0, -0.15, 0.02);
+      rForearmGroup.rotation.x = 0.35; // Forearm angled forward comfortably
+      const rForearmGeom = new THREE.CylinderGeometry(0.044, 0.040, 0.15, 8);
+      rForearmGeom.translate(0, -0.075, 0);
+      const rForearm = new THREE.Mesh(rForearmGeom, workerRoughLeatherMat);
+      rForearmGroup.add(rForearm);
+
+      // Clenched laborer work glove
+      const rHand = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), darkLeatherMat);
+      rHand.position.set(0, -0.15, 0.01);
+      rForearmGroup.add(rHand);
+
+      // Tool Pivot positioned directly in the clenched right hand grip
+      const toolPivot = new THREE.Group();
+      toolPivot.name = 'tool_pivot';
+      toolPivot.position.set(0, -0.15, 0.01);
+
+      // -----------------------------------------------------------
+      // Modular Iron-Spike Pickaxe (Modular Pick ID: 03 - Unified Solid Assembly)
+      // -----------------------------------------------------------
+      const pickaxeGroup = new THREE.Group();
+      pickaxeGroup.name = 'pickaxe_model';
+
+      // 1. Ash-wood Haft (Handle)
+      // Hand grip is at (0, 0, 0). Handle extends -0.14 below hand, +0.52 above hand (total length 0.66).
+      const haftGeom = new THREE.CylinderGeometry(0.022, 0.026, 0.66, 10);
+      haftGeom.translate(0, 0.19, 0);
+      const haft = new THREE.Mesh(haftGeom, woodMat);
+      haft.castShadow = true;
+      pickaxeGroup.add(haft);
+
+      // Ergonomic flared handle butt / pommel
+      const buttGeom = new THREE.CylinderGeometry(0.028, 0.022, 0.04, 8);
+      buttGeom.translate(0, -0.13, 0);
+      const butt = new THREE.Mesh(buttGeom, woodMat);
+      pickaxeGroup.add(butt);
+
+      // Leather grip wrapping around the handle where the hand holds it
+      const gripGeom = new THREE.CylinderGeometry(0.027, 0.027, 0.13, 8);
+      gripGeom.translate(0, 0, 0);
+      const grip = new THREE.Mesh(gripGeom, darkLeatherMat);
+      pickaxeGroup.add(grip);
+
+      // 2. Iron Pick Head Eye & Langets (Mounted at y = 0.50 atop the shaft)
+      const headY = 0.50;
+
+      // Central Eye Collar fitted securely around the ash haft
+      const eyeCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.09, 8), ironPickMat);
+      eyeCollar.position.set(0, headY, 0);
+      pickaxeGroup.add(eyeCollar);
+
+      // Top iron wedge cap securing the head to the wood shaft
+      const wedgeCap = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.034, 0.025, 8), ironPickMat);
+      wedgeCap.position.set(0, headY + 0.05, 0);
+      pickaxeGroup.add(wedgeCap);
+
+      // Steel langet reinforcement straps running down both sides of the wood shaft
+      const langetL = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.12, 0.012), ironPickMat);
+      langetL.position.set(0, headY - 0.07, 0);
+      pickaxeGroup.add(langetL);
+
+      // 3. Curved Sharp Mining Pick Spike (Front: Gold / Stone Excavation)
+      // Extends horizontally forward along -Z from the eye collar
+      const spikeGeom = new THREE.ConeGeometry(0.032, 0.28, 8);
+      spikeGeom.rotateX(-Math.PI / 2); // Point along -Z
+      spikeGeom.translate(0, -0.015, -0.14);
+      const spike = new THREE.Mesh(spikeGeom, ironPickMat);
+      spike.position.set(0, headY, 0);
+      pickaxeGroup.add(spike);
+
+      // Reinforced spike socket / cheek
+      const cheekF = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.052, 0.06), ironPickMat);
+      cheekF.position.set(0, headY, -0.04);
+      pickaxeGroup.add(cheekF);
+
+      // 4. Heavy Flat Rock Hammer / Chisel Poll (Back: Stone dressing & breaking)
+      // Extends horizontally backward along +Z from the eye collar
+      const pollGeom = new THREE.BoxGeometry(0.050, 0.056, 0.11);
+      pollGeom.translate(0, 0, 0.065);
+      const poll = new THREE.Mesh(pollGeom, ironPickMat);
+      poll.position.set(0, headY, 0);
+      pickaxeGroup.add(poll);
+
+      // Beveled steel striking face
+      const faceGeom = new THREE.BoxGeometry(0.054, 0.060, 0.02);
+      faceGeom.translate(0, 0, 0.125);
+      const face = new THREE.Mesh(faceGeom, ironPickMat);
+      face.position.set(0, headY, 0);
+      pickaxeGroup.add(face);
+
+      // Initial resting posture: angled comfortably forward and slightly out
+      pickaxeGroup.rotation.x = -0.32;
+      pickaxeGroup.rotation.z = -0.12;
+
+      toolPivot.add(pickaxeGroup);
+      rForearmGroup.add(toolPivot);
+      rArmGroup.add(rForearmGroup);
+      torsoGroup.add(rArmGroup);
 
       // Neck & Rugged Laborer Head Sculpt
       const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.08, 8), fleshMat);
@@ -824,38 +926,6 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       // 2. Articulated Legs in Canvas Trousers & Heavy Laborer Boots
       root.add(createArticulatedLeg(workerRoughCanvasMat, -0.09, 'left_leg'));
       root.add(createArticulatedLeg(workerRoughCanvasMat, 0.09, 'right_leg'));
-
-      // 3. Tool Pivot: Heavy Mining Pickaxe (Modular Pick ID: 03 - Gold/Stone/Logging)
-      const toolPivot = new THREE.Group();
-      toolPivot.name = 'tool_pivot';
-      toolPivot.position.set(0.22, 0.48, 0.1);
-
-      // Ergonomic curved ash-wood handle
-      const toolHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.76, 10), woodMat);
-      toolHandle.position.set(0, 0.22, 0);
-      toolHandle.rotation.z = Math.PI / 4.5;
-      toolPivot.add(toolHandle);
-
-      // Forged Iron Pick Head Collar & Langets
-      const pickCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.14, 8), ironPickMat);
-      pickCollar.position.set(0.23, 0.47, 0);
-      pickCollar.rotation.z = Math.PI / 4.5;
-      toolPivot.add(pickCollar);
-
-      // Curved Sharp Mining Pick Spike (Front - Gold Mining)
-      const pickSpikeGeom = new THREE.ConeGeometry(0.035, 0.26, 6);
-      pickSpikeGeom.rotateZ(-Math.PI / 2.3);
-      const pickSpike = new THREE.Mesh(pickSpikeGeom, ironPickMat);
-      pickSpike.position.set(0.38, 0.49, 0);
-      toolPivot.add(pickSpike);
-
-      // Heavy Flat Rock Hammer / Chisel Poll (Back)
-      const hammerPoll = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.065, 0.055), ironPickMat);
-      hammerPoll.position.set(0.10, 0.45, 0);
-      hammerPoll.rotation.z = Math.PI / 4.5;
-      toolPivot.add(hammerPoll);
-
-      root.add(toolPivot);
       break;
     }
 
