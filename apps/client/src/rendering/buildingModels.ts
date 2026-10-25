@@ -1006,6 +1006,7 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
 
       // 3. Iron Portcullis Grate
       const portcullis = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.5, 0.12), ironMat);
+      portcullis.name = 'gate_portcullis';
       portcullis.position.set(0, 0.8, 0);
       root.add(portcullis);
 

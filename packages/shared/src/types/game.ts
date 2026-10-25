@@ -120,6 +120,7 @@ export interface BuildingData {
     targetType?: 'ground' | 'resource' | 'building';
   };
   attackCooldown?: number;
+  isOpen?: boolean;
 }
 
 export interface ResourceNodeData {

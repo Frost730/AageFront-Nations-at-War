@@ -1120,4 +1120,95 @@ describe('Industrial Age Instant Troop Spawning', () => {
     expect(cart.tradeSourceId).toBe(tc.id);
   });
 
+  it('blocks pathfinding across constructed stone walls', () => {
+    const sim = createTestSim();
+    const wallId = 'test_wall_1';
+    const wall = {
+      id: wallId,
+      ownerId: 'player_human',
+      team: 1,
+      type: 'wall' as const,
+      x: 10,
+      y: 10,
+      width: 1,
+      height: 1,
+      hp: 800,
+      maxHp: 800,
+      isConstructed: true,
+      constructionProgress: 100,
+      productionQueue: []
+    };
+    sim.buildings.set(wallId, wall);
+    sim.pathfinder.setWalkable(10, 10, false);
+
+    expect(sim.pathfinder.isWalkable(10, 10)).toBe(false);
+  });
+
+  it('automatically opens fortified gates for friendly units and closes after they pass', () => {
+    const sim = createTestSim();
+    const gateId = 'test_gate_1';
+    const gate = {
+      id: gateId,
+      ownerId: 'player_human',
+      team: 1,
+      type: 'gate' as const,
+      x: 14,
+      y: 14,
+      width: 2,
+      height: 1,
+      hp: 1200,
+      maxHp: 1200,
+      isConstructed: true,
+      constructionProgress: 100,
+      isOpen: false,
+      productionQueue: []
+    };
+    sim.buildings.set(gateId, gate);
+    sim.pathfinder.setWalkable(14, 14, false);
+    sim.pathfinder.setWalkable(15, 14, false);
+
+    // Initial state: closed and blocked
+    expect(gate.isOpen).toBe(false);
+    expect(sim.pathfinder.isWalkable(14, 14)).toBe(false);
+
+    // Friendly unit approaches the gate (distance ~ 1.5 tiles)
+    const ally = {
+      id: 'friendly_soldier',
+      type: 'basic_infantry' as const,
+      ownerId: 'player_human',
+      team: 1,
+      x: 15,
+      y: 15.5,
+      hp: 100,
+      maxHp: 100,
+      state: 'idle' as const,
+      carriedResourceAmount: 0,
+      attackCooldown: 0,
+      gatherCooldown: 0,
+      facingAngle: 0
+    };
+    sim.units.set(ally.id, ally);
+
+    // Tick simulation to update gate state
+    sim.tick(0.05);
+    sim.tick(0.05);
+
+    // Gate should now automatically open and become walkable!
+    expect(gate.isOpen).toBe(true);
+    expect(sim.pathfinder.isWalkable(14, 14)).toBe(true);
+    expect(sim.pathfinder.isWalkable(15, 14)).toBe(true);
+
+    // Unit walks far away from gate
+    ally.x = 28;
+    ally.y = 28;
+
+    sim.tick(0.05);
+    sim.tick(0.05);
+
+    // Gate should automatically close and block passage again!
+    expect(gate.isOpen).toBe(false);
+    expect(sim.pathfinder.isWalkable(14, 14)).toBe(false);
+    expect(sim.pathfinder.isWalkable(15, 14)).toBe(false);
+  });
+
 });

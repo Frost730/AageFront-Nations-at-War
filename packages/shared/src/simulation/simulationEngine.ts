@@ -851,6 +851,8 @@ export class SimulationEngine {
       }
     }
 
+    this.updateGates();
+
     // 2. Units Tick (movement, attack, gather, build, repair)
     this.updateUnits(dt);
 
@@ -879,6 +881,42 @@ export class SimulationEngine {
     // 6. Check Victory / Defeat Conditions (every 10 ticks = 0.5s)
     if (this.currentTick % 10 === 0) {
       this.checkVictoryConditions();
+    }
+  }
+
+  
+  private updateGates(): void {
+    for (const bldg of this.buildings.values()) {
+      if (bldg.type === 'gate' && bldg.isConstructed && bldg.hp > 0) {
+        const gateCenterX = bldg.x + bldg.width / 2;
+        const gateCenterY = bldg.y + bldg.height / 2;
+
+        let friendlyNearby = false;
+        let unitDirectlyOnGate = false;
+
+        for (const u of this.units.values()) {
+          if (u.state === 'dead') continue;
+          const d = Math.hypot(u.x - gateCenterX, u.y - gateCenterY);
+          if (d < 1.1) {
+            unitDirectlyOnGate = true;
+          }
+          if (u.team === bldg.team) {
+            if (d <= 3.0) {
+              friendlyNearby = true;
+            }
+          }
+        }
+
+        const shouldBeOpen = friendlyNearby || unitDirectlyOnGate;
+        if (shouldBeOpen !== (bldg.isOpen || false)) {
+          bldg.isOpen = shouldBeOpen;
+          for (let dx = 0; dx < bldg.width; dx++) {
+            for (let dy = 0; dy < bldg.height; dy++) {
+              this.pathfinder.setWalkable(bldg.x + dx, bldg.y + dy, shouldBeOpen);
+            }
+          }
+        }
+      }
     }
   }
 
