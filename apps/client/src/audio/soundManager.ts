@@ -137,7 +137,90 @@ export class SoundManager {
     osc.stop(now + 0.15);
   }
 
-  public playSelect(): void {
+  
+  private lastVocalBarkTime: number = 0;
+
+  public playUnitVocalBark(type: 'select' | 'move' | 'attack' | 'work', unitType: string = 'basic_infantry'): void {
+    if (this.isMuted || this.sfxVolume <= 0) return;
+    const now = performance.now();
+    if (now - this.lastVocalBarkTime < 750) return; // 750ms debounce
+    this.lastVocalBarkTime = now;
+
+    const isWorker = unitType === 'worker';
+    let phrases: string[];
+
+    if (type === 'select') {
+      phrases = isWorker 
+        ? ['Mandatum?', 'Rogan?', 'Quid vis?', 'Conditor!']
+        : ['Imperator!', 'Ad arma!', 'Paratus!', 'Praesto sum!'];
+    } else if (type === 'move') {
+      phrases = isWorker
+        ? ['Properandum.', 'Sequor.', 'Iter facio.']
+        : ['Audentes!', 'Movere!', 'Celeriter!', 'Ad signa!'];
+    } else if (type === 'attack') {
+      phrases = ['Oppugnate!', 'Ad victoriam!', 'Incursionem!', 'Ferte tela!'];
+    } else { // work
+      phrases = ['Fabricator.', 'Fodito!', 'Laboro.', 'Construo.'];
+    }
+
+    const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+
+    // 1. Web Speech Synthesis Latin Vocalization
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        const utter = new SpeechSynthesisUtterance(phrase);
+        utter.volume = Math.min(1.0, 0.65 * this.sfxVolume);
+        utter.rate = isWorker ? 1.05 : 1.15;
+        utter.pitch = isWorker ? 1.12 : 0.85;
+        
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(v => v.lang.includes('it') || v.lang.includes('la') || v.lang.includes('es') || v.name.includes('Male'));
+        if (preferred) utter.voice = preferred;
+
+        window.speechSynthesis.speak(utter);
+      } catch (e) {
+        // Fallback to audio formant synthesis
+      }
+    }
+
+    // 2. Synthesized Vocal Formant Glottal Resonance (AoE Vowel Tone)
+    this.initContext();
+    if (this.ctx) {
+      const audioNow = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const f1 = this.ctx.createBiquadFilter();
+      const f2 = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+
+      const fundamental = isWorker ? 175 : 115;
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(fundamental, audioNow);
+      osc.frequency.exponentialRampToValueAtTime(fundamental * 0.9, audioNow + 0.18);
+
+      f1.type = 'bandpass';
+      f1.frequency.setValueAtTime(isWorker ? 650 : 500, audioNow);
+      f1.Q.setValueAtTime(4.0, audioNow);
+
+      f2.type = 'bandpass';
+      f2.frequency.setValueAtTime(isWorker ? 1700 : 1350, audioNow);
+      f2.Q.setValueAtTime(5.0, audioNow);
+
+      gain.gain.setValueAtTime(0.01, audioNow);
+      gain.gain.linearRampToValueAtTime(0.12 * this.sfxVolume, audioNow + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioNow + 0.22);
+
+      osc.connect(f1);
+      osc.connect(f2);
+      f1.connect(gain);
+      f2.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(audioNow);
+      osc.stop(audioNow + 0.23);
+    }
+  }
+
+  public playSelect(unitType?: string): void {
     if (this.isMuted || this.sfxVolume <= 0) return;
     this.initContext();
     if (!this.ctx) return;
@@ -174,7 +257,8 @@ export class SoundManager {
     oscHarm.stop(now + 0.13);
   }
 
-  public playOrder(): void {
+  public playOrder(unitType?: string): void {
+    this.playUnitVocalBark('move', unitType);
     if (this.isMuted || this.sfxVolume <= 0) return;
     this.initContext();
     if (!this.ctx) return;
@@ -210,7 +294,8 @@ export class SoundManager {
     });
   }
 
-  public playAttack(): void {
+  public playAttack(unitType?: string): void {
+    this.playUnitVocalBark('attack', unitType);
     if (this.isMuted || this.sfxVolume <= 0) return;
     this.initContext();
     if (!this.ctx) return;
@@ -263,6 +348,7 @@ export class SoundManager {
   }
 
   public playBuild(): void {
+    this.playUnitVocalBark('work', 'worker');
     if (this.isMuted || this.sfxVolume <= 0) return;
     this.initContext();
     if (!this.ctx) return;
