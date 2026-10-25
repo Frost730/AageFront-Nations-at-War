@@ -32,6 +32,7 @@ interface VisualProjectile {
   speed: number;
   type: 'dragon_fire' | 'arrow' | 'boulder' | 'cannon' | 'melee';
   onHit?: () => void;
+  lastTrailPos?: THREE.Vector3;
 }
 
 interface VisualEffect {
@@ -2038,8 +2039,138 @@ export class GameRenderer {
         }
       });
     } else {
-      // Melee strike (swordsman, spearman, cavalry, vanguard, worker)
-      this.spawnImpactSparks(targetPos, 6);
+      // Melee strike with dynamic sweeping arc slash trail
+      this.spawnMeleeWeaponTrail(attackerPos, targetPos, attackerType);
+    }
+  }
+
+  // Dynamic sweeping crescent weapon swing trail (AoE / Warcraft style)
+  private spawnMeleeWeaponTrail(attackerPos: THREE.Vector3, targetPos: THREE.Vector3, attackerType: string): void {
+    const dir = targetPos.clone().sub(attackerPos);
+    dir.y = 0;
+    const len = dir.length();
+    if (len > 0.001) dir.normalize();
+
+    const yaw = Math.atan2(dir.x, dir.z);
+    const midPos = attackerPos.clone().lerp(targetPos, 0.45);
+    midPos.y = attackerPos.y + 0.62;
+
+    // Distinct trail colors by unit specialization
+    let trailColor = 0xf8fafc; // Clean polished steel
+    if (attackerType === 'cavalry') {
+      trailColor = 0x60a5fa; // Azure knightly saber arc
+    } else if (attackerType === 'advanced_unit') {
+      trailColor = 0xfbbf24; // Imperial gold champion slash
+    } else if (attackerType === 'spearman') {
+      trailColor = 0x38bdf8; // Piercing spear thrust trail
+    }
+
+    // Wide sweeping crescent arc
+    const arcRadius = attackerType === 'cavalry' ? 1.35 : attackerType === 'spearman' ? 1.45 : 1.1;
+    const ringGeom = new THREE.RingGeometry(arcRadius * 0.52, arcRadius, 16, 1, -Math.PI * 0.45, Math.PI * 0.9);
+    ringGeom.rotateX(Math.PI / 2);
+    ringGeom.rotateY(yaw - Math.PI / 2);
+
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: trailColor,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+
+    const slashMesh = new THREE.Mesh(ringGeom, ringMat);
+    slashMesh.position.copy(midPos);
+    this.scene.add(slashMesh);
+
+    this.visualEffects.push({
+      mesh: slashMesh,
+      createdAt: performance.now(),
+      duration: 190,
+      update: (t) => {
+        const s = 1.0 + t * 0.28;
+        slashMesh.scale.set(s, s, s);
+        ringMat.opacity = Math.max(0, 0.95 * (1.0 - t * t));
+      }
+    });
+
+    this.spawnImpactSparks(targetPos, 6);
+  }
+
+  // Trailing projectile smoke ribbons and sparks
+  private spawnProjectileTrail(pos: THREE.Vector3, type: string): void {
+    if (type === 'boulder') {
+      // Billowing smoke puff behind catapult firestone
+      const puffGeom = new THREE.DodecahedronGeometry(0.24, 0);
+      const isFire = Math.random() > 0.45;
+      const puffMat = new THREE.MeshBasicMaterial({
+        color: isFire ? 0xf97316 : 0x334155,
+        transparent: true,
+        opacity: 0.75,
+        depthWrite: false
+      });
+      const puff = new THREE.Mesh(puffGeom, puffMat);
+      puff.position.copy(pos);
+      this.scene.add(puff);
+
+      this.visualEffects.push({
+        mesh: puff,
+        createdAt: performance.now(),
+        duration: 380,
+        update: (t) => {
+          const s = 1.0 + t * 1.6;
+          puff.scale.set(s, s, s);
+          puff.position.y += 0.008; // Gentle rising smoke
+          puffMat.opacity = Math.max(0, 0.75 * (1.0 - t));
+        }
+      });
+    } else if (type === 'cannon') {
+      // Hot gunpowder flash & smoke whisp
+      const puffGeom = new THREE.SphereGeometry(0.18, 6, 6);
+      const puffMat = new THREE.MeshBasicMaterial({
+        color: 0x94a3b8,
+        transparent: true,
+        opacity: 0.65,
+        depthWrite: false
+      });
+      const puff = new THREE.Mesh(puffGeom, puffMat);
+      puff.position.copy(pos);
+      this.scene.add(puff);
+
+      this.visualEffects.push({
+        mesh: puff,
+        createdAt: performance.now(),
+        duration: 260,
+        update: (t) => {
+          const s = 1.0 + t * 1.3;
+          puff.scale.set(s, s, s);
+          puffMat.opacity = Math.max(0, 0.65 * (1.0 - t));
+        }
+      });
+    } else if (type === 'arrow') {
+      // Arrow flight vapor ribbon whisp
+      const whispGeom = new THREE.SphereGeometry(0.07, 4, 4);
+      const whispMat = new THREE.MeshBasicMaterial({
+        color: 0xe2e8f0,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false
+      });
+      const whisp = new THREE.Mesh(whispGeom, whispMat);
+      whisp.position.copy(pos);
+      this.scene.add(whisp);
+
+      this.visualEffects.push({
+        mesh: whisp,
+        createdAt: performance.now(),
+        duration: 180,
+        update: (t) => {
+          const s = 1.0 + t * 0.8;
+          whisp.scale.set(s, s, s);
+          whispMat.opacity = Math.max(0, 0.42 * (1.0 - t));
+        }
+      });
     }
   }
 
@@ -2078,14 +2209,22 @@ export class GameRenderer {
         nextPos.y += 4 * p.arcHeight * nextT * (1 - nextT);
         p.mesh.lookAt(nextPos);
 
+        // Projectile smoke & vapor ribbon emitter
+        if (!p.lastTrailPos) {
+          p.lastTrailPos = p.mesh.position.clone();
+        } else if (p.mesh.position.distanceTo(p.lastTrailPos) >= 0.42) {
+          this.spawnProjectileTrail(p.mesh.position, p.type);
+          p.lastTrailPos.copy(p.mesh.position);
+        }
+
         if (p.type === 'dragon_fire') {
           p.mesh.rotation.x += dt * 8;
           p.mesh.rotation.y += dt * 10;
           const s = 1.0 + Math.sin(t * 15) * 0.25;
           p.mesh.scale.set(s, s, s);
         } else if (p.type === 'boulder') {
-          p.mesh.rotation.x += dt * 6;
-          p.mesh.rotation.z += dt * 4;
+          p.mesh.rotation.x += dt * 7.5;
+          p.mesh.rotation.z += dt * 5.0;
         }
       }
     }
