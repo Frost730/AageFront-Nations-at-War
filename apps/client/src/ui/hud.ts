@@ -21,6 +21,7 @@ export interface HudCallbacks {
   onResearchTech: (buildingId: string, techId: string) => void;
   onAdvanceAge: (buildingId: string) => void;
   onSelectIdleWorker: () => void;
+  onSelectAllMilitary?: () => void;
   onAssignWorkersToBuild: (buildingId: string) => void;
   onOpenMenu: () => void;
   onTransferResources?: (recipientId: string, resource: ResourceType, amount: number) => void;
@@ -39,6 +40,8 @@ export class HudView {
   private idleWorkerBtnElem!: HTMLElement;
   private ageBadgeElem!: HTMLElement;
   private hoverTooltipElem!: HTMLElement;
+  private scorePanelElem!: HTMLElement;
+  private narratorDialogElem!: HTMLElement;
 
   private ageModalElem: HTMLElement | null = null;
   private coopModalElem: HTMLElement | null = null;
@@ -50,6 +53,7 @@ export class HudView {
   private currentContextKey: string = '';
   private activePlacementType: BuildingType | null = null;
   private placementBannerElem: HTMLElement | null = null;
+  private selectedBuildingId: string | null = null;
 
   constructor(container: HTMLElement, callbacks: HudCallbacks) {
     this.callbacks = callbacks;
@@ -60,6 +64,7 @@ export class HudView {
 
     this.createTopBar();
     this.createNotificationBanner();
+    this.createNarratorAndScorePanels();
     this.createBottomBar();
     this.createHoverTooltip();
   }
@@ -80,58 +85,142 @@ export class HudView {
     return this.minimapContainer;
   }
 
+  // ==========================================
+  // TOP BAR (Age of Empires III Definitive Edition)
+  // ==========================================
   private createTopBar(): void {
     this.topBarElem = document.createElement('div');
+    this.topBarElem.className = 'aoe3-topbar';
     this.topBarElem.style.cssText = `
       width: 100%;
       height: 48px;
-      background: radial-gradient(ellipse at 50% 50%, #2f190e 0%, #150b05 100%);
-      border-bottom: 2.5px solid #d4af37;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 20px;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.75);
+      padding: 0 16px;
       pointer-events: auto;
+      position: relative;
     `;
 
     this.topBarElem.innerHTML = `
-      <div id="hud-resources" class="cinzel" style="display: flex; align-items: center; gap: 20px; font-weight: 700; font-size: 13px; color: #fef08a; text-shadow: 0 1px 2px #000;">
-        <div style="display: flex; align-items: center; gap: 6px;" title="Food: Essential for workers and military training"><span style="font-size: 16px;">🌾</span> <span id="res-food">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Timber: Essential for building construction and archery"><span style="font-size: 16px;">🪵</span> <span id="res-wood">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Stone: Essential for fortresses, walls, and town centres"><span style="font-size: 16px;">🪨</span> <span id="res-stone">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Gold (Treasury): Essential for knights, dragons, siege weapons, and age advancement"><span style="font-size: 16px;">🪙</span> <span id="res-metal">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Knowledge: Essential for technologies and research"><span style="font-size: 16px;">📜</span> <span id="res-knowledge">0</span></div>
+      <!-- Left Bay: Nation Crest, Idle Settler, Pop, Resources with Worker Allocations -->
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <!-- Nation Shield Crest & Idle Settler badge -->
+        <div id="aoe3-top-crest" style="position: relative; display: flex; align-items: center; cursor: pointer;" title="Your Sovereign Civilization">
+          <div style="width: 36px; height: 36px; border-radius: 50%; border: 2px solid #d4af37; background: radial-gradient(circle, #1e3a8a, #0b1120); display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 2px 8px #000;">
+            <span id="aoe3-civ-flag">🇬🇧</span>
+          </div>
+          <!-- Idle Citizen Worker Badge -->
+          <button id="aoe3-idle-badge" style="position: absolute; bottom: -4px; right: -8px; min-width: 19px; height: 19px; padding: 0 4px; border-radius: 10px; background: linear-gradient(180deg, #b45309, #78350f); border: 1px solid #d4af37; color: #fff; font-size: 10px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px #000;" title="Select Idle Citizen Worker (Z)">
+            <span id="aoe3-idle-count">0</span>
+          </button>
+        </div>
+
+        <!-- Population -->
+        <div class="cinzel" style="display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #fef08a;" title="Population Headcount">
+          <span style="font-size: 15px;">🏠</span>
+          <span id="res-pop">0/15</span>
+        </div>
+
+        <!-- Resources with Worker Assignment Pills (Food, Wood, Stone, Metal/Gold, Knowledge, Shipments) -->
+        <div style="display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 700; color: #fef08a;">
+          <!-- Food -->
+          <div style="display: flex; align-items: center; gap: 5px;" title="Food: Harvested from forage bushes and agrarian plots">
+            <span class="aoe3-worker-pill"><span style="font-size: 9px;">👷</span><span id="worker-food">0</span></span>
+            <span style="font-size: 15px;">🥩</span>
+            <span id="res-food">0</span>
+          </div>
+          <!-- Wood -->
+          <div style="display: flex; align-items: center; gap: 5px;" title="Timber: Harvested from forests and groves">
+            <span class="aoe3-worker-pill"><span style="font-size: 9px;">👷</span><span id="worker-wood">0</span></span>
+            <span style="font-size: 15px;">🪵</span>
+            <span id="res-wood">0</span>
+          </div>
+          <!-- Stone -->
+          <div style="display: flex; align-items: center; gap: 5px;" title="Stone: Quarried from bedrock outcrops for fortifications">
+            <span class="aoe3-worker-pill"><span style="font-size: 9px;">👷</span><span id="worker-stone">0</span></span>
+            <span style="font-size: 15px;">🪨</span>
+            <span id="res-stone">0</span>
+          </div>
+          <!-- Metal / Gold -->
+          <div style="display: flex; align-items: center; gap: 5px;" title="Gold (Treasury): Mined from veins for elite troops and technologies">
+            <span class="aoe3-worker-pill"><span style="font-size: 9px;">👷</span><span id="worker-metal">0</span></span>
+            <span style="font-size: 15px;">🪙</span>
+            <span id="res-metal">0</span>
+          </div>
+          <!-- Knowledge -->
+          <div style="display: flex; align-items: center; gap: 5px;" title="Knowledge: Generated by scholars for technologies">
+            <span class="aoe3-worker-pill"><span style="font-size: 9px;">📜</span><span id="worker-knowledge">0</span></span>
+            <span id="res-knowledge">0</span>
+          </div>
+          <!-- Shipment / Point -->
+          <div style="display: flex; align-items: center; gap: 4px;" title="Imperial Shipments & Era Points">
+            <span style="font-size: 15px;">📦</span>
+            <span id="res-shipments">1</span>
+          </div>
+        </div>
       </div>
 
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <button id="hud-age-badge" class="aoe-btn-crimson" style="padding: 4px 14px; font-size: 12px; text-transform: uppercase;" title="Click to view Age Advancement requirements or advance age!">
-          👑 Founding Age
+      <!-- Right Bay: Era Plaque + Clock + Utility Buttons -->
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <!-- Era Button (Clickable for Age Advancement) -->
+        <button id="aoe3-era-btn" class="aoe-btn-crimson" style="padding: 4px 12px; font-size: 11px; display: flex; align-items: center; gap: 8px;" title="Click to view Age Advancement requirements or advance era!">
+          <span id="aoe3-era-roman" style="background: rgba(0,0,0,0.45); padding: 1px 6px; border-radius: 2px; font-weight: 900; border: 1px solid #d4af37;">I</span>
+          <span id="aoe3-era-title">I: FOUNDING AGE</span>
+          <span id="aoe3-game-clock" style="font-family: monospace; font-size: 11px; color: #fef08a; opacity: 0.9;">00:00</span>
         </button>
-        <div class="cinzel" style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #fef08a; text-shadow: 0 1px 2px #000;">
-          <span>👥</span> <span id="res-pop">0/15</span>
-        </div>
-        <button id="btn-idle-worker" class="aoe-btn-crimson" style="display: none; padding: 4px 10px; font-size: 11px;">
-          Idle: <span id="idle-count">0</span>
-        </button>
-        <button id="btn-hud-coop" class="aoe-btn-crimson" style="display: none; padding: 4px 12px; font-size: 11px;" title="Transfer resources or send tribute to co-op teammates">
-          <span>🤝</span> <span>Co-op Tribute</span>
-        </button>
-        <button id="btn-hud-menu" class="aoe-btn-crimson" style="padding: 4px 14px; font-size: 12px;">
-          Menu
-        </button>
+
+        <!-- Utility Buttons (Tribute, Objectives, Tech Tree, Menu) -->
+        <button id="btn-hud-coop" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Co-op Ally Tribute">🤝</button>
+        <button id="btn-hud-objectives" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Toggle Objectives & Scoreboard">📜</button>
+        <button id="btn-hud-menu" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Game Menu & Settings">⚙️</button>
       </div>
     `;
 
     this.rootElem.appendChild(this.topBarElem);
 
-    this.ageBadgeElem = this.topBarElem.querySelector('#hud-age-badge')!;
+    // Quick Action Strip right under top-left bar (Matching Image 2)
+    const quickStrip = document.createElement('div');
+    quickStrip.id = 'aoe3-quick-strip';
+    quickStrip.style.cssText = 'position: absolute; top: 52px; left: 16px; display: flex; gap: 4px; pointer-events: auto; z-index: 45;';
+    quickStrip.innerHTML = `
+      <button id="quick-btn-idle" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Find Idle Settler (Z)">💤</button>
+      <button id="quick-btn-military" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Select All Military Units (V)">📯</button>
+      <button id="quick-btn-formation" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Formations & Combat Stances">⚔️</button>
+      <button id="quick-btn-anchor" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Naval Fleet & Docks">⚓</button>
+      <button id="quick-btn-builder" class="aoe3-action-btn" style="width: 28px; height: 28px; font-size: 12px;" title="Select Builder for Construction">🔨</button>
+    `;
+    this.rootElem.appendChild(quickStrip);
+
+    this.ageBadgeElem = this.topBarElem.querySelector('#aoe3-era-btn')!;
     this.ageBadgeElem.addEventListener('click', () => {
       this.toggleAgeModal();
     });
 
-    this.idleWorkerBtnElem = this.topBarElem.querySelector('#btn-idle-worker')!;
+    this.idleWorkerBtnElem = this.topBarElem.querySelector('#aoe3-idle-badge')!;
     this.idleWorkerBtnElem.addEventListener('click', () => {
+      this.callbacks.onSelectIdleWorker();
+    });
+
+    quickStrip.querySelector('#quick-btn-idle')?.addEventListener('click', () => {
+      this.callbacks.onSelectIdleWorker();
+    });
+
+    quickStrip.querySelector('#quick-btn-military')?.addEventListener('click', () => {
+      this.callbacks.onSelectAllMilitary?.();
+    });
+
+    quickStrip.querySelector('#quick-btn-formation')?.addEventListener('click', () => {
+      this.showNotification('⚔️ Battle formation set: Line Formation / Aggressive Stance.');
+      soundManager.playClick();
+    });
+
+    quickStrip.querySelector('#quick-btn-anchor')?.addEventListener('click', () => {
+      this.showNotification('⚓ Naval docks ready for transport and war frigates.');
+      soundManager.playClick();
+    });
+
+    quickStrip.querySelector('#quick-btn-builder')?.addEventListener('click', () => {
       this.callbacks.onSelectIdleWorker();
     });
 
@@ -140,9 +229,108 @@ export class HudView {
       this.toggleCoopModal();
     });
 
+    this.topBarElem.querySelector('#btn-hud-objectives')?.addEventListener('click', () => {
+      if (this.scorePanelElem.style.display === 'none') {
+        this.scorePanelElem.style.display = 'block';
+      } else {
+        this.scorePanelElem.style.display = 'none';
+      }
+      soundManager.playClick();
+    });
+
     const menuBtn = this.topBarElem.querySelector('#btn-hud-menu')!;
     menuBtn.addEventListener('click', () => {
       this.callbacks.onOpenMenu();
+    });
+  }
+
+  // ==========================================
+  // FLOATING NARRATOR & SCORE PANELS (Image 1 & 2)
+  // ==========================================
+  private createNarratorAndScorePanels(): void {
+    // 1. Pinned Objectives & Scoreboard (Top-Right)
+    this.scorePanelElem = document.createElement('div');
+    this.scorePanelElem.id = 'aoe3-score-panel';
+    this.scorePanelElem.style.cssText = `
+      position: absolute;
+      top: 56px;
+      right: 16px;
+      width: 250px;
+      background: rgba(18, 9, 4, 0.88);
+      border: 1.5px solid #8c6a34;
+      border-radius: 4px;
+      padding: 10px 12px;
+      pointer-events: auto;
+      z-index: 45;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
+    `;
+    this.scorePanelElem.innerHTML = `
+      <!-- Primary Objectives (Image 1) -->
+      <div style="margin-bottom: 10px; border-bottom: 1px solid rgba(140, 106, 52, 0.45); padding-bottom: 8px;">
+        <div class="cinzel" style="font-size: 11px; font-weight: 800; color: #fef08a; letter-spacing: 0.5px; margin-bottom: 6px;">PRIMARY OBJECTIVES</div>
+        <div id="aoe3-objectives-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; color: #e2e8f0;">
+          <div style="display: flex; align-items: flex-start; gap: 6px;">
+            <span style="color: #fef08a;">▢</span>
+            <span>Recruit citizens & gather food and lumber.</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 6px;">
+            <span style="color: #fef08a;">▢</span>
+            <span>Erect a Barracks to raise armed troops.</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 6px;">
+            <span style="color: #fef08a;">▢</span>
+            <span>Advance to the next Era at your Town Center.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scoreboard (Image 1 & 2) -->
+      <div>
+        <div class="cinzel" style="font-size: 11px; font-weight: 800; color: #fef08a; letter-spacing: 0.5px; margin-bottom: 6px;">SCORE</div>
+        <div id="aoe3-scoreboard-rows" style="display: flex; flex-direction: column; gap: 4px;">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    `;
+    this.rootElem.appendChild(this.scorePanelElem);
+
+    // 2. Center-Left Floating Narrator Tutorial Dialogue (Image 1)
+    this.narratorDialogElem = document.createElement('div');
+    this.narratorDialogElem.id = 'aoe3-narrator-dialog';
+    this.narratorDialogElem.style.cssText = `
+      position: absolute;
+      top: 130px;
+      left: 16px;
+      width: 290px;
+      background: rgba(18, 9, 4, 0.9);
+      border: 2px solid #b8860b;
+      border-radius: 4px;
+      padding: 10px 14px;
+      pointer-events: auto;
+      z-index: 45;
+      box-shadow: 0 8px 26px rgba(0,0,0,0.85);
+      display: flex;
+      gap: 10px;
+      backdrop-filter: blur(4px);
+    `;
+    this.narratorDialogElem.innerHTML = `
+      <span style="font-size: 22px;">💬</span>
+      <div style="flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span class="cinzel" style="font-size: 11px; font-weight: 800; color: #fef08a; letter-spacing: 0.5px;">NARRATOR</span>
+          <button id="aoe3-close-narrator" style="background: none; border: none; color: #94a3b8; font-size: 11px; cursor: pointer;">✕</button>
+        </div>
+        <div id="aoe3-narrator-text" style="font-size: 11px; color: #cbd5e1; line-height: 1.4;">
+          Assign citizen workers to harvest resources, build barracks with the command console, and advance eras to vanquish your adversaries!
+        </div>
+      </div>
+    `;
+    this.rootElem.appendChild(this.narratorDialogElem);
+
+    this.narratorDialogElem.querySelector('#aoe3-close-narrator')?.addEventListener('click', () => {
+      this.narratorDialogElem.style.display = 'none';
+      soundManager.playClick();
     });
   }
 
@@ -165,6 +353,7 @@ export class HudView {
       animation: fadeIn 0.3s ease;
       pointer-events: none;
       text-shadow: 0 1px 2px #000;
+      z-index: 50;
     `;
     this.rootElem.appendChild(this.notificationBannerElem);
   }
@@ -177,349 +366,481 @@ export class HudView {
     }, durationMs);
   }
 
+  // ==========================================
+  // BOTTOM BAR (Unified Console + Circular Minimap)
+  // ==========================================
   private createBottomBar(): void {
     const bottomBar = document.createElement('div');
+    bottomBar.id = 'hud-bottom-bar';
     bottomBar.style.cssText = `
       width: 100%;
-      height: 200px;
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      padding: 12px;
+      padding: 10px 16px;
       pointer-events: none;
+      position: relative;
     `;
 
-    // 1. Bottom-Left: Minimap (Age of Empires Stone/Brass Frame)
-    this.minimapContainer = document.createElement('div');
-    this.minimapContainer.style.cssText = `
-      width: 180px;
-      height: 180px;
+    // 1. Bottom-Left to Center: Unified AoE III Console Frame
+    const consoleFrame = document.createElement('div');
+    consoleFrame.className = 'aoe3-console-frame';
+    consoleFrame.style.cssText = `
+      display: flex;
+      height: 188px;
+      padding: 6px;
+      gap: 8px;
       pointer-events: auto;
-      border: 2.5px solid #d4af37;
-      border-radius: 4px;
-      overflow: hidden;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.85);
-      background: #1a0f07;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.95);
     `;
-    bottomBar.appendChild(this.minimapContainer);
 
-    // 2. Bottom-Center: Selected Entity Card (Aged Parchment)
+    // 4 Corner Rivets
+    ['tl', 'tr', 'bl', 'br'].forEach(pos => {
+      const rivet = document.createElement('div');
+      rivet.className = `aoe-corner-rivet aoe-corner-rivet-${pos}`;
+      consoleFrame.appendChild(rivet);
+    });
+
+    // Console Bay 1: Command & Action Matrix (Left)
+    const actionMatrixBay = document.createElement('div');
+    actionMatrixBay.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      width: 340px;
+      height: 100%;
+      justify-content: space-between;
+    `;
+
+    this.actionMatrixElem = document.createElement('div');
+    this.actionMatrixElem.className = 'aoe3-inner-bay';
+    this.actionMatrixElem.style.cssText = `
+      flex: 1;
+      padding: 5px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 4px;
+      overflow: hidden;
+    `;
+    actionMatrixBay.appendChild(this.actionMatrixElem);
+
+    // Quick Action Sub-bar below Command Grid (delete, repair, stance)
+    const subBar = document.createElement('div');
+    subBar.style.cssText = 'display: flex; gap: 4px; margin-top: 4px; height: 22px;';
+    subBar.innerHTML = `
+      <button id="aoe3-btn-delete" class="aoe3-action-btn" style="flex: 1; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Disband or demolish selected entity (Delete)">
+        <span style="color: #ef4444;">✕</span> delete
+      </button>
+      <button id="aoe3-btn-repair" class="aoe3-action-btn" style="flex: 1; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Command nearby workers to repair damaged building (R)">
+        <span>🔨</span> repair
+      </button>
+      <button id="aoe3-btn-stance" class="aoe3-action-btn" style="flex: 1; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Defensive combat stance">
+        <span>🛡️</span> defend
+      </button>
+    `;
+    subBar.querySelector('#aoe3-btn-repair')?.addEventListener('click', () => {
+      if (this.selectedBuildingId) {
+        this.callbacks.onAssignWorkersToBuild(this.selectedBuildingId);
+        soundManager.playBuild();
+        this.showNotification('🔨 Dispatched workers to repair building!');
+      } else {
+        this.showNotification('ℹ️ Select a damaged building first.');
+      }
+    });
+    subBar.querySelector('#aoe3-btn-stance')?.addEventListener('click', () => {
+      this.showNotification('🛡️ Defensive combat stance assumed.');
+      soundManager.playClick();
+    });
+    subBar.querySelector('#aoe3-btn-delete')?.addEventListener('click', () => {
+      this.showNotification('ℹ️ Select entity and press Delete to disband.');
+      soundManager.playClick();
+    });
+
+    actionMatrixBay.appendChild(subBar);
+    consoleFrame.appendChild(actionMatrixBay);
+
+    // Console Bay 2: Selected Entity Inspector (Right)
     this.selectionDetailsElem = document.createElement('div');
-    this.selectionDetailsElem.className = 'aoe-parchment-card';
+    this.selectionDetailsElem.className = 'aoe3-inner-bay';
     this.selectionDetailsElem.style.cssText = `
-      width: 380px;
-      height: 180px;
-      padding: 12px 14px;
+      width: 390px;
+      height: 100%;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      pointer-events: auto;
+      overflow: hidden;
     `;
-    this.selectionDetailsElem.innerHTML = `<div class="cinzel" style="color: #5c3a1e; font-size: 13px; font-weight: 700; text-align: center; margin-top: 60px;">Click any unit or building to command</div>`;
-    bottomBar.appendChild(this.selectionDetailsElem);
+    this.selectionDetailsElem.innerHTML = `
+      <div class="cinzel" style="color: #8c6a34; font-size: 13px; font-weight: 700; text-align: center; margin-top: 60px;">
+        Click any citizen, warrior, or building to command
+      </div>
+    `;
+    consoleFrame.appendChild(this.selectionDetailsElem);
+    bottomBar.appendChild(consoleFrame);
 
-    // 3. Bottom-Right: Context-sensitive Action Matrix (Aged Parchment)
-    this.actionMatrixElem = document.createElement('div');
-    this.actionMatrixElem.className = 'aoe-parchment-card';
-    this.actionMatrixElem.style.cssText = `
-      width: 380px;
-      height: 180px;
-      padding: 10px;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(3, 1fr);
+    // 2. Bottom-Right: Circular Minimap + Flag & Resource Stack
+    const minimapBay = document.createElement('div');
+    minimapBay.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       gap: 6px;
       pointer-events: auto;
     `;
-    bottomBar.appendChild(this.actionMatrixElem);
+
+    // Above Minimap: Flag & Compact Resource Stack (Image 1 style)
+    const miniHeader = document.createElement('div');
+    miniHeader.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+    miniHeader.innerHTML = `
+      <div id="aoe3-minimap-flag" style="display: flex; align-items: center; gap: 5px; background: rgba(18, 9, 4, 0.85); border: 2px solid #d4af37; border-radius: 4px; padding: 2px 7px; box-shadow: 0 4px 10px rgba(0,0,0,0.8);" title="Player Civilization">
+        <span id="aoe3-minimap-flag-icon" style="font-size: 16px;">🇬🇧</span>
+        <span id="aoe3-minimap-shipment" class="cinzel" style="font-size: 12px; font-weight: 800; color: #fef08a;">0</span>
+      </div>
+      <div id="aoe3-minimap-res-stack" style="display: flex; gap: 6px; background: rgba(14, 7, 3, 0.85); border: 1.5px solid #8c6a34; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; color: #fef08a;">
+        <span title="Population">🏠 <span id="mini-pop">0/15</span></span>
+        <span title="Food">🥩 <span id="mini-food">0</span></span>
+        <span title="Wood">🪵 <span id="mini-wood">0</span></span>
+        <span title="Gold">🪙 <span id="mini-metal">0</span></span>
+      </div>
+    `;
+    minimapBay.appendChild(miniHeader);
+
+    // Circular Minimap Outer Frame
+    const minimapFrame = document.createElement('div');
+    minimapFrame.className = 'aoe3-circular-minimap-frame';
+    minimapFrame.id = 'minimap-outer-wrapper';
+
+    // Crossed Swords Alert on Rim
+    const alertBtn = document.createElement('div');
+    alertBtn.style.cssText = `
+      position: absolute;
+      top: -2px;
+      left: 10px;
+      width: 26px;
+      height: 26px;
+      background: radial-gradient(circle, #78350f, #3b1404);
+      border: 1.5px solid #d4af37;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px #000;
+      z-index: 5;
+    `;
+    alertBtn.innerHTML = '⚔️';
+    alertBtn.title = 'Combat Alert';
+    minimapFrame.appendChild(alertBtn);
+
+    // Ping Flare Horn on Rim
+    const pingBtn = document.createElement('div');
+    pingBtn.style.cssText = `
+      position: absolute;
+      bottom: 8px;
+      left: 10px;
+      width: 24px;
+      height: 24px;
+      background: radial-gradient(circle, #78350f, #3b1404);
+      border: 1.5px solid #d4af37;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px #000;
+      z-index: 5;
+    `;
+    pingBtn.innerHTML = '📯';
+    pingBtn.title = 'Signal Flare Ping';
+    pingBtn.addEventListener('click', () => {
+      this.showNotification('📯 Signal flare dispatched to allies!');
+      soundManager.playClick();
+    });
+    minimapFrame.appendChild(pingBtn);
+
+    // Minimap Canvas Container (Circle clipped)
+    this.minimapContainer = document.createElement('div');
+    this.minimapContainer.id = 'minimap-canvas-holder';
+    this.minimapContainer.style.cssText = `
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #090d16;
+    `;
+    minimapFrame.appendChild(this.minimapContainer);
+    minimapBay.appendChild(minimapFrame);
+    bottomBar.appendChild(minimapBay);
 
     this.rootElem.appendChild(bottomBar);
   }
 
-  public updatePlayerStats(player: PlayerState, idleWorkerCount: number, townCentreId?: string, allPlayers?: PlayerState[]): void {
+  // ==========================================
+  // DYNAMIC STATS, SCOREBOARD & OBJECTIVES UPDATE
+  // ==========================================
+  public updatePlayerStats(
+    player: PlayerState,
+    idleWorkerCount: number,
+    townCentreId?: string,
+    allPlayers?: PlayerState[],
+    units?: UnitData[],
+    buildings?: BuildingData[],
+    elapsedSec?: number
+  ): void {
     this.currentPlayer = player;
     if (townCentreId) this.townCentreId = townCentreId;
     if (allPlayers) this.allPlayers = allPlayers;
 
     const f = (n: number) => Math.floor(n).toLocaleString();
-    (this.topBarElem.querySelector('#res-food') as HTMLElement).textContent = f(player.resources.food);
-    (this.topBarElem.querySelector('#res-wood') as HTMLElement).textContent = f(player.resources.wood);
-    (this.topBarElem.querySelector('#res-stone') as HTMLElement).textContent = f(player.resources.stone);
-    (this.topBarElem.querySelector('#res-metal') as HTMLElement).textContent = f(player.resources.metal);
-    (this.topBarElem.querySelector('#res-knowledge') as HTMLElement).textContent = f(player.resources.knowledge);
+    const setEl = (id: string, text: string) => {
+      const el = this.rootElem.querySelector(id);
+      if (el) el.textContent = text;
+    };
 
-    (this.topBarElem.querySelector('#res-pop') as HTMLElement).textContent = `${player.population}/${player.maxPopulation}`;
-    this.ageBadgeElem.textContent = `👑 ${player.age}`;
+    // 1. Stockpiles
+    setEl('#res-food', f(player.resources.food));
+    setEl('#res-wood', f(player.resources.wood));
+    setEl('#res-stone', f(player.resources.stone));
+    setEl('#res-metal', f(player.resources.metal));
+    setEl('#res-knowledge', f(player.resources.knowledge));
+    setEl('#res-pop', `${player.population}/${player.maxPopulation}`);
 
-    if (idleWorkerCount > 0) {
-      this.idleWorkerBtnElem.style.display = 'block';
-      (this.topBarElem.querySelector('#idle-count') as HTMLElement).textContent = idleWorkerCount.toString();
-    } else {
-      this.idleWorkerBtnElem.style.display = 'none';
+    // Minimap stack
+    setEl('#mini-pop', `${player.population}/${player.maxPopulation}`);
+    setEl('#mini-food', f(player.resources.food));
+    setEl('#mini-wood', f(player.resources.wood));
+    setEl('#mini-metal', f(player.resources.metal));
+
+    // 2. Count Workers Assigned Per Resource
+    let foodWorkers = 0;
+    let woodWorkers = 0;
+    let stoneWorkers = 0;
+    let metalWorkers = 0;
+    let knowledgeWorkers = 0;
+
+    if (units) {
+      for (const u of units) {
+        if (u.ownerId === player.id && u.type === 'worker') {
+          const rType = u.carriedResourceType;
+          if (rType === 'food') foodWorkers++;
+          else if (rType === 'wood') woodWorkers++;
+          else if (rType === 'stone') stoneWorkers++;
+          else if (rType === 'metal') metalWorkers++;
+          else if (rType === 'knowledge') knowledgeWorkers++;
+        }
+      }
+    }
+    setEl('#worker-food', foodWorkers.toString());
+    setEl('#worker-wood', woodWorkers.toString());
+    setEl('#worker-stone', stoneWorkers.toString());
+    setEl('#worker-metal', metalWorkers.toString());
+    setEl('#worker-knowledge', knowledgeWorkers.toString());
+
+    // 3. Idle Worker badge
+    setEl('#aoe3-idle-count', idleWorkerCount.toString());
+    const idleBadge = this.rootElem.querySelector<HTMLElement>('#aoe3-idle-badge');
+    if (idleBadge) {
+      idleBadge.style.background = idleWorkerCount > 0
+        ? 'linear-gradient(180deg, #dc2626, #991b1b)'
+        : 'linear-gradient(180deg, #78350f, #451a03)';
+      idleBadge.style.boxShadow = idleWorkerCount > 0 ? '0 0 8px #ef4444' : 'none';
     }
 
+    // 4. Civilization Heraldic Emblem
+    const civFlags: Record<string, string> = {
+      'Veyran Confederacy': '🦅',
+      'Solari Dominion': '☀️',
+      'Ironvale Kingdom': '⚔️',
+      'Nambara Alliance': '🐉',
+    };
+    const flagSymbol = civFlags[player.civ] || '🇬🇧';
+    setEl('#aoe3-civ-flag', flagSymbol);
+    setEl('#aoe3-minimap-flag-icon', flagSymbol);
+
+    // 5. Era Title & Roman Plaque
+    const ageRomans: Record<string, string> = {
+      'Founding Age': 'I',
+      'Kingdom Age': 'II',
+      'Imperial Age': 'III',
+      'Industrial Age': 'IV'
+    };
+    const roman = ageRomans[player.age] || 'I';
+    setEl('#aoe3-era-roman', roman);
+    setEl('#aoe3-era-title', `${roman}: ${player.age.toUpperCase()}`);
+
+    // 6. Live Clock
+    if (elapsedSec !== undefined) {
+      const mins = Math.floor(elapsedSec / 60);
+      const secs = Math.floor(elapsedSec % 60);
+      setEl('#aoe3-game-clock', `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+    }
+
+    // 7. Scoreboard
+    if (allPlayers && allPlayers.length > 0) {
+      const scoreboardElem = this.rootElem.querySelector('#aoe3-scoreboard-rows');
+      if (scoreboardElem) {
+        const scores = allPlayers.map(p => {
+          const pUnits = units ? units.filter(u => u.ownerId === p.id) : [];
+          const pBldgs = buildings ? buildings.filter(b => b.ownerId === p.id) : [];
+          const ageBonus = p.age === 'Kingdom Age' ? 1000 : p.age === 'Imperial Age' ? 2500 : p.age === 'Industrial Age' ? 5000 : 0;
+          const resScore = (p.resources.food + p.resources.wood + p.resources.stone + p.resources.metal + p.resources.knowledge) * 0.2;
+          const score = Math.floor(resScore + pUnits.length * 100 + pBldgs.length * 250 + ageBonus);
+          return { player: p, score };
+        }).sort((a, b) => b.score - a.score);
+
+        scoreboardElem.innerHTML = scores.map((s, idx) => `
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; background: rgba(0,0,0,0.35); border-left: 3px solid ${s.player.color}; padding: 2px 6px; border-radius: 2px;">
+            <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">
+              <span style="font-weight: 800; color: #fef08a; font-size: 10px;">${idx + 1}</span>
+              <span style="font-size: 11px;">${civFlags[s.player.civ] || '🛡️'}</span>
+              <strong style="color: ${s.player.id === player.id ? '#67e8f9' : '#f8fafc'}; font-size: 11px;">${s.player.name}</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-family: monospace; font-weight: 700; color: #fef08a;">${s.score.toLocaleString()}</span>
+              <span style="font-size: 9px; color: ${s.player.team === player.team ? '#4ade80' : '#f87171'};">[${s.player.team === player.team ? '=' : '✕'}]</span>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // 8. Objectives checkmarks
+    const objList = this.rootElem.querySelector('#aoe3-objectives-list');
+    if (objList) {
+      const hasWorkers = (units ? units.filter(u => u.ownerId === player.id && u.type === 'worker').length : player.population) >= 3;
+      const hasBarracks = buildings ? buildings.some(b => b.ownerId === player.id && b.type === 'barracks' && b.isConstructed) : false;
+      const hasAdvanced = player.age !== 'Founding Age';
+
+      objList.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 6px; color: ${hasWorkers ? '#86efac' : '#e2e8f0'};">
+          <span style="color: ${hasWorkers ? '#22c55e' : '#fef08a'};">${hasWorkers ? '☑' : '▢'}</span>
+          <span>Recruit citizens & gather food and lumber.</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 6px; color: ${hasBarracks ? '#86efac' : '#e2e8f0'};">
+          <span style="color: ${hasBarracks ? '#22c55e' : '#fef08a'};">${hasBarracks ? '☑' : '▢'}</span>
+          <span>Erect a Barracks to raise armed troops.</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 6px; color: ${hasAdvanced ? '#86efac' : '#e2e8f0'};">
+          <span style="color: ${hasAdvanced ? '#22c55e' : '#fef08a'};">${hasAdvanced ? '☑' : '▢'}</span>
+          <span>Advance to the next Era at your Town Center.</span>
+        </div>
+      `;
+    }
+
+    // 9. Co-op Tribute Button
     const teammates = this.allPlayers.filter(p => p.team === player.team && p.id !== player.id && !p.isDefeated);
     if (this.coopBtnElem) {
       this.coopBtnElem.style.display = teammates.length > 0 ? 'inline-flex' : 'none';
     }
   }
 
-  public setPlacementActive(type: BuildingType | null): void {
-    this.activePlacementType = type;
-    if (!type) {
-      if (this.placementBannerElem) {
-        this.placementBannerElem.remove();
-        this.placementBannerElem = null;
-      }
-      this.actionMatrixElem.querySelectorAll<HTMLElement>('.build-matrix-btn').forEach(btn => {
-        btn.style.borderColor = btn.dataset.unlocked === 'true' ? '#475569' : '#1e293b';
-        btn.style.boxShadow = 'none';
-      });
-      return;
-    }
-
-    const def = BUILDING_DEFINITIONS[type];
-    if (!this.placementBannerElem) {
-      this.placementBannerElem = document.createElement('div');
-      this.placementBannerElem.style.cssText = `
-        position: absolute;
-        top: 68px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(15, 23, 42, 0.96);
-        border: 2px solid #38bdf8;
-        border-radius: 30px;
-        padding: 8px 24px;
-        color: #f8fafc;
-        font-size: 13px;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
-        z-index: 1000;
-        pointer-events: auto;
-      `;
-      this.rootElem.appendChild(this.placementBannerElem);
-    }
-
-    this.placementBannerElem.innerHTML = `
-      <span>🔨 Placing <strong>${def.name}</strong></span>
-      <span style="font-size: 11px; color: #94a3b8;">Left-Click terrain to build • Right-Click / ESC to cancel</span>
-      <button id="btn-cancel-placement" style="background: #ef4444; border: none; color: white; border-radius: 12px; padding: 4px 12px; font-weight: 700; cursor: pointer; font-size: 11px;">Cancel</button>
-    `;
-
-    this.placementBannerElem.querySelector('#btn-cancel-placement')?.addEventListener('click', () => {
-      this.callbacks.onCancelPlacement?.();
-    });
-
-    this.actionMatrixElem.querySelectorAll<HTMLElement>('.build-matrix-btn').forEach(btn => {
-      if (btn.dataset.btype === type) {
-        btn.style.borderColor = '#38bdf8';
-        btn.style.boxShadow = '0 0 10px rgba(56, 189, 248, 0.7)';
-      } else {
-        btn.style.borderColor = btn.dataset.unlocked === 'true' ? '#475569' : '#1e293b';
-        btn.style.boxShadow = 'none';
-      }
-    });
-  }
-
-  private createHoverTooltip(): void {
-    this.hoverTooltipElem = document.createElement('div');
-    this.hoverTooltipElem.id = 'hud-hover-tooltip';
-    this.hoverTooltipElem.style.cssText = `
-      position: absolute;
-      display: none;
-      pointer-events: none;
-      z-index: 1000;
-      background: rgba(15, 23, 42, 0.96);
-      border: 1.5px solid #fbbf24;
-      border-radius: 8px;
-      padding: 8px 14px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), 0 0 14px rgba(251, 191, 36, 0.3);
-      backdrop-filter: blur(8px);
-      white-space: nowrap;
-      transition: opacity 0.12s ease;
-    `;
-    this.rootElem.appendChild(this.hoverTooltipElem);
-  }
-
-  public showResourceHoverTooltip(
-    screenX: number,
-    screenY: number,
-    node: ResourceNodeData
-  ): void {
-    let icon = '🪙';
-    let name = 'Gold Vein / Mine';
-    let typeName = 'Gold (Yellow)';
-    let themeColor = '#fbbf24';
-    let hint = 'Right-click with Workers to Mine Gold';
-
-    if (node.type === 'metal') {
-      icon = '🪙';
-      name = 'Gold Mine / Ore Vein';
-      typeName = 'Gold (Yellow)';
-      themeColor = '#fbbf24';
-      hint = 'Right-click with Workers to Mine Gold';
-    } else if (node.type === 'wood') {
-      icon = '🌲';
-      name = 'Timber Grove / Forest';
-      typeName = 'Wood / Timber';
-      themeColor = '#10b981';
-      hint = 'Right-click with Workers to Chop Timber';
-    } else if (node.type === 'stone') {
-      icon = '🪨';
-      name = 'Stone Quarry Deposit';
-      typeName = 'Stone';
-      themeColor = '#94a3b8';
-      hint = 'Right-click with Workers to Quarry Stone';
-    } else if (node.type === 'food') {
-      icon = '🌾';
-      name = 'Forage Berry Bush';
-      typeName = 'Food';
-      themeColor = '#ef4444';
-      hint = 'Right-click with Workers to Forage Food';
-    }
-
-    const pct = Math.max(0, Math.min(100, (node.amount / node.maxAmount) * 100));
-
-    this.hoverTooltipElem.style.borderColor = themeColor;
-    this.hoverTooltipElem.style.boxShadow = `0 8px 24px rgba(0, 0, 0, 0.75), 0 0 16px ${themeColor}44`;
-    this.hoverTooltipElem.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 22px;">${icon}</span>
-        <div>
-          <div style="font-weight: 700; font-size: 13px; color: ${themeColor}; letter-spacing: 0.5px;">${name}</div>
-          <div style="font-size: 11px; color: #cbd5e1; margin-top: 1px;">
-            Resource: <strong>${typeName}</strong> • <span style="color: #f8fafc; font-weight: 600;">${node.amount.toLocaleString()}</span> / ${node.maxAmount.toLocaleString()}
-          </div>
-          <div style="width: 130px; height: 4px; background: #334155; border-radius: 2px; margin-top: 5px; overflow: hidden;">
-            <div style="width: ${pct}%; height: 100%; background: ${themeColor};"></div>
-          </div>
-          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; font-style: italic;">${hint}</div>
-        </div>
-      </div>
-    `;
-
-    // Ensure within viewport bounds
-    const tooltipWidth = 230;
-    const tooltipHeight = 72;
-    let posX = screenX + 16;
-    let posY = screenY + 16;
-    if (posX + tooltipWidth > window.innerWidth) posX = screenX - tooltipWidth - 8;
-    if (posY + tooltipHeight > window.innerHeight) posY = screenY - tooltipHeight - 8;
-
-    this.hoverTooltipElem.style.left = `${posX}px`;
-    this.hoverTooltipElem.style.top = `${posY}px`;
-    this.hoverTooltipElem.style.display = 'block';
-  }
-
-  public hideResourceHoverTooltip(): void {
-    if (this.hoverTooltipElem) {
-      this.hoverTooltipElem.style.display = 'none';
-    }
-  }
-
-  public showResourceDetails(node: ResourceNodeData): void {
-    let icon = '🪙';
-    let name = 'Gold Vein / Mine';
-    let desc = 'Rich golden ore nuggets embedded in bedrock. Crucial for hiring knights, constructing siege weapons, training war dragons, and advancing civilization.';
-    let themeColor = '#fbbf24';
-
-    if (node.type === 'metal') {
-      icon = '🪙';
-      name = 'Gold Vein Deposit';
-      desc = 'Rich golden ore nuggets. Essential for advanced military training, war dragons, and imperial wonders.';
-      themeColor = '#fbbf24';
-    } else if (node.type === 'wood') {
-      icon = '🌲';
-      name = 'Timber Forest';
-      desc = 'Dense woodland timber. Send workers to harvest lumber for buildings, archery, and siege workshops.';
-      themeColor = '#10b981';
-    } else if (node.type === 'stone') {
-      icon = '🪨';
-      name = 'Granite Stone Quarry';
-      desc = 'Hard natural stone outcrop. Essential for fortresses, walls, watchtowers, and town centres.';
-      themeColor = '#94a3b8';
-    } else if (node.type === 'food') {
-      icon = '🌾';
-      name = 'Forage Berry Bush';
-      desc = 'Wild agrarian food source. Immediate food supply for training workers and initial military forces.';
-      themeColor = '#ef4444';
-    }
-
-    const pct = Math.max(0, Math.min(100, (node.amount / node.maxAmount) * 100));
-
-    this.selectionDetailsElem.innerHTML = `
-      <div>
-        <div style="font-weight: 700; font-size: 15px; color: ${themeColor}; display: flex; align-items: center; gap: 6px;">
-          <span>${icon}</span> <span>${name}</span>
-        </div>
-        <div style="font-size: 11px; color: #94a3b8;">Natural Resource Deposit</div>
-      </div>
-      <div>
-        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
-          <span style="color: #cbd5e1;">Remaining</span>
-          <span style="font-weight: 700; color: ${themeColor};">${node.amount.toLocaleString()} / ${node.maxAmount.toLocaleString()}</span>
-        </div>
-        <div style="width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden;">
-          <div style="width: ${pct}%; height: 100%; background: ${themeColor}; transition: width 0.2s ease;"></div>
-        </div>
-      </div>
-      <div style="font-size: 11px; color: #94a3b8; line-height: 1.4;">
-        ${desc}
-      </div>
-      <div style="font-size: 10px; color: #38bdf8; font-style: italic; background: rgba(56, 189, 248, 0.1); border-left: 2px solid #38bdf8; padding: 4px 6px;">
-        💡 Right-click this resource with selected Workers to automatically gather.
-      </div>
-    `;
-
-    this.currentContextKey = 'resource_selected';
-    this.actionMatrixElem.innerHTML = `
-      <div style="grid-column: span 4; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 11px; text-align: center; padding: 6px;">
-        <span style="font-size: 24px; margin-bottom: 4px;">⛏️</span>
-        <div>Right-click with Workers to extract <strong>${node.type === 'metal' ? 'GOLD' : node.type.toUpperCase()}</strong></div>
-      </div>
-    `;
-  }
-
+  // ==========================================
+  // SELECTION & INSPECTOR (Matching Image 1 & 2)
+  // ==========================================
   public updateSelection(
     selectedUnits: UnitData[],
     selectedBuildings: BuildingData[],
     player: PlayerState
   ): void {
     if (selectedUnits.length === 0 && selectedBuildings.length === 0) {
+      this.selectedBuildingId = null;
       if (this.currentContextKey !== 'none' && this.currentContextKey !== 'resource_selected') {
         this.currentContextKey = 'none';
-        this.selectionDetailsElem.innerHTML = `<div style="color: #64748b; font-size: 13px; text-align: center; margin-top: 60px;">Click any unit, building, or resource deposit</div>`;
+        this.selectionDetailsElem.innerHTML = `
+          <div class="cinzel" style="color: #8c6a34; font-size: 13px; font-weight: 700; text-align: center; margin-top: 60px;">
+            Click any citizen, warrior, or building to command
+          </div>
+        `;
         this.actionMatrixElem.innerHTML = '';
       }
       return;
     }
 
+    const getPortrait = (type: string, isBuilding: boolean) => {
+      if (isBuilding) {
+        if (type === 'town_centre') return '🏰';
+        if (type === 'barracks') return '⚔️';
+        if (type === 'archery_range') return '🏹';
+        if (type === 'stable') return '🐎';
+        if (type === 'workshop') return '⚙️';
+        if (type === 'farm') return '🌾';
+        if (type === 'research_hall') return '📜';
+        if (type === 'watchtower') return '🗼';
+        if (type === 'fort') return '🏯';
+        return '🏛️';
+      } else {
+        if (type === 'worker') return '👨‍🌾';
+        if (type === 'swordsman') return '🛡️';
+        if (type === 'archer') return '🏹';
+        if (type === 'knight') return '🏇';
+        if (type === 'dragon') return '🐉';
+        if (type === 'catapult') return '🎯';
+        return '⚔️';
+      }
+    };
+
     // 1. Units Selected
     if (selectedUnits.length > 0) {
+      this.selectedBuildingId = null;
       if (selectedUnits.length === 1) {
         const unit = selectedUnits[0];
         const udef = UNIT_DEFINITIONS[unit.type];
+        const owner = this.allPlayers.find(p => p.id === unit.ownerId) || player;
+        const hpPercent = Math.max(0, Math.min(100, (unit.hp / unit.maxHp) * 100));
+        const hpColor = hpPercent > 50 ? '#22c55e' : hpPercent > 25 ? '#f59e0b' : '#ef4444';
+
         this.selectionDetailsElem.innerHTML = `
-          <div>
-            <div style="font-weight: 700; font-size: 15px; color: #f8fafc;">${udef.name}</div>
-            <div style="font-size: 12px; color: #94a3b8;">${udef.role} • Status: <span style="color: #38bdf8; text-transform: capitalize;">${unit.state}</span></div>
-          </div>
-          <div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
-              <span>HP</span><span>${Math.ceil(unit.hp)} / ${unit.maxHp}</span>
+          <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+            <!-- Header: Title & Civ -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div class="cinzel" style="font-weight: 800; font-size: 14px; color: #fef08a; letter-spacing: 0.5px;">${udef.name.toUpperCase()}</div>
+                  <div style="font-size: 11px; color: #cbd5e1; display: flex; align-items: center; gap: 4px;">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${owner.color};"></span>
+                    <span>${owner.civ.toUpperCase()}</span>
+                    <span style="color: #94a3b8;">(${udef.role})</span>
+                  </div>
+                </div>
+                <div style="font-size: 11px; color: #38bdf8; font-weight: 700; text-transform: uppercase;">
+                  ● ${unit.state}
+                </div>
+              </div>
+
+              <!-- Health & Armor Row -->
+              <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+                <div style="font-size: 11px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 3px;">
+                  <span>❤️</span> <span>${Math.ceil(unit.hp)}/${unit.maxHp}</span>
+                </div>
+                <div style="flex: 1; height: 6px; background: #331d0d; border: 1px solid #8c6a34; border-radius: 3px; overflow: hidden;">
+                  <div style="width: ${hpPercent}%; height: 100%; background: ${hpColor}; transition: width 0.15s ease;"></div>
+                </div>
+                <div style="font-size: 11px; color: #fef08a; font-weight: 700; display: flex; gap: 6px;">
+                  <span>🛡️ 4</span>
+                  <span>🎯 20%</span>
+                </div>
+              </div>
             </div>
-            <div style="width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden;">
-              <div style="width: ${(unit.hp / unit.maxHp) * 100}%; height: 100%; background: #22c55e;"></div>
+
+            <!-- Body: Portrait on left + Combat & Gather Stats on right -->
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <!-- Portrait Box -->
+              <div class="aoe3-portrait-box" style="width: 64px; height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+                <span style="font-size: 32px;">${getPortrait(unit.type, false)}</span>
+                <span style="position: absolute; bottom: 2px; font-size: 9px; font-weight: 800; color: #fef08a; background: rgba(0,0,0,0.6); padding: 0 4px; border-radius: 2px;">LVL 1</span>
+              </div>
+
+              <!-- Stat Lines -->
+              <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; font-size: 11px; color: #f1f5f9;">
+                <div>⚔️ Hand: <strong>${udef.damage}</strong></div>
+                <div>🏹 Range: <strong>${udef.attackRange > 2 ? udef.attackRange : '-'}</strong></div>
+                <div>🏃 Speed: <strong>${udef.speed}</strong></div>
+                <div>${unit.carriedResourceAmount > 0 ? `📦 Carrying: <strong style="color: #4ade80;">${unit.carriedResourceAmount} ${unit.carriedResourceType}</strong>` : `👀 Vision: <strong>14</strong>`}</div>
+              </div>
             </div>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; color: #cbd5e1;">
-            <div>Damage: <strong>${udef.damage}</strong></div>
-            <div>Speed: <strong>${udef.speed}</strong></div>
-            <div>Range: <strong>${udef.attackRange}</strong></div>
-            <div>Carrying: <strong>${unit.carriedResourceAmount} ${unit.carriedResourceType || ''}</strong></div>
           </div>
         `;
 
@@ -539,12 +860,20 @@ export class HudView {
         }
       } else {
         this.selectionDetailsElem.innerHTML = `
-          <div>
-            <div style="font-weight: 700; font-size: 15px; color: #f8fafc;">Squad Selection (${selectedUnits.length} Units)</div>
-            <div style="font-size: 12px; color: #94a3b8;">Multiple Combat Units</div>
-          </div>
-          <div style="font-size: 12px; color: #cbd5e1;">
-            Right-click ground to march in formation. Right-click enemy to attack.
+          <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+            <div>
+              <div class="cinzel" style="font-weight: 800; font-size: 14px; color: #fef08a;">SQUAD COMMAND (${selectedUnits.length} UNITS)</div>
+              <div style="font-size: 11px; color: #cbd5e1; margin-top: 2px;">Combined Tactical Battlegroup</div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <div class="aoe3-portrait-box" style="width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 30px;">
+                ⚔️
+              </div>
+              <div style="font-size: 11px; color: #cbd5e1; line-height: 1.4;">
+                Right-click ground to march in line formation.<br />
+                Right-click enemy soldiers or fortifications to charge.
+              </div>
+            </div>
           </div>
         `;
 
@@ -570,19 +899,22 @@ export class HudView {
     // 2. Building Selected
     if (selectedBuildings.length > 0) {
       const bldg = selectedBuildings[0];
+      this.selectedBuildingId = bldg.id;
       const bdef = BUILDING_DEFINITIONS[bldg.type];
+      const owner = this.allPlayers.find(p => p.id === bldg.ownerId) || player;
+      const hpPercent = Math.max(0, Math.min(100, (bldg.hp / bldg.maxHp) * 100));
+      const hpColor = hpPercent > 50 ? '#22c55e' : hpPercent > 25 ? '#f59e0b' : '#ef4444';
 
       let activityHtml = '';
-
       if (!bldg.isConstructed) {
         activityHtml = `
-          <div style="margin-top: 6px;">
-            <div style="font-size: 11px; color: #f59e0b; display: flex; justify-content: space-between; font-weight: 700;">
-              <span>🔨 Construction Progress</span>
+          <div style="margin-top: 4px;">
+            <div style="font-size: 10px; color: #f59e0b; display: flex; justify-content: space-between; font-weight: 700;">
+              <span>🔨 Construction</span>
               <span>${Math.floor(bldg.constructionProgress)}%</span>
             </div>
-            <div style="width: 100%; height: 7px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 2px;">
-              <div style="width: ${bldg.constructionProgress}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #10b981); transition: width 0.1s linear;"></div>
+            <div style="width: 100%; height: 6px; background: #331d0d; border: 1px solid #8c6a34; border-radius: 3px; overflow: hidden; margin-top: 2px;">
+              <div style="width: ${bldg.constructionProgress}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #10b981);"></div>
             </div>
           </div>
         `;
@@ -590,136 +922,83 @@ export class HudView {
         const item = bldg.productionQueue[0];
         const itemName = item.itemType.replace('_', ' ').toUpperCase();
         activityHtml = `
-          <div style="margin-top: 6px;">
-            <div style="font-size: 11px; color: #38bdf8; display: flex; justify-content: space-between; font-weight: 700;">
-              <span>⚙️ Active: ${itemName}</span>
+          <div style="margin-top: 4px;">
+            <div style="font-size: 10px; color: #38bdf8; display: flex; justify-content: space-between; font-weight: 700;">
+              <span>⚙️ Training: ${itemName}</span>
               <span>${Math.floor(item.progress)}%</span>
             </div>
-            <div style="width: 100%; height: 7px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 2px;">
-              <div style="width: ${item.progress}%; height: 100%; background: linear-gradient(90deg, #06b6d4, #38bdf8); transition: width 0.1s linear;"></div>
+            <div style="width: 100%; height: 6px; background: #331d0d; border: 1px solid #8c6a34; border-radius: 3px; overflow: hidden; margin-top: 2px;">
+              <div style="width: ${item.progress}%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8);"></div>
             </div>
-            ${bldg.productionQueue.length > 1 ? `<div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">Queue: +${bldg.productionQueue.length - 1} item(s) pending</div>` : ''}
-          </div>
-        `;
-      } else if (bldg.type === 'farm') {
-        activityHtml = `
-          <div style="margin-top: 6px;">
-            <div style="font-size: 11px; color: #4ade80; display: flex; justify-content: space-between; font-weight: 700;">
-              <span>🌾 Agrarian Food Plot</span>
-              <span style="color: #86efac;">● WORKING</span>
-            </div>
-            <div style="width: 100%; height: 7px; background: #14532d; border-radius: 4px; overflow: hidden; margin-top: 2px;">
-              <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #22c55e, #86efac); opacity: 0.9;"></div>
-            </div>
-            <div style="font-size: 10px; color: #cbd5e1; margin-top: 2px;">Continuous food harvesting. Workers auto-deposit food.</div>
-          </div>
-        `;
-      } else if (bldg.type === 'research_hall') {
-        activityHtml = `
-          <div style="margin-top: 6px;">
-            <div style="font-size: 11px; color: #c084fc; display: flex; justify-content: space-between; font-weight: 700;">
-              <span>🧪 Research Academy</span>
-              <span style="color: #e9d5ff;">+1 Knowledge / sec</span>
-            </div>
-            <div style="width: 100%; height: 7px; background: #3b0764; border-radius: 4px; overflow: hidden; margin-top: 2px;">
-              <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #9333ea, #c084fc); opacity: 0.9;"></div>
-            </div>
-            <div style="font-size: 10px; color: #cbd5e1; margin-top: 2px;">Generates knowledge for advancing technology and ages.</div>
-          </div>
-        `;
-      } else if (bldg.type === 'lumber_camp' || bldg.type === 'quarry' || bldg.type === 'mining_camp') {
-        const resLabel = bldg.type === 'lumber_camp' ? 'Timber Depot' : bldg.type === 'quarry' ? 'Stone Depot' : 'Metal Depot';
-        activityHtml = `
-          <div style="margin-top: 6px;">
-            <div style="font-size: 11px; color: #38bdf8; display: flex; justify-content: space-between; font-weight: 700;">
-              <span>📦 ${resLabel}</span>
-              <span style="color: #4ade80;">● ACTIVE</span>
-            </div>
-            <div style="width: 100%; height: 7px; background: #0f172a; border-radius: 4px; overflow: hidden; margin-top: 2px;">
-              <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); opacity: 0.85;"></div>
-            </div>
-            <div style="font-size: 10px; color: #cbd5e1; margin-top: 2px;">Local resource drop-off station for gatherers.</div>
+            ${bldg.productionQueue.length > 1 ? `<div style="font-size: 9px; color: #fef08a; margin-top: 2px;">Queue: +${bldg.productionQueue.length - 1} pending</div>` : ''}
           </div>
         `;
       } else {
         activityHtml = `
-          <div style="margin-top: 6px;">
-            <div style="font-size: 11px; color: #64748b; display: flex; justify-content: space-between;">
-              <span>Status: Facility Idle</span>
-              <span style="color: #38bdf8;">Ready</span>
-            </div>
-            <div style="width: 100%; height: 7px; background: #1e293b; border-radius: 4px; overflow: hidden; margin-top: 2px;">
-              <div style="width: 100%; height: 100%; background: #334155;"></div>
-            </div>
+          <div style="font-size: 10px; color: #4ade80; font-weight: 700; margin-top: 4px;">
+            ● Operational & Garrison Ready
           </div>
         `;
       }
 
-      const isWorking = !bldg.isConstructed || bldg.productionQueue.length > 0 || bldg.type === 'farm' || bldg.type === 'research_hall';
-      const statusBadge = !bldg.isConstructed
-        ? `<span style="color: #f59e0b; font-weight: 600;">🔨 Building (${Math.floor(bldg.constructionProgress)}%)</span>`
-        : isWorking
-        ? `<span style="color: #4ade80; font-weight: 600;">⚙️ Working</span>`
-        : `<span style="color: #94a3b8;">Operational</span>`;
-
-      const isProductionBldg = ['town_centre', 'barracks', 'archery_range', 'stable', 'workshop', 'fort'].includes(bldg.type);
-      let rallyHtml = '';
-      if (isProductionBldg && bldg.ownerId === player.id) {
-        if (bldg.rallyPoint) {
-          let rallyDesc = `Ground (${Math.round(bldg.rallyPoint.x)}, ${Math.round(bldg.rallyPoint.y)})`;
-          if (bldg.rallyPoint.targetType === 'resource') {
-            rallyDesc = 'Resource Node (Auto-Gather)';
-          } else if (bldg.rallyPoint.targetType === 'building') {
-            rallyDesc = 'Building (Auto-Construct / Defend)';
-          }
-          rallyHtml = `
-            <div style="margin-top: 6px; padding: 5px 8px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; font-size: 11px; display: flex; align-items: center; justify-content: space-between;">
-              <span style="color: #38bdf8; font-weight: 700;">🚩 Checkpoint:</span>
-              <span style="color: #f8fafc; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 140px;" title="${rallyDesc}">${rallyDesc}</span>
-            </div>
-          `;
-        } else {
-          rallyHtml = `
-            <div style="margin-top: 6px; padding: 4px 8px; background: rgba(30, 41, 59, 0.6); border: 1px dashed rgba(148, 163, 184, 0.35); border-radius: 6px; font-size: 10px; color: #94a3b8; display: flex; align-items: center; gap: 4px;">
-              <span>🚩</span>
-              <span>Right-click ground / resource to set checkpoint</span>
-            </div>
-          `;
-        }
-      }
-
       this.selectionDetailsElem.innerHTML = `
-        <div>
-          <div style="font-weight: 700; font-size: 15px; color: #f8fafc;">${bdef.name}</div>
-          <div style="font-size: 12px; margin-top: 1px;">${statusBadge}</div>
-        </div>
-        <div>
-          <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
-            <span>Structure Integrity</span><span>${Math.ceil(bldg.hp)} / ${bldg.maxHp}</span>
+        <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+          <!-- Header: Title & Civ -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div>
+                <div class="cinzel" style="font-weight: 800; font-size: 14px; color: #fef08a; letter-spacing: 0.5px;">${bdef.name.toUpperCase()}</div>
+                <div style="font-size: 11px; color: #cbd5e1; display: flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${owner.color};"></span>
+                  <span>${owner.civ.toUpperCase()}</span>
+                  <span style="color: #94a3b8;">(${bldg.type.replace('_', ' ')})</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Health & Armor Row -->
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+              <div style="font-size: 11px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 3px;">
+                <span>❤️</span> <span>${Math.ceil(bldg.hp)}/${bldg.maxHp}</span>
+              </div>
+              <div style="flex: 1; height: 6px; background: #331d0d; border: 1px solid #8c6a34; border-radius: 3px; overflow: hidden;">
+                <div style="width: ${hpPercent}%; height: 100%; background: ${hpColor}; transition: width 0.15s ease;"></div>
+              </div>
+              <div style="font-size: 11px; color: #fef08a; font-weight: 700;">
+                <span>🛡️ Fortified</span>
+              </div>
+            </div>
           </div>
-          <div style="width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${(bldg.hp / bldg.maxHp) * 100}%; height: 100%; background: #38bdf8;"></div>
+
+          <!-- Body: Portrait & Stats -->
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <div class="aoe3-portrait-box" style="width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 32px;">
+              ${getPortrait(bldg.type, true)}
+            </div>
+
+            <div style="flex: 1;">
+              ${activityHtml}
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">
+                Population Supported: +${bdef.populationProvided || 0} • Sight: ${bdef.visionRange}
+              </div>
+            </div>
           </div>
         </div>
-        ${activityHtml}
-        ${rallyHtml}
       `;
 
-
       if (bldg.ownerId === player.id) {
-        const targetKey = `bldg_${bldg.id}_${bldg.type}_${bldg.isConstructed ? 'done' : 'prog'}_${player.age}`;
+        const targetKey = `bldg_${bldg.type}_${bldg.isConstructed}_${player.age}`;
         if (this.currentContextKey !== targetKey) {
           this.currentContextKey = targetKey;
           if (!bldg.isConstructed) {
             this.actionMatrixElem.innerHTML = `
-              <button id="btn-assign-builders" style="grid-column: span 4; grid-row: span 2; background: #16a34a; border: none; color: white; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <button id="btn-assign-builders" class="aoe3-action-btn" style="grid-column: span 5; grid-row: span 2; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px;">
                 <span>🔨</span> Send Workers to Build
               </button>
             `;
             this.actionMatrixElem.querySelector('#btn-assign-builders')?.addEventListener('click', () => {
               this.callbacks.onAssignWorkersToBuild(bldg.id);
               soundManager.playBuild();
-              this.showNotification(`🔨 Assigned workers to construct ${bdef.name}!`);
             });
           } else {
             this.renderBuildingActionMatrix(bldg, player);
@@ -736,6 +1015,9 @@ export class HudView {
     }
   }
 
+  // ==========================================
+  // ACTION MATRICES WITH AOE3 HOTKEYS (Q, W, E, R...)
+  // ==========================================
   private renderWorkerBuildMatrix(player: PlayerState): void {
     this.actionMatrixElem.innerHTML = '';
 
@@ -751,37 +1033,36 @@ export class HudView {
       { type: 'workshop', label: 'Workshop', icon: '⚙️', costText: '200W 100S' },
       { type: 'research_hall', label: 'Academy', icon: '📜', costText: '120W 60S' },
       { type: 'watchtower', label: 'Tower', icon: '🗼', costText: '60W 120S' },
-      { type: 'fort', label: 'Fort / Roost', icon: '🏰', costText: '180W 350S' }
+      { type: 'fort', label: 'Fortress', icon: '🏰', costText: '180W 350S' }
     ];
 
-    buildingsToOffer.forEach(b => {
+    const hotkeys = ['Q', 'W', 'E', 'R', 'T', 'A', 'S', 'D', 'F', 'G', 'Z', 'X'];
+
+    buildingsToOffer.forEach((b, idx) => {
       const def = BUILDING_DEFINITIONS[b.type];
       const ageRank = (a: AgeName) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
       const isAgeUnlocked = ageRank(player.age) >= ageRank(def.requiredAge);
 
       const btn = document.createElement('button');
-      btn.className = 'build-matrix-btn';
+      btn.className = 'build-matrix-btn aoe3-action-btn';
       btn.dataset.btype = b.type;
       btn.dataset.unlocked = isAgeUnlocked ? 'true' : 'false';
 
       btn.style.cssText = `
-        background: ${isAgeUnlocked ? '#1e293b' : '#0f172a'};
-        border: 1.5px solid ${isAgeUnlocked ? '#475569' : '#1e293b'};
-        color: ${isAgeUnlocked ? '#f8fafc' : '#475569'};
-        border-radius: 6px;
-        padding: 4px;
+        padding: 2px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         cursor: ${isAgeUnlocked ? 'pointer' : 'not-allowed'};
         font-size: 11px;
-        transition: all 0.15s ease;
+        ${!isAgeUnlocked ? 'opacity: 0.45;' : ''}
       `;
       btn.innerHTML = `
+        <span class="aoe3-hotkey-badge">${hotkeys[idx] || ''}</span>
         <span style="font-size: 14px;">${b.icon}</span>
-        <span style="font-weight: 600;">${b.label}</span>
-        <span class="cost-text" style="font-size: 9px; color: ${isAgeUnlocked ? '#94a3b8' : '#334155'};">${b.costText}</span>
+        <span style="font-weight: 700; font-size: 10px; line-height: 1;">${b.label}</span>
+        <span class="cost-text" style="font-size: 8.5px; color: ${isAgeUnlocked ? '#fef08a' : '#94a3b8'};">${b.costText}</span>
       `;
 
       btn.addEventListener('click', (e) => {
@@ -821,14 +1102,16 @@ export class HudView {
   private renderBuildingActionMatrix(bldg: BuildingData, player: PlayerState): void {
     this.actionMatrixElem.innerHTML = '';
 
-    // If Town Centre: train worker, advance age
+    // If Town Centre: train worker, advance age, summon dragon in imperial age
     if (bldg.type === 'town_centre') {
       const trainWorkerBtn = document.createElement('button');
-      trainWorkerBtn.style.cssText = 'background: #1e293b; border: 1px solid #475569; color: #f8fafc; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-size: 11px;';
+      trainWorkerBtn.className = 'aoe3-action-btn';
+      trainWorkerBtn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px;';
       trainWorkerBtn.innerHTML = `
-        <span style="font-size: 16px;">🧑‍🌾</span>
-        <span style="font-weight: 600;">Worker</span>
-        <span style="font-size: 9px; color: #94a3b8;">50 Food</span>
+        <span class="aoe3-hotkey-badge">Q</span>
+        <span style="font-size: 16px;">👨‍🌾</span>
+        <span style="font-weight: 700;">Worker</span>
+        <span style="font-size: 8.5px; color: #fef08a;">50 Food</span>
       `;
       trainWorkerBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -844,271 +1127,147 @@ export class HudView {
           return;
         }
         this.callbacks.onTrainUnit(bldg.id, 'worker');
-        this.showNotification(`🧑‍🌾 Worker training queued at Town Centre.`);
+        this.showNotification(`👨‍🌾 Worker training queued at Town Centre.`);
       });
       this.actionMatrixElem.appendChild(trainWorkerBtn);
 
-      // If Imperial or Industrial Age, summon War Dragon directly from Town Centre!
+      // If Imperial or Industrial Age, summon War Dragon
       if (player.age === 'Imperial Age' || player.age === 'Industrial Age') {
-        this.addTrainButton(bldg, 'dragon', 'War Dragon', '🐉', '150F 40W 120M 60K');
+        const dragonBtn = document.createElement('button');
+        dragonBtn.className = 'aoe3-action-btn';
+        dragonBtn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: #ef4444;';
+        dragonBtn.innerHTML = `
+          <span class="aoe3-hotkey-badge">W</span>
+          <span style="font-size: 16px;">🐉</span>
+          <span style="font-weight: 700; color: #f87171;">Dragon</span>
+          <span style="font-size: 8.5px; color: #fef08a;">250F 250G</span>
+        `;
+        dragonBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const curPlayer = this.currentPlayer || player;
+          if (curPlayer.population >= curPlayer.maxPopulation) {
+            soundManager.playError();
+            this.showNotification('⚠️ Population limit reached! Build more housing.');
+            return;
+          }
+          if (curPlayer.resources.food < 250 || curPlayer.resources.metal < 250) {
+            soundManager.playError();
+            this.showNotification('⚠️ War Dragon requires 250 Food & 250 Gold!');
+            return;
+          }
+          this.callbacks.onTrainUnit(bldg.id, 'dragon');
+          this.showNotification('🐉 Summoning War Dragon into the skies!');
+        });
+        this.actionMatrixElem.appendChild(dragonBtn);
       }
 
       // Advance Age Button
       const ageReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
       if (ageReq && ageReq.nextAge) {
-        const canAfford =
-          player.resources.food >= ageReq.cost.food &&
-          player.resources.wood >= ageReq.cost.wood &&
-          player.resources.stone >= ageReq.cost.stone &&
-          player.resources.metal >= ageReq.cost.metal &&
-          player.resources.knowledge >= ageReq.cost.knowledge;
-
         const ageBtn = document.createElement('button');
         ageBtn.id = 'hud-advance-age-btn';
-        ageBtn.style.cssText = `
-          background: ${canAfford ? 'linear-gradient(180deg, #d97706 0%, #b45309 100%)' : '#1e293b'};
-          border: 1.5px solid ${canAfford ? '#fbbf24' : '#475569'};
-          color: ${canAfford ? '#ffffff' : '#94a3b8'};
-          border-radius: 6px;
-          padding: 6px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          font-size: 11px;
-          grid-column: span 2;
-          box-shadow: ${canAfford ? '0 2px 8px rgba(217, 119, 6, 0.4)' : 'none'};
-        `;
-        const costItems: string[] = [];
-        if (ageReq.cost.food > 0) costItems.push(`${ageReq.cost.food}F`);
-        if (ageReq.cost.wood > 0) costItems.push(`${ageReq.cost.wood}W`);
-        if (ageReq.cost.stone > 0) costItems.push(`${ageReq.cost.stone}S`);
-        if (ageReq.cost.metal > 0) costItems.push(`${ageReq.cost.metal}M`);
-        if (ageReq.cost.knowledge > 0) costItems.push(`${ageReq.cost.knowledge}K`);
-
+        ageBtn.className = 'aoe3-action-btn';
+        ageBtn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: #d4af37;';
         ageBtn.innerHTML = `
+          <span class="aoe3-hotkey-badge">E</span>
           <span style="font-size: 16px;">👑</span>
-          <span style="font-weight: 700;">Advance to ${ageReq.nextAge}</span>
-          <span style="font-size: 9px; color: ${canAfford ? '#fef3c7' : '#94a3b8'};">${costItems.join(' ')}</span>
+          <span style="font-weight: 700; color: #fef08a;">Advance</span>
+          <span style="font-size: 8.5px; color: #cbd5e1;">Requirements</span>
         `;
         ageBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          const curPlayer = this.currentPlayer || player;
-          const missing: string[] = [];
-          if (curPlayer.resources.food < ageReq.cost.food) missing.push(`${ageReq.cost.food - Math.floor(curPlayer.resources.food)} Food`);
-          if (curPlayer.resources.wood < ageReq.cost.wood) missing.push(`${ageReq.cost.wood - Math.floor(curPlayer.resources.wood)} Wood`);
-          if (curPlayer.resources.stone < ageReq.cost.stone) missing.push(`${ageReq.cost.stone - Math.floor(curPlayer.resources.stone)} Stone`);
-          if (curPlayer.resources.metal < ageReq.cost.metal) missing.push(`${ageReq.cost.metal - Math.floor(curPlayer.resources.metal)} Metal`);
-          if (curPlayer.resources.knowledge < ageReq.cost.knowledge) missing.push(`${ageReq.cost.knowledge - Math.floor(curPlayer.resources.knowledge)} Knowledge`);
-
-          if (missing.length > 0) {
-            soundManager.playError();
-            this.showNotification(`⚠️ Need more resources to advance: ${missing.join(', ')}!`);
-            return;
-          }
-
-          this.callbacks.onAdvanceAge(bldg.id);
-          this.showNotification(`👑 Advancing civilization to ${ageReq.nextAge}...`);
+          this.toggleAgeModal();
         });
         this.actionMatrixElem.appendChild(ageBtn);
       }
     }
 
-    // Barracks
+    // Barracks Units
     if (bldg.type === 'barracks') {
-      this.addTrainButton(bldg, 'basic_infantry', 'Infantry', '⚔️', '60F 25W 10M');
-      this.addTrainButton(bldg, 'spearman', 'Spearman', '🛡️', '50F 40W 5M');
+      this.createTrainUnitButton(bldg, 'basic_infantry', 'Infantry', '⚔️', '60F 20G', 'Q', player);
+      this.createTrainUnitButton(bldg, 'spearman', 'Spearman', '🛡️', '50F 20W', 'W', player);
     }
 
-    // Archery Range
+    // Archery Range Units
     if (bldg.type === 'archery_range') {
-      this.addTrainButton(bldg, 'ranged_infantry', 'Marksman', '🏹', '40F 60W 15M');
+      this.createTrainUnitButton(bldg, 'ranged_infantry', 'Archer', '🏹', '40W 30G', 'Q', player);
     }
 
-    // Stable
+    // Stable Units
     if (bldg.type === 'stable') {
-      this.addTrainButton(bldg, 'cavalry', 'Cavalry', '🐎', '80F 30W 60M');
+      this.createTrainUnitButton(bldg, 'cavalry', 'Knight', '🏇', '80F 70G', 'Q', player);
     }
 
-    // Workshop
+    // Siege Workshop Units
     if (bldg.type === 'workshop') {
-      this.addTrainButton(bldg, 'siege_unit', 'Siege Bombard', '💣', '140W 50S 90M');
+      this.createTrainUnitButton(bldg, 'siege_unit', 'Catapult', '🎯', '150W 100S', 'Q', player);
     }
 
-    // Fort (Citadel & Dragon Roost)
+    // Fort / Roost: War Dragon
     if (bldg.type === 'fort') {
-      this.addTrainButton(bldg, 'advanced_unit', 'Imperial Vanguard', '🛡️', '120F 50W 120M');
-      this.addTrainButton(bldg, 'dragon', 'War Dragon', '🐉', '150F 40W 120M 60K');
+      this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'Q', player);
     }
 
-    // Research Hall (Academy)
+    // Research Hall: Technologies
     if (bldg.type === 'research_hall') {
-      const ageRank = (a: AgeName) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
-      const playerRank = ageRank(player.age);
-
-      // Filter out technologies that are already researched
-      const unresearched = Object.values(TECHNOLOGIES).filter(t => !player.researchedTechs.includes(t.id));
-
-      // Separate into currently available (age unlocked) and upcoming technologies
-      const availableTechs = unresearched.filter(t => ageRank(t.requiredAge) <= playerRank);
-      availableTechs.sort((a, b) => {
-        const aReady = a.prerequisites.every(p => player.researchedTechs.includes(p)) ? 0 : 1;
-        const bReady = b.prerequisites.every(p => player.researchedTechs.includes(p)) ? 0 : 1;
-        return aReady - bReady;
-      });
-
-      const upcomingTechs = unresearched
-        .filter(t => ageRank(t.requiredAge) > playerRank)
-        .sort((a, b) => ageRank(a.requiredAge) - ageRank(b.requiredAge));
-
-      // Populate up to 8 slots
-      const displayedTechs = [...availableTechs, ...upcomingTechs].slice(0, 8);
-
-      displayedTechs.forEach(t => {
-        const isQueued = bldg.productionQueue && bldg.productionQueue.some(item => item.itemType === t.id);
-        const meetsAge = ageRank(t.requiredAge) <= playerRank;
-        const missingPrereq = t.prerequisites.find(p => !player.researchedTechs.includes(p));
-        const meetsPrereqs = !missingPrereq;
-        const canAfford =
-          meetsAge &&
-          meetsPrereqs &&
-          !isQueued &&
-          player.resources.food >= t.cost.food &&
-          player.resources.wood >= t.cost.wood &&
-          player.resources.stone >= t.cost.stone &&
-          player.resources.metal >= t.cost.metal &&
-          player.resources.knowledge >= t.cost.knowledge;
-
-        // Build compact cost summary
-        const costParts: string[] = [];
-        if (t.cost.food > 0) costParts.push(`${t.cost.food}F`);
-        if (t.cost.wood > 0) costParts.push(`${t.cost.wood}W`);
-        if (t.cost.stone > 0) costParts.push(`${t.cost.stone}S`);
-        if (t.cost.metal > 0) costParts.push(`${t.cost.metal}M`);
-        if (t.cost.knowledge > 0) costParts.push(`${t.cost.knowledge}K`);
-        const costStr = costParts.join(' ');
-
+      const techList = Object.values(TECHNOLOGIES).filter(t => !player.researchedTechs.includes(t.id));
+      const hotkeys = ['Q', 'W', 'E', 'R'];
+      techList.slice(0, 4).forEach((t, idx) => {
         const btn = document.createElement('button');
-        const prereqName = missingPrereq ? (TECHNOLOGIES[missingPrereq]?.name || missingPrereq) : '';
-        btn.title = `${t.name} (${t.requiredAge})\n${t.description}\n\nCost: ${costStr}${!meetsAge ? `\n⚠️ Locked: Requires advancing to ${t.requiredAge}` : ''}${missingPrereq ? `\n⚠️ Locked: Requires researching ${prereqName} first` : ''}`;
-
-        btn.style.cssText = `
-          background: ${isQueued ? '#083344' : canAfford ? '#1e293b' : '#0f172a'};
-          border: 1px solid ${isQueued ? '#06b6d4' : canAfford ? '#38bdf8' : '#334155'};
-          color: ${isQueued ? '#67e8f9' : canAfford ? '#f8fafc' : '#64748b'};
-          border-radius: 6px;
-          padding: 4px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          cursor: ${isQueued ? 'default' : meetsAge && meetsPrereqs ? 'pointer' : 'not-allowed'};
-          font-size: 10px;
-          transition: all 0.15s ease;
-        `;
-
-        let subtitle = `<span style="font-size: 8px; color: ${canAfford ? '#38bdf8' : '#94a3b8'};">${costStr}</span>`;
-        if (isQueued) {
-          subtitle = `<span style="font-size: 8px; color: #06b6d4; font-weight: 700;">⚙️ In Queue</span>`;
-        } else if (!meetsAge) {
-          subtitle = `<span style="font-size: 8px; color: #f43f5e; font-weight: 600;">🔒 ${t.requiredAge}</span>`;
-        } else if (!meetsPrereqs) {
-          subtitle = `<span style="font-size: 8px; color: #eab308; font-weight: 600;">🔒 Req: ${prereqName}</span>`;
-        }
-
+        btn.className = 'aoe3-action-btn';
+        btn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px;';
         btn.innerHTML = `
-          <span style="font-weight: 600; color: ${isQueued ? '#38bdf8' : meetsAge && meetsPrereqs ? '#f8fafc' : '#64748b'}; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">${t.name}</span>
-          ${subtitle}
+          <span class="aoe3-hotkey-badge">${hotkeys[idx]}</span>
+          <span style="font-size: 16px;">🧪</span>
+          <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55px;">${t.name}</span>
+          <span style="font-size: 8.5px; color: #fef08a;">${t.cost.knowledge}K</span>
         `;
-
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           const curPlayer = this.currentPlayer || player;
-          const curRank = ageRank(curPlayer.age);
-
-          if (isQueued || (bldg.productionQueue && bldg.productionQueue.some(item => item.itemType === t.id))) {
-            this.showNotification(`⚙️ ${t.name} is already being researched!`);
-            return;
-          }
-
-          if (ageRank(t.requiredAge) > curRank) {
+          if (curPlayer.resources.knowledge < t.cost.knowledge) {
             soundManager.playError();
-            this.showNotification(`🔒 ${t.name} requires advancing to ${t.requiredAge} at the Town Centre!`);
+            this.showNotification(`⚠️ Need ${t.cost.knowledge} Knowledge to research ${t.name}!`);
             return;
           }
-
-          const curMissingPrereq = t.prerequisites.find(p => !curPlayer.researchedTechs.includes(p));
-          if (curMissingPrereq) {
-            soundManager.playError();
-            const curPrereqName = TECHNOLOGIES[curMissingPrereq]?.name || curMissingPrereq;
-            this.showNotification(`🔒 ${t.name} requires researching ${curPrereqName} first!`);
-            return;
-          }
-
-          const missingResources: string[] = [];
-          if (curPlayer.resources.food < t.cost.food) missingResources.push(`${t.cost.food - curPlayer.resources.food} Food`);
-          if (curPlayer.resources.wood < t.cost.wood) missingResources.push(`${t.cost.wood - curPlayer.resources.wood} Wood`);
-          if (curPlayer.resources.stone < t.cost.stone) missingResources.push(`${t.cost.stone - curPlayer.resources.stone} Stone`);
-          if (curPlayer.resources.metal < t.cost.metal) missingResources.push(`${t.cost.metal - curPlayer.resources.metal} Metal`);
-          if (curPlayer.resources.knowledge < t.cost.knowledge) missingResources.push(`${t.cost.knowledge - curPlayer.resources.knowledge} Knowledge`);
-
-          if (missingResources.length > 0) {
-            soundManager.playError();
-            this.showNotification(`⚠️ Need ${missingResources.join(', ')} to research ${t.name}!`);
-            return;
-          }
-
           this.callbacks.onResearchTech(bldg.id, t.id);
-          this.showNotification(`📜 Commenced research: ${t.name}`);
+          this.showNotification(`🧪 Research started: ${t.name}`);
         });
-
         this.actionMatrixElem.appendChild(btn);
       });
     }
   }
 
-  private updateActionMatrixDynamicState(player: PlayerState): void {
-    // Dynamically update Advance Age button styles
-    const ageBtn = this.actionMatrixElem.querySelector<HTMLElement>('#hud-advance-age-btn');
-    if (ageBtn) {
-      const ageReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
-      if (ageReq && ageReq.nextAge) {
-        const canAfford =
-          player.resources.food >= ageReq.cost.food &&
-          player.resources.wood >= ageReq.cost.wood &&
-          player.resources.stone >= ageReq.cost.stone &&
-          player.resources.metal >= ageReq.cost.metal &&
-          player.resources.knowledge >= ageReq.cost.knowledge;
-
-        ageBtn.style.background = canAfford ? 'linear-gradient(180deg, #d97706 0%, #b45309 100%)' : '#1e293b';
-        ageBtn.style.borderColor = canAfford ? '#fbbf24' : '#475569';
-        ageBtn.style.color = canAfford ? '#ffffff' : '#94a3b8';
-      }
-    }
-  }
-
-  private addTrainButton(bldg: BuildingData, unitType: UnitType, label: string, icon: string, costText: string): void {
-    const btn = document.createElement('button');
+  private createTrainUnitButton(
+    bldg: BuildingData,
+    unitType: UnitType,
+    label: string,
+    icon: string,
+    costText: string,
+    hotkey: string,
+    player: PlayerState
+  ): void {
     const isDragon = unitType === 'dragon';
-    btn.style.cssText = isDragon
-      ? 'background: linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%); border: 1.5px solid #f97316; color: #f8fafc; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; box-shadow: 0 0 10px rgba(249, 115, 22, 0.45);'
-      : 'background: #1e293b; border: 1px solid #475569; color: #f8fafc; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-size: 11px;';
+    const btn = document.createElement('button');
+    btn.className = 'aoe3-action-btn';
+    btn.style.cssText = `padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; ${isDragon ? 'border-color: #ef4444;' : ''}`;
     btn.innerHTML = `
+      <span class="aoe3-hotkey-badge">${hotkey}</span>
       <span style="font-size: 16px;">${icon}</span>
-      <span style="font-weight: 700; ${isDragon ? 'color: #fed7aa;' : ''}">${label}</span>
-      <span style="font-size: 9px; color: ${isDragon ? '#fdba74' : '#94a3b8'};">${costText}</span>
+      <span style="font-weight: 700; ${isDragon ? 'color: #f87171;' : ''}">${label}</span>
+      <span style="font-size: 8.5px; color: #fef08a;">${costText}</span>
     `;
+
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      const curPlayer = this.currentPlayer || player;
+      if (curPlayer.population >= curPlayer.maxPopulation) {
+        soundManager.playError();
+        this.showNotification(`⚠️ Population cap reached (${curPlayer.population}/${curPlayer.maxPopulation})! Construct Houses.`);
+        return;
+      }
       const udef = UNIT_DEFINITIONS[unitType];
-      const curPlayer = this.currentPlayer;
-      if (curPlayer) {
-        if (curPlayer.population + udef.populationCost > curPlayer.maxPopulation) {
-          soundManager.playError();
-          this.showNotification(`⚠️ Population limit reached! Build Houses to recruit more troops.`);
-          return;
-        }
+      if (udef) {
         const canAfford =
           curPlayer.resources.food >= udef.cost.food &&
           curPlayer.resources.wood >= udef.cost.wood &&
@@ -1117,7 +1276,7 @@ export class HudView {
           curPlayer.resources.knowledge >= udef.cost.knowledge;
         if (!canAfford) {
           soundManager.playError();
-          this.showNotification(`⚠️ Need ${costText} to recruit ${label}!`);
+          this.showNotification(`⚠️ Insufficient resources! Need ${costText} to recruit ${label}.`);
           return;
         }
       }
@@ -1127,7 +1286,225 @@ export class HudView {
     this.actionMatrixElem.appendChild(btn);
   }
 
-  // Age Advancement Modal Dialog
+  private updateActionMatrixDynamicState(player: PlayerState): void {
+    const ageBtn = this.actionMatrixElem.querySelector<HTMLElement>('#hud-advance-age-btn');
+    if (ageBtn) {
+      const ageReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
+      if (ageReq) {
+        const canAfford =
+          player.resources.food >= ageReq.cost.food &&
+          player.resources.wood >= ageReq.cost.wood &&
+          player.resources.stone >= ageReq.cost.stone &&
+          player.resources.metal >= ageReq.cost.metal &&
+          player.resources.knowledge >= ageReq.cost.knowledge;
+        ageBtn.style.borderColor = canAfford ? '#fbbf24' : '#64748b';
+      }
+    }
+  }
+
+  // ==========================================
+  // PLACEMENT BANNER & RESOURCE TOOLTIPS
+  // ==========================================
+  public setPlacementActive(type: BuildingType | null): void {
+    this.activePlacementType = type;
+    if (!type) {
+      if (this.placementBannerElem) {
+        this.placementBannerElem.remove();
+        this.placementBannerElem = null;
+      }
+      this.actionMatrixElem.querySelectorAll<HTMLElement>('.build-matrix-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      return;
+    }
+
+    const def = BUILDING_DEFINITIONS[type];
+    if (!this.placementBannerElem) {
+      this.placementBannerElem = document.createElement('div');
+      this.placementBannerElem.style.cssText = `
+        position: absolute;
+        top: 68px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(18, 9, 4, 0.95);
+        border: 2px solid #d4af37;
+        border-radius: 4px;
+        padding: 6px 20px;
+        color: #fef08a;
+        font-size: 12px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
+        z-index: 1000;
+        pointer-events: auto;
+      `;
+      this.rootElem.appendChild(this.placementBannerElem);
+    }
+
+    this.placementBannerElem.innerHTML = `
+      <span>🔨 Placing <strong>${def.name}</strong></span>
+      <span style="font-size: 11px; color: #cbd5e1;">Left-Click terrain to build • Right-Click / ESC to cancel</span>
+      <button id="btn-cancel-placement" class="aoe-btn-crimson" style="padding: 2px 10px; font-size: 10px;">Cancel</button>
+    `;
+
+    this.placementBannerElem.querySelector('#btn-cancel-placement')?.addEventListener('click', () => {
+      this.callbacks.onCancelPlacement?.();
+    });
+
+    this.actionMatrixElem.querySelectorAll<HTMLElement>('.build-matrix-btn').forEach(btn => {
+      if (btn.dataset.btype === type) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  private createHoverTooltip(): void {
+    this.hoverTooltipElem = document.createElement('div');
+    this.hoverTooltipElem.id = 'hud-hover-tooltip';
+    this.hoverTooltipElem.style.cssText = `
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      z-index: 1000;
+      background: rgba(18, 9, 4, 0.96);
+      border: 1.5px solid #d4af37;
+      border-radius: 4px;
+      padding: 8px 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
+      white-space: nowrap;
+      transition: opacity 0.12s ease;
+    `;
+    this.rootElem.appendChild(this.hoverTooltipElem);
+  }
+
+  public showResourceHoverTooltip(screenX: number, screenY: number, node: ResourceNodeData): void {
+    let icon = '🪙';
+    let name = 'Gold Vein / Mine';
+    let typeName = 'Gold';
+    let hint = 'Right-click with Workers to Mine Gold';
+
+    if (node.type === 'metal') {
+      icon = '🪙';
+      name = 'Gold Vein / Ore';
+      typeName = 'Gold';
+      hint = 'Right-click with Workers to Mine Gold';
+    } else if (node.type === 'wood') {
+      icon = '🌲';
+      name = 'Timber Forest';
+      typeName = 'Wood';
+      hint = 'Right-click with Workers to Chop Lumber';
+    } else if (node.type === 'stone') {
+      icon = '🪨';
+      name = 'Granite Stone Quarry';
+      typeName = 'Stone';
+      hint = 'Right-click with Workers to Quarry Stone';
+    } else if (node.type === 'food') {
+      icon = '🌾';
+      name = 'Forage Berry Plot';
+      typeName = 'Food';
+      hint = 'Right-click with Workers to Forage Food';
+    }
+
+    const maxStock = node.maxAmount || (node.type === 'wood' ? 600 : node.type === 'stone' ? 800 : node.type === 'food' ? 500 : 1000);
+    const percent = Math.max(0, Math.min(100, Math.round((node.amount / maxStock) * 100)));
+
+    this.hoverTooltipElem.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <span style="font-size: 18px;">${icon}</span>
+        <div>
+          <div class="cinzel" style="font-weight: 800; font-size: 13px; color: #fef08a;">${name}</div>
+          <div style="font-size: 10px; color: #94a3b8;">${typeName} Deposit</div>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: #f8fafc; margin-bottom: 2px;">Remaining: <strong>${Math.floor(node.amount)}</strong> / ${maxStock} (${percent}%)</div>
+      <div style="width: 140px; height: 5px; background: #331d0d; border-radius: 2px; overflow: hidden; margin-bottom: 4px;">
+        <div style="width: ${percent}%; height: 100%; background: #22c55e;"></div>
+      </div>
+      <div style="font-size: 9.5px; color: #cbd5e1; font-style: italic;">${hint}</div>
+    `;
+
+    this.hoverTooltipElem.style.left = `${screenX + 16}px`;
+    this.hoverTooltipElem.style.top = `${screenY - 24}px`;
+    this.hoverTooltipElem.style.display = 'block';
+  }
+
+  public hideResourceHoverTooltip(): void {
+    if (this.hoverTooltipElem) {
+      this.hoverTooltipElem.style.display = 'none';
+    }
+  }
+
+  public showResourceDetails(node: ResourceNodeData): void {
+    let icon = '🪙';
+    let name = 'Gold Vein Deposit';
+    let desc = 'Rich golden ore nuggets. Essential for advanced military training, war dragons, and imperial wonders.';
+    if (node.type === 'metal') {
+      icon = '🪙';
+      name = 'Gold Vein Deposit';
+      desc = 'Rich golden ore nuggets. Essential for advanced military training, war dragons, and imperial wonders.';
+    } else if (node.type === 'wood') {
+      icon = '🌲';
+      name = 'Timber Forest';
+      desc = 'Dense woodland timber. Send workers to harvest lumber for buildings, archery, and siege workshops.';
+    } else if (node.type === 'stone') {
+      icon = '🪨';
+      name = 'Granite Stone Quarry';
+      desc = 'Hard natural stone outcrop. Essential for fortresses, walls, watchtowers, and town centres.';
+    } else if (node.type === 'food') {
+      icon = '🌾';
+      name = 'Forage Berry Bush';
+      desc = 'Wild agrarian food source. Immediate food supply for training workers and initial military forces.';
+    }
+
+    const maxStock = node.maxAmount || 800;
+    const percent = Math.max(0, Math.min(100, Math.round((node.amount / maxStock) * 100)));
+
+    this.currentContextKey = 'resource_selected';
+    this.selectedBuildingId = null;
+
+    this.selectionDetailsElem.innerHTML = `
+      <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div class="cinzel" style="font-weight: 800; font-size: 14px; color: #fef08a;">${name.toUpperCase()}</div>
+              <div style="font-size: 11px; color: #cbd5e1;">Natural Resource Node</div>
+            </div>
+            <span style="font-size: 20px;">${icon}</span>
+          </div>
+
+          <div style="margin-top: 8px;">
+            <div style="font-size: 11px; color: #f8fafc; display: flex; justify-content: space-between;">
+              <span>Stockpile</span>
+              <strong>${Math.floor(node.amount)} / ${maxStock}</strong>
+            </div>
+            <div style="width: 100%; height: 6px; background: #331d0d; border: 1px solid #8c6a34; border-radius: 3px; overflow: hidden; margin-top: 3px;">
+              <div style="width: ${percent}%; height: 100%; background: #22c55e;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 11px; color: #cbd5e1; line-height: 1.4;">
+          ${desc}
+        </div>
+      </div>
+    `;
+
+    this.actionMatrixElem.innerHTML = `
+      <div style="grid-column: span 5; grid-row: span 3; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #fef08a; font-size: 11px; text-align: center; padding: 6px;">
+        <span style="font-size: 24px; margin-bottom: 4px;">👨‍🌾</span>
+        <span>Right-click with citizen workers to assign them to harvest this deposit.</span>
+      </div>
+    `;
+  }
+
+  // ==========================================
+  // AGE ADVANCEMENT & CO-OP MODALS
+  // ==========================================
   private toggleAgeModal(): void {
     if (this.ageModalElem) {
       this.ageModalElem.remove();
@@ -1235,7 +1612,6 @@ export class HudView {
     }
   }
 
-  // Co-op Tribute Modal Dialog
   private toggleCoopModal(): void {
     if (this.coopModalElem) {
       this.coopModalElem.remove();

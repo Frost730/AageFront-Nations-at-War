@@ -109,6 +109,17 @@ class GameApp {
       onSelectIdleWorker: () => {
         this.selectNextIdleWorker();
       },
+      onSelectAllMilitary: () => {
+        const military = this.currentUnits.filter(
+          u => u.ownerId === this.myPlayerId && u.type !== 'worker' && u.state !== 'dead'
+        );
+        if (military.length > 0) {
+          this.selection.selectMultiple(military.map(u => u.id));
+          this.hud.showNotification(`📯 Selected ${military.length} combat units!`);
+        } else {
+          this.hud.showNotification('ℹ️ No active combat units in your regiment.');
+        }
+      },
       onAssignWorkersToBuild: (buildingId: string) => {
         const myWorkers = this.currentUnits.filter(u => u.ownerId === this.myPlayerId && u.type === 'worker' && u.state !== 'dead');
         const workerIds = myWorkers.map(w => w.id);
@@ -375,7 +386,16 @@ class GameApp {
     const myTC = this.currentBuildings.find(b => b.ownerId === this.myPlayerId && b.type === 'town_centre');
 
     if (me) {
-      this.hud.updatePlayerStats(me, idleCount, myTC?.id, this.currentPlayers);
+      const elapsedSec = (performance.now() - this.matchStartTime) / 1000;
+      this.hud.updatePlayerStats(
+        me,
+        idleCount,
+        myTC?.id,
+        this.currentPlayers,
+        this.currentUnits,
+        this.currentBuildings,
+        elapsedSec
+      );
     }
 
     // Process Events

@@ -27,12 +27,12 @@ export class Minimap {
     this.onNavigate = onNavigate;
 
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 180;
-    this.canvas.height = 180;
-    this.canvas.style.width = '180px';
-    this.canvas.style.height = '180px';
-    this.canvas.style.borderRadius = '8px';
-    this.canvas.style.border = '2px solid #334155';
+    this.canvas.width = 190;
+    this.canvas.height = 190;
+    this.canvas.style.width = '190px';
+    this.canvas.style.height = '190px';
+    this.canvas.style.borderRadius = '50%';
+    this.canvas.style.border = 'none';
     this.canvas.style.background = '#090d16';
     this.canvas.style.cursor = 'crosshair';
 
@@ -168,14 +168,27 @@ export class Minimap {
     // 5. Draw Fog Overlay smoothly via pre-rasterized fog canvas (Zero GPU readback stall!)
     this.ctx.drawImage(fog.getCanvas(), 0, 0, this.width, this.height);
 
-    // 6. Draw Camera View Box
-    const camBoxW = 20 * scaleX;
-    const camBoxH = 16 * scaleY;
+    // 6. Draw Isometric Camera View Frustum (Trapezoid matching 3D perspective)
     const camCenterX = cameraTargetX * scaleX;
     const camCenterY = cameraTargetZ * scaleY;
+    const nearW = 16 * scaleX;
+    const farW = 28 * scaleX;
+    const depth = 20 * scaleY;
+    const bottomY = camCenterY + depth * 0.45;
+    const topY = camCenterY - depth * 0.55;
 
+    this.ctx.save();
     this.ctx.strokeStyle = '#ffffff';
-    this.ctx.lineWidth = 1.5;
-    this.ctx.strokeRect(camCenterX - camBoxW / 2, camCenterY - camBoxH / 2, camBoxW, camBoxH);
+    this.ctx.lineWidth = 1.6;
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    this.ctx.beginPath();
+    this.ctx.moveTo(camCenterX - nearW / 2, bottomY);
+    this.ctx.lineTo(camCenterX + nearW / 2, bottomY);
+    this.ctx.lineTo(camCenterX + farW / 2, topY);
+    this.ctx.lineTo(camCenterX - farW / 2, topY);
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 }
