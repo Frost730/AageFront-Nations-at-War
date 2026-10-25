@@ -256,12 +256,20 @@ export class GridPathfinder {
     startY: number,
     endX: number,
     endY: number,
-    maxSteps: number = 12000
+    maxSteps: number = 4000
   ): Vector2D[] {
     let sx = Math.floor(startX);
     let sy = Math.floor(startY);
     let ex = Math.floor(endX);
     let ey = Math.floor(endY);
+
+    // Fast-path: If start and end are already equal
+    if (sx === ex && sy === ey) return [];
+
+    // Fast direct line-of-sight check across open field/terrain (skips costly A* graph expansion)
+    if (this.isWalkable(sx, sy) && this.isWalkable(ex, ey) && this.hasLineOfSight(sx + 0.5, sy + 0.5, ex + 0.5, ey + 0.5)) {
+      return [{ x: ex + 0.5, y: ey + 0.5 }];
+    }
 
     // 1. Recover if starting tile is blocked (e.g. spawned near wall or building)
     if (!this.isWalkable(sx, sy)) {

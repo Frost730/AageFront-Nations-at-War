@@ -20,6 +20,7 @@ import { CIVILIZATIONS } from '../constants/civilizations.js';
 import { TECHNOLOGIES, AGE_ADVANCEMENT_REQUIREMENTS } from '../constants/technologies.js';
 import { generateMap, GeneratedMap } from './mapGenerator.js';
 import { GridPathfinder } from './pathfinding.js';
+import { SpatialUnitGrid } from './spatialGrid.js';
 
 export interface AICommanderState {
   playerId: string;
@@ -41,6 +42,8 @@ export class SimulationEngine {
   public resourceNodes: Map<string, ResourceNodeData> = new Map();
   public mapData: GeneratedMap;
   public pathfinder: GridPathfinder;
+  public spatialGrid: SpatialUnitGrid;
+  private territoryDirty: boolean = true;
 
   public currentTick: number = 0;
   public isGameOver: boolean = false;
@@ -60,6 +63,7 @@ export class SimulationEngine {
     this.settings = settings;
     this.mapData = generateMap(settings.mapType, settings.mapSize, settings.seed, initialPlayers.length);
     this.pathfinder = new GridPathfinder(this.mapData.width, this.mapData.height);
+    this.spatialGrid = new SpatialUnitGrid(this.mapData.width, this.mapData.height, 4);
 
     // Initial walkability from map tiles
     for (let y = 0; y < this.mapData.height; y++) {
@@ -878,6 +882,8 @@ export class SimulationEngine {
       }
     }
 
+    this.spatialGrid.build(this.units.values());
+
     this.updateGates();
 
     // 2. Units Tick (movement, attack, gather, build, repair)
@@ -921,7 +927,9 @@ export class SimulationEngine {
         let friendlyNearby = false;
         let unitDirectlyOnGate = false;
 
-        for (const u of this.units.values()) {
+        const nearbyUnits = this.spatialGrid.queryInRadius(gateCenterX, gateCenterY, 3.2);
+        for (let i = 0; i < nearbyUnits.length; i++) {
+          const u = nearbyUnits[i];
           if (u.state === 'dead') continue;
           const d = Math.hypot(u.x - gateCenterX, u.y - gateCenterY);
           if (d < 1.1) {
@@ -1005,7 +1013,9 @@ export class SimulationEngine {
 
         // Tactical unit target evaluation (counter-multiplier bonus and focus-fire low HP units)
         if (!nearestEnemyId) {
-          for (const eu of this.units.values()) {
+          const candidates = this.spatialGrid.queryInRadius(unit.x, unit.y, minEnemyDist);
+          for (let i = 0; i < candidates.length; i++) {
+            const eu = candidates[i];
             if (eu.team !== unit.team && eu.state !== 'dead') {
               const d = Math.hypot(eu.x - unit.x, eu.y - unit.y);
               if (currentStance === 'stand_ground' && d > attackRange + 0.3) continue;
@@ -1449,40 +1459,35 @@ export class SimulationEngine {
       }
     }
 
-    // Soft friendly unit separation (repulsion) so units and siege engines never bottleneck or freeze on each other
-    const activeUnits = Array.from(this.units.values()).filter(u => u.state !== 'dead');
-    for (let i = 0; i < activeUnits.length; i++) {
-      const u1 = activeUnits[i];
-      for (let j = i + 1; j < activeUnits.length; j++) {
-        const u2 = activeUnits[j];
-        const dx = u2.x - u1.x;
-        const dy = u2.y - u1.y;
-        const distSq = dx * dx + dy * dy;
-        const minGap = (u1.type === 'siege_unit' || u2.type === 'siege_unit') ? 1.15 : 0.65;
-        const minGapSq = minGap * minGap;
+    // Soft friendly unit separation (repulsion) optimized with spatial partitioning O(N)
+    this.spatialGrid.forEachNearbyPair((u1, u2) => {
+      const dx = u2.x - u1.x;
+      const dy = u2.y - u1.y;
+      const distSq = dx * dx + dy * dy;
+      const minGap = (u1.type === 'siege_unit' || u2.type === 'siege_unit') ? 1.15 : 0.65;
+      const minGapSq = minGap * minGap;
 
-        if (distSq < minGapSq && distSq > 0.0001) {
-          const dist = Math.sqrt(distSq);
-          const overlap = (minGap - dist) * 0.5;
-          const nx = (dx / dist) * overlap * 0.25;
-          const ny = (dy / dist) * overlap * 0.25;
+      if (distSq < minGapSq && distSq > 0.0001) {
+        const dist = Math.sqrt(distSq);
+        const overlap = (minGap - dist) * 0.5;
+        const nx = (dx / dist) * overlap * 0.25;
+        const ny = (dy / dist) * overlap * 0.25;
 
-          const p1x = Math.floor(u1.x - nx);
-          const p1y = Math.floor(u1.y - ny);
-          if (this.pathfinder.isWalkable(p1x, p1y)) {
-            u1.x -= nx;
-            u1.y -= ny;
-          }
+        const p1x = Math.floor(u1.x - nx);
+        const p1y = Math.floor(u1.y - ny);
+        if (this.pathfinder.isWalkable(p1x, p1y)) {
+          u1.x -= nx;
+          u1.y -= ny;
+        }
 
-          const p2x = Math.floor(u2.x + nx);
-          const p2y = Math.floor(u2.y + ny);
-          if (this.pathfinder.isWalkable(p2x, p2y)) {
-            u2.x += nx;
-            u2.y += ny;
-          }
+        const p2x = Math.floor(u2.x + nx);
+        const p2y = Math.floor(u2.y + ny);
+        if (this.pathfinder.isWalkable(p2x, p2y)) {
+          u2.x += nx;
+          u2.y += ny;
         }
       }
-    }
+    });
   }
 
   private stepUnitMovement(unit: UnitData, speed: number, dt: number): void {
@@ -1679,7 +1684,9 @@ export class SimulationEngine {
           const cx = bldg.x + bldg.width / 2;
           const cy = bldg.y + bldg.height / 2;
 
-          for (const u of this.units.values()) {
+          const nearbyEnemies = this.spatialGrid.queryInRadius(cx, cy, maxRange);
+          for (let i = 0; i < nearbyEnemies.length; i++) {
+            const u = nearbyEnemies[i];
             if (u.team !== bldg.team && u.state !== 'dead') {
               const d = Math.hypot(u.x - cx, u.y - cy);
               if (d < closestDist) {
@@ -1977,6 +1984,7 @@ export class SimulationEngine {
     }
 
     this.buildings.delete(bldgId);
+    this.territoryDirty = true;
     this.pendingEvents.push({ type: 'BUILDING_DESTROYED', buildingId: bldgId });
     this.checkVictoryConditions();
   }
@@ -2005,6 +2013,8 @@ export class SimulationEngine {
   }
 
   private recalculateTerritory(): void {
+    if (!this.territoryDirty) return;
+    this.territoryDirty = false;
     // Reset tile territory
     for (const tile of this.mapData.tiles) {
       tile.territoryOwnerId = undefined;
@@ -2085,15 +2095,18 @@ export class SimulationEngine {
     // 1. Priority: Construction sites needing builders or damaged buildings needing repair
     let bestBldgToWork: BuildingData | null = null;
     let bestBldgDist = Infinity;
+    // Pre-calculate active repair/construction workers per building in a single linear pass
+    const activeBuilders = new Map<string, number>();
+    for (const u of this.units.values()) {
+      if (u.targetEntityId && (u.state === 'building' || u.state === 'repairing')) {
+        activeBuilders.set(u.targetEntityId, (activeBuilders.get(u.targetEntityId) || 0) + 1);
+      }
+    }
+
     for (const b of this.buildings.values()) {
       const isFriendly = b.ownerId === worker.ownerId || (player.team !== undefined && b.team === player.team);
       if (isFriendly && (!b.isConstructed || b.hp < b.maxHp * 0.9)) {
-        let currentWorkers = 0;
-        for (const u of this.units.values()) {
-          if (u.targetEntityId === b.id && (u.state === 'building' || u.state === 'repairing')) {
-            currentWorkers++;
-          }
-        }
+        const currentWorkers = activeBuilders.get(b.id) || 0;
         const maxAllowed = b.isConstructed ? 2 : 4;
         if (currentWorkers < maxAllowed) {
           const d = Math.hypot(b.x - worker.x, b.y - worker.y);
@@ -2878,7 +2891,9 @@ export class SimulationEngine {
       // Threat to self base: enemy military units or units attacking our buildings/units within 22 tiles
       let selfThreatTarget: UnitData | null = null;
       let minSelfThreatDist = Infinity;
-      for (const eu of this.units.values()) {
+      const nearbyBaseUnits = this.spatialGrid.queryInRadius(basePos.x, basePos.y, 32);
+      for (let i = 0; i < nearbyBaseUnits.length; i++) {
+        const eu = nearbyBaseUnits[i];
         if (eu.team !== player.team && eu.state !== 'dead') {
           const isThreatType = (eu.type !== 'worker' && eu.type !== 'scout') || eu.state === 'attacking';
           if (!isThreatType) continue;
@@ -2899,12 +2914,14 @@ export class SimulationEngine {
       for (const tm of teammates) {
         if (tm.id === player.id) continue;
         const tmBldgs = Array.from(this.buildings.values()).filter(b => b.ownerId === tm.id && b.hp > 0);
-        for (const eu of this.units.values()) {
-          if (eu.team !== player.team && eu.state !== 'dead') {
-            const isThreatType = (eu.type !== 'worker' && eu.type !== 'scout') || eu.state === 'attacking';
-            if (!isThreatType) continue;
+        for (const tb of tmBldgs) {
+          const nearbyEnemies = this.spatialGrid.queryInRadius(tb.x, tb.y, 22);
+          for (let i = 0; i < nearbyEnemies.length; i++) {
+            const eu = nearbyEnemies[i];
+            if (eu.team !== player.team && eu.state !== 'dead') {
+              const isThreatType = (eu.type !== 'worker' && eu.type !== 'scout') || eu.state === 'attacking';
+              if (!isThreatType) continue;
 
-            for (const tb of tmBldgs) {
               const d = Math.hypot(eu.x - tb.x, eu.y - tb.y);
               if (d < 22 && d < minAllyThreatDist) {
                 minAllyThreatDist = d;
@@ -2974,8 +2991,8 @@ export class SimulationEngine {
         for (const hid of state.harassUnitIds) {
           const hu = this.units.get(hid);
           if (hu) {
-            const nearbyCombatEnemies = Array.from(this.units.values()).filter(
-              eu => eu.team !== player.team && eu.type !== 'worker' && eu.state !== 'dead' && Math.hypot(eu.x - hu.x, eu.y - hu.y) < 8
+            const nearbyCombatEnemies = this.spatialGrid.queryInRadius(hu.x, hu.y, 8).filter(
+              eu => eu.team !== player.team && eu.type !== 'worker' && eu.state !== 'dead'
             );
             if (nearbyCombatEnemies.length >= 2) {
               shouldDisengage = true;

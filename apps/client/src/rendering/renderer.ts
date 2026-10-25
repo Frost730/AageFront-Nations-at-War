@@ -474,6 +474,17 @@ export class GameRenderer {
       this.fogOfWar.updateVisibility(units, buildings, myPlayerId, myTeam, hasCartography);
     }
 
+    // Fast O(1) position lookup map for all entities
+    const entityPosMap = new Map<string, { x: number; z: number }>();
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
+      if (u.state !== 'dead') entityPosMap.set(u.id, { x: u.x, z: u.y });
+    }
+    for (let i = 0; i < buildings.length; i++) {
+      const b = buildings[i];
+      if (b.hp > 0) entityPosMap.set(b.id, { x: b.x + b.width / 2, z: b.y + b.height / 2 });
+    }
+
     // 1. Update Units
     const currentUnitIds = new Set<string>();
     for (const unit of units) {
@@ -537,7 +548,7 @@ export class GameRenderer {
         }
 
         // Procedural articulated unit animations for all unit actions & dragon flight/combat
-        this.animateUnitActions(unit, group, Date.now(), dt, units, buildings);
+        this.animateUnitActions(unit, group, Date.now(), dt, units, buildings, entityPosMap);
       }
     }
 
@@ -1449,16 +1460,33 @@ export class GameRenderer {
   }
 
 
+  private getNamedPart(group: THREE.Group, name: string): THREE.Object3D | null {
+    let cache: Map<string, THREE.Object3D> = group.userData.partsCache;
+    if (!cache) {
+      cache = new Map<string, THREE.Object3D>();
+      group.traverse(child => {
+        if (child.name) cache.set(child.name, child);
+      });
+      group.userData.partsCache = cache;
+    }
+    return cache.get(name) || null;
+  }
+
   private animateUnitActions(
     unit: UnitData,
     group: THREE.Group,
     now: number,
     dt: number,
     units: UnitData[],
-    buildings: BuildingData[]
+    buildings: BuildingData[],
+    entityPosMap?: Map<string, { x: number; z: number }>
   ): void {
-    // Skip heavy articulated skeletal math for units outside camera viewpoint
-    if (this.camera.position.distanceTo(group.position) > 140) {
+    // Skip heavy articulated skeletal math for units outside camera viewpoint (tighter ground distance)
+    const camTarget = this.cameraController?.target;
+    if (camTarget) {
+      const dCamSq = (group.position.x - camTarget.x) ** 2 + (group.position.z - camTarget.z) ** 2;
+      if (dCamSq > 70 * 70) return;
+    } else if (this.camera.position.distanceTo(group.position) > 130) {
       return;
     }
 
@@ -1472,7 +1500,9 @@ export class GameRenderer {
     // Check if within genuine combat range of current target
     let inRangeOfTarget = false;
     if (unit.targetEntityId) {
-      const targetPos = this.findEntityPosition(unit.targetEntityId, units, buildings);
+      const targetPos = entityPosMap
+        ? entityPosMap.get(unit.targetEntityId)
+        : this.findEntityPosition(unit.targetEntityId, units, buildings);
       if (targetPos) {
         const d = Math.hypot(targetPos.x - group.position.x, targetPos.z - group.position.z);
         const maxRange = unit.type === 'siege_unit' ? 12.0 : unit.type === 'dragon' ? 10.0 : unit.type === 'ranged_infantry' ? 8.5 : 2.5;
@@ -1483,10 +1513,10 @@ export class GameRenderer {
     const isAttacking = unit.state === 'attacking' && !isMoving && inRangeOfTarget && !isStationary;
 
     // Standard Human Stride & March helpers
-    const lLeg = group.getObjectByName('left_leg');
-    const rLeg = group.getObjectByName('right_leg');
-    const lArm = group.getObjectByName('left_arm');
-    const torso = group.getObjectByName('unit_torso');
+    const lLeg = this.getNamedPart(group, 'left_leg');
+    const rLeg = this.getNamedPart(group, 'right_leg');
+    const lArm = this.getNamedPart(group, 'left_arm');
+    const torso = this.getNamedPart(group, 'unit_torso');
 
     const isHumanoid = unit.type !== 'cavalry' && unit.type !== 'scout' && unit.type !== 'siege_unit' && unit.type !== 'dragon';
 
@@ -1519,7 +1549,7 @@ export class GameRenderer {
 
     switch (unit.type) {
       case 'worker': {
-        const toolPivot = group.getObjectByName('tool_pivot');
+        const toolPivot = this.getNamedPart(group, 'tool_pivot');
         if (!toolPivot) break;
 
         if (unit.state === 'gathering') {
@@ -1603,8 +1633,8 @@ export class GameRenderer {
       }
 
       case 'basic_infantry': {
-        const swordPivot = group.getObjectByName('sword_pivot');
-        const shieldPivot = group.getObjectByName('shield_pivot');
+        const swordPivot = this.getNamedPart(group, 'sword_pivot');
+        const shieldPivot = this.getNamedPart(group, 'shield_pivot');
 
         if (isAttacking) {
           // Authentic AoE 3-Phase Sword Slash & Shield Defense
@@ -1660,7 +1690,7 @@ export class GameRenderer {
       }
 
       case 'spearman': {
-        const pikePivot = group.getObjectByName('pike_pivot');
+        const pikePivot = this.getNamedPart(group, 'pike_pivot');
 
         if (isAttacking) {
           // Authentic AoE Phalanx Pike Thrust
@@ -1707,7 +1737,7 @@ export class GameRenderer {
       }
 
       case 'ranged_infantry': {
-        const bowPivot = group.getObjectByName('bow_pivot');
+        const bowPivot = this.getNamedPart(group, 'bow_pivot');
 
         if (isAttacking) {
           // Authentic AoE 4-Phase Archery Sequence (Nock -> Draw -> Hold -> Loose)
@@ -1760,13 +1790,13 @@ export class GameRenderer {
 
       case 'cavalry':
       case 'scout': {
-        const horse = group.getObjectByName('horse_body');
-        const horseNeck = group.getObjectByName('horse_neck');
-        const lancePivot = group.getObjectByName('lance_pivot');
-        const legFL = group.getObjectByName('horse_leg_fl');
-        const legFR = group.getObjectByName('horse_leg_fr');
-        const legBL = group.getObjectByName('horse_leg_bl');
-        const legBR = group.getObjectByName('horse_leg_br');
+        const horse = this.getNamedPart(group, 'horse_body');
+        const horseNeck = this.getNamedPart(group, 'horse_neck');
+        const lancePivot = this.getNamedPart(group, 'lance_pivot');
+        const legFL = this.getNamedPart(group, 'horse_leg_fl');
+        const legFR = this.getNamedPart(group, 'horse_leg_fr');
+        const legBL = this.getNamedPart(group, 'horse_leg_bl');
+        const legBR = this.getNamedPart(group, 'horse_leg_br');
 
         const baseHorseY = unit.type === 'cavalry' ? 0.58 : 0.52;
 
@@ -1829,12 +1859,12 @@ export class GameRenderer {
       }
 
       case 'siege_unit': {
-        const armPivot = group.getObjectByName('arm_pivot');
-        const chassis = group.getObjectByName('siege_chassis');
-        const wheelFL = group.getObjectByName('wheel_fl');
-        const wheelFR = group.getObjectByName('wheel_fr');
-        const wheelBL = group.getObjectByName('wheel_bl');
-        const wheelBR = group.getObjectByName('wheel_br');
+        const armPivot = this.getNamedPart(group, 'arm_pivot');
+        const chassis = this.getNamedPart(group, 'siege_chassis');
+        const wheelFL = this.getNamedPart(group, 'wheel_fl');
+        const wheelFR = this.getNamedPart(group, 'wheel_fr');
+        const wheelBL = this.getNamedPart(group, 'wheel_bl');
+        const wheelBR = this.getNamedPart(group, 'wheel_br');
 
         if (isMoving) {
           // Continuous 4-wheel rotation when rolling across battlefield
@@ -1884,7 +1914,7 @@ export class GameRenderer {
       }
 
       case 'advanced_unit': {
-        const halberdPivot = group.getObjectByName('halberd_pivot');
+        const halberdPivot = this.getNamedPart(group, 'halberd_pivot');
 
         if (isAttacking) {
           // Authentic AoE Champion Two-Handed Halberd Cleave
@@ -1941,12 +1971,12 @@ export class GameRenderer {
       }
 
       case 'dragon': {
-        const leftWing = group.getObjectByName('left_wing');
-        const rightWing = group.getObjectByName('right_wing');
-        const dragonJaw = group.getObjectByName('dragon_jaw');
-        const dragonNeck = group.getObjectByName('dragon_neck');
-        const dragonTail = group.getObjectByName('dragon_tail');
-        const flameEmitter = group.getObjectByName('flame_emitter');
+        const leftWing = this.getNamedPart(group, 'left_wing');
+        const rightWing = this.getNamedPart(group, 'right_wing');
+        const dragonJaw = this.getNamedPart(group, 'dragon_jaw');
+        const dragonNeck = this.getNamedPart(group, 'dragon_neck');
+        const dragonTail = this.getNamedPart(group, 'dragon_tail');
+        const flameEmitter = this.getNamedPart(group, 'flame_emitter');
 
         // Wings flap dynamically: faster flap while moving
         const flapRate = isMoving ? 0.016 : 0.011;

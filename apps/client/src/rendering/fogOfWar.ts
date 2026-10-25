@@ -13,6 +13,8 @@ export class FogOfWar {
   private ctx: CanvasRenderingContext2D;
   private imgData: ImageData;
   private lastUpdateTime: number = 0;
+  private prevVisibleIndices: number[] = [];
+  private currVisibleIndices: number[] = [];
   public texture: THREE.CanvasTexture;
   public mesh: THREE.Mesh;
 
@@ -27,6 +29,18 @@ export class FogOfWar {
     this.canvas.height = height;
     this.ctx = this.canvas.getContext('2d')!;
     this.imgData = this.ctx.createImageData(width, height);
+
+    // Initialize base shroud with pitch black unexplored pixels
+    const totalTiles = width * height;
+    const data = this.imgData.data;
+    for (let i = 0; i < totalTiles; i++) {
+      const p = i * 4;
+      data[p] = 5;
+      data[p + 1] = 8;
+      data[p + 2] = 17;
+      data[p + 3] = 255;
+    }
+    this.ctx.putImageData(this.imgData, 0, 0);
 
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.magFilter = THREE.LinearFilter;
@@ -79,17 +93,25 @@ export class FogOfWar {
 
     this.myTeam = myTeam;
 
-    // 1. Demote any previously Visible (2) to Explored (1)
-    for (let i = 0; i < this.fogGrid.length; i++) {
-      if (this.fogGrid[i] === 2) {
-        this.fogGrid[i] = 1;
-      }
+    const data = this.imgData.data;
+
+    // 1. Demote any previously Visible (2) tiles to Explored (1)
+    for (let i = 0; i < this.prevVisibleIndices.length; i++) {
+      const idx = this.prevVisibleIndices[i];
+      this.fogGrid[idx] = 1;
+      const pixelIdx = idx * 4;
+      data[pixelIdx] = 10;
+      data[pixelIdx + 1] = 16;
+      data[pixelIdx + 2] = 26;
+      data[pixelIdx + 3] = 52; // Gentle 20% soft shade
     }
+    this.currVisibleIndices.length = 0;
 
     const visionBonus = hasCartography ? 2 : 0;
 
     // 2. Mark visible around friendly units
-    for (const u of units) {
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
       if (u.team === this.myTeam && u.state !== 'dead') {
         const udef = UNIT_DEFINITIONS[u.type];
         const range = (udef ? udef.visionRange : 7) + visionBonus;
@@ -98,7 +120,8 @@ export class FogOfWar {
     }
 
     // 3. Mark visible around friendly buildings
-    for (const b of buildings) {
+    for (let i = 0; i < buildings.length; i++) {
+      const b = buildings[i];
       if (b.team === this.myTeam) {
         const bdef = BUILDING_DEFINITIONS[b.type];
         const range = (bdef ? bdef.visionRange : 8) + visionBonus;
@@ -106,33 +129,10 @@ export class FogOfWar {
       }
     }
 
-    // 4. Update Fog Texture (reusing pre-allocated ImageData to eliminate GC churn)
-    const data = this.imgData.data;
-
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        const idx = y * this.width + x;
-        const pixelIdx = idx * 4;
-        const state = this.fogGrid[idx];
-
-        if (state === 2) {
-          // Visible: completely transparent
-          data[pixelIdx + 3] = 0;
-        } else if (state === 1) {
-          // Explored: subtle soft shade so discovered paths & terrain remain clearly visible!
-          data[pixelIdx] = 10;
-          data[pixelIdx + 1] = 16;
-          data[pixelIdx + 2] = 26;
-          data[pixelIdx + 3] = 52; // Gentle 20% soft shade (reduced from 175/69% murky dark fog)
-        } else {
-          // Unexplored: pitch black
-          data[pixelIdx] = 5;
-          data[pixelIdx + 1] = 8;
-          data[pixelIdx + 2] = 17;
-          data[pixelIdx + 3] = 255; // solid black
-        }
-      }
-    }
+    // Swap visible tracking lists
+    const temp = this.prevVisibleIndices;
+    this.prevVisibleIndices = this.currVisibleIndices;
+    this.currVisibleIndices = temp;
 
     this.ctx.putImageData(this.imgData, 0, 0);
     this.texture.needsUpdate = true;
@@ -145,12 +145,21 @@ export class FogOfWar {
     const maxY = Math.min(this.height - 1, Math.ceil(cy + radius));
 
     const r2 = radius * radius;
+    const data = this.imgData.data;
+
     for (let y = minY; y <= maxY; y++) {
+      const rowOffset = y * this.width;
+      const dy = y - cy;
+      const dy2 = dy * dy;
       for (let x = minX; x <= maxX; x++) {
         const dx = x - cx;
-        const dy = y - cy;
-        if (dx * dx + dy * dy <= r2) {
-          this.fogGrid[y * this.width + x] = 2; // Visible
+        if (dx * dx + dy2 <= r2) {
+          const idx = rowOffset + x;
+          if (this.fogGrid[idx] !== 2) {
+            this.fogGrid[idx] = 2; // Visible
+            data[idx * 4 + 3] = 0; // completely transparent
+          }
+          this.currVisibleIndices.push(idx);
         }
       }
     }

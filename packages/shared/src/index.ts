@@ -6,6 +6,7 @@ export * from './constants/buildings.js';
 export * from './constants/technologies.js';
 export * from './simulation/mapGenerator.js';
 export * from './simulation/pathfinding.js';
+export * from './simulation/spatialGrid.js';
 export * from './simulation/simulationEngine.js';
 export * from './utils/sanitize.js';
 export * from './simulation/replaySystem.js';
