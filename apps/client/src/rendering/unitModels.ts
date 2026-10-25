@@ -596,94 +596,99 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     }
 
     case 'basic_infantry': {
-      // 1. Man-at-Arms with Chainmail, Fluted Cuirass & Steel Norman Helm
+      // 1. Swordsman / Man-at-Arms in Gilded Cuirass & Crested Helm (Reference Accurate)
       const torsoGroup = new THREE.Group();
       torsoGroup.name = 'unit_torso';
       torsoGroup.position.y = 0.44;
 
-      // Steel Cuirass / Breastplate over Mail
+      // Sculpted Anatomical Cuirass / Musculata
       const cuirassGeom = new THREE.BoxGeometry(0.3, 0.26, 0.2);
       const cuirass = new THREE.Mesh(cuirassGeom, steelMat);
       cuirass.position.y = 0.13;
       torsoGroup.add(cuirass);
 
-      // Faction Heraldic Tabard / Crest on Chest
-      const crest = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.04), teamMat);
-      crest.position.set(0, 0.13, 0.1);
-      torsoGroup.add(crest);
+      // Golden Pectoral Plate & Medial Ridge
+      const chestRidge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.04), goldMat);
+      chestRidge.position.set(0, 0.13, 0.1);
+      torsoGroup.add(chestRidge);
 
-      // Mail Fauld Skirt (protects hips, stops at y = -0.06 leaving legs fully visible!)
-      const fauldGeom = new THREE.CylinderGeometry(0.16, 0.19, 0.13, 12);
-      fauldGeom.translate(0, -0.02, 0);
-      const fauld = new THREE.Mesh(fauldGeom, darkIronMat);
-      torsoGroup.add(fauld);
+      // Pteruges Leather Armor Skirt strips (Reference Accurate: blue undergarment + gold-tipped strips)
+      const skirtBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.12, 12), teamClothMat);
+      skirtBase.position.y = -0.01;
+      torsoGroup.add(skirtBase);
 
-      // Steel Pauldrons (Shoulder Armor)
+      for (let p = 0; p < 8; p++) {
+        const angle = (p / 8) * Math.PI * 2;
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.13, 0.02), darkLeatherMat);
+        strip.position.set(Math.cos(angle) * 0.16, -0.03, Math.sin(angle) * 0.16);
+        strip.rotation.y = -angle;
+        torsoGroup.add(strip);
+      }
+
+      // Golden Pauldrons (Shoulder Armor)
       const pauldronGeom = new THREE.SphereGeometry(0.08, 10, 8);
-      const lPauldron = new THREE.Mesh(pauldronGeom, steelMat);
+      const lPauldron = new THREE.Mesh(pauldronGeom, goldMat);
       lPauldron.position.set(-0.19, 0.19, 0);
       torsoGroup.add(lPauldron);
 
-      const rPauldron = new THREE.Mesh(pauldronGeom, steelMat);
+      const rPauldron = new THREE.Mesh(pauldronGeom, goldMat);
       rPauldron.position.set(0.19, 0.19, 0);
       torsoGroup.add(rPauldron);
 
-      // Mail Sleeves & Gauntleted Hands
-      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), darkIronMat);
+      // Arms & Bracers
+      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
       lArm.position.set(-0.18, 0.09, 0);
       lArm.rotation.z = Math.PI / 10;
       torsoGroup.add(lArm);
 
-      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), darkIronMat);
+      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
       rArm.position.set(0.18, 0.09, 0);
       rArm.rotation.z = -Math.PI / 10;
       torsoGroup.add(rArm);
 
-      // Neck in Mail Coif
-      const coif = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.08, 8), darkIronMat);
+      // Head with Crested Helmet (Blue & Gold Plume - exact to reference!)
+      const coif = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.08, 8), fleshMat);
       coif.position.y = 0.26;
       torsoGroup.add(coif);
 
-      // Norman Nasal Helm with eye slit and nose guard
-      const helmGeom = new THREE.CylinderGeometry(0.12, 0.13, 0.18, 14);
-      const helm = new THREE.Mesh(helmGeom, steelMat);
+      const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 0.18, 14), steelMat);
       helm.position.y = 0.37;
       torsoGroup.add(helm);
 
-      const nasalGuard = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.14, 0.04), steelMat);
-      nasalGuard.position.set(0, 0.32, 0.14);
-      torsoGroup.add(nasalGuard);
+      const helmBrow = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.06), goldMat);
+      helmBrow.position.set(0, 0.4, 0.12);
+      torsoGroup.add(helmBrow);
 
-      const helmCrown = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.14, 14), steelMat);
-      helmCrown.position.y = 0.51;
-      torsoGroup.add(helmCrown);
+      // Tall Arched Horsehair Crest Plume (Blue & White)
+      const plumeArc = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.26, 0.24), teamMat);
+      plumeArc.position.set(0, 0.54, 0.02);
+      torsoGroup.add(plumeArc);
 
-      // Flowing Team Plume
-      const plume = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.14), teamMat);
-      plume.position.set(0, 0.55, -0.04);
-      torsoGroup.add(plume);
+      const plumeTip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.26), canvasMat);
+      plumeTip.position.set(0, 0.65, 0.02);
+      torsoGroup.add(plumeTip);
 
       root.add(torsoGroup);
 
-      // 2. Articulated Greaves & Sabatons (Distinctly visible running legs)
-      root.add(createArticulatedLeg(steelMat, -0.1, 'left_leg', 0.42, true));
-      root.add(createArticulatedLeg(steelMat, 0.1, 'right_leg', 0.42, true));
+      // 2. Articulated Greaves & Sabatons
+      root.add(createArticulatedLeg(goldMat, -0.1, 'left_leg', 0.42, true));
+      root.add(createArticulatedLeg(goldMat, 0.1, 'right_leg', 0.42, true));
 
-      // 3. Sword Pivot with Broad Arming Sword (Detailed Fuller & Crossguard)
+      // 3. Sword Pivot with Leaf-Bladed Arming Sword
       const swordPivot = new THREE.Group();
       swordPivot.name = 'sword_pivot';
       swordPivot.position.set(0.24, 0.48, 0.12);
 
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.75, 0.09), steelMat);
-      blade.position.set(0, 0.35, 0);
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.72, 0.1), steelMat);
+      blade.position.set(0, 0.34, 0);
       swordPivot.add(blade);
 
-      const fullerGroove = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.5, 0.02), darkIronMat);
+      const fullerGroove = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.48, 0.02), darkIronMat);
       fullerGroove.position.set(0, 0.32, 0);
       swordPivot.add(fullerGroove);
 
-      const swordTip = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.14, 6), steelMat);
-      swordTip.position.set(0, 0.78, 0);
+      const swordTip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 6), steelMat);
+      swordTip.position.set(0, 0.76, 0);
       swordPivot.add(swordTip);
 
       const crossguard = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.26), goldMat);
@@ -696,114 +701,125 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
 
       root.add(swordPivot);
 
-      // 4. Shield Pivot with Heater Shield & Team Heraldry
+      // 4. Shield Pivot with Round Aspis/Hoplon Shield (Reference Accurate)
       const shieldPivot = new THREE.Group();
       shieldPivot.name = 'shield_pivot';
-      shieldPivot.position.set(-0.24, 0.48, 0.1);
+      shieldPivot.position.set(-0.25, 0.48, 0.1);
 
-      // Curved Shield Face
-      const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.5, 12, 1, false, 0, Math.PI), teamMat);
-      shield.rotation.y = -Math.PI / 2;
-      shieldPivot.add(shield);
+      // Convex round shield
+      const shieldFace = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.04, 18), teamMat);
+      shieldFace.rotation.z = Math.PI / 2;
+      shieldPivot.add(shieldFace);
 
-      const shieldRim = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.52, 0.38), steelMat);
-      shieldRim.position.x = -0.01;
+      const shieldRim = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.02, 8, 20), goldMat);
+      shieldRim.rotation.y = Math.PI / 2;
       shieldPivot.add(shieldRim);
 
-      const shieldBoss = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.09, 10), goldMat);
-      shieldBoss.position.set(-0.05, 0.04, 0);
-      shieldBoss.rotation.z = Math.PI / 2;
-      shieldPivot.add(shieldBoss);
+      // Emblem on shield face (Golden sacred owl/sun emblem)
+      const emblem = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), goldMat);
+      emblem.position.set(-0.025, 0, 0);
+      emblem.scale.set(0.4, 1.0, 1.0);
+      shieldPivot.add(emblem);
 
       root.add(shieldPivot);
       break;
     }
 
     case 'spearman': {
-      // 1. Spearman Torso in Quilted Gambeson & Scale Hauberk
+      // 1. Spearman / Hoplite in Golden Musculata Cuirass (Reference Accurate)
       const torsoGroup = new THREE.Group();
       torsoGroup.name = 'unit_torso';
       torsoGroup.position.y = 0.44;
 
-      const gambesonGeom = new THREE.BoxGeometry(0.28, 0.26, 0.18);
-      const gambeson = new THREE.Mesh(gambesonGeom, teamMat);
-      gambeson.position.y = 0.13;
-      torsoGroup.add(gambeson);
+      const cuirassGeom = new THREE.BoxGeometry(0.28, 0.26, 0.18);
+      const cuirass = new THREE.Mesh(cuirassGeom, goldMat);
+      cuirass.position.y = 0.13;
+      torsoGroup.add(cuirass);
 
-      const scaleArmor = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.16, 0.19), darkIronMat);
-      scaleArmor.position.y = 0.14;
-      torsoGroup.add(scaleArmor);
+      // Blue undertunic with pteruges skirt
+      const skirtBase = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.12, 12), teamClothMat);
+      skirtBase.position.y = -0.01;
+      torsoGroup.add(skirtBase);
 
-      // Short Tunic Skirt
-      const tunicSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.12, 12), teamMat);
-      tunicSkirt.position.y = -0.02;
-      torsoGroup.add(tunicSkirt);
+      for (let p = 0; p < 8; p++) {
+        const angle = (p / 8) * Math.PI * 2;
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.12, 0.02), darkLeatherMat);
+        strip.position.set(Math.cos(angle) * 0.15, -0.03, Math.sin(angle) * 0.15);
+        strip.rotation.y = -angle;
+        torsoGroup.add(strip);
+      }
 
       // Arms & Shoulders
-      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamMat);
+      const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
       lArm.position.set(-0.18, 0.09, 0);
       lArm.rotation.z = Math.PI / 10;
       torsoGroup.add(lArm);
 
-      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamMat);
+      const rArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), teamClothMat);
       rArm.position.set(0.18, 0.09, 0);
       rArm.rotation.z = -Math.PI / 10;
       torsoGroup.add(rArm);
 
-      // Coif & Head
-      const coif = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.08, 8), darkIronMat);
-      coif.position.y = 0.26;
-      torsoGroup.add(coif);
-
+      // Head & Corinthian Helmet with Transverse Crest
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), fleshMat);
       head.position.y = 0.34;
       torsoGroup.add(head);
 
-      // Kettle Hat / Chapel de Fer with Flared Protective Brim
-      const kettleHat = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), steelMat);
-      kettleHat.position.y = 0.38;
-      torsoGroup.add(kettleHat);
+      const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 0.18, 14), goldMat);
+      helm.position.y = 0.37;
+      torsoGroup.add(helm);
 
-      const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.025, 16), steelMat);
-      hatBrim.position.y = 0.37;
-      torsoGroup.add(hatBrim);
+      const helmCrest = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.24, 0.26), teamMat);
+      helmCrest.position.set(0, 0.52, 0.02);
+      torsoGroup.add(helmCrest);
 
       root.add(torsoGroup);
 
-      // 2. Stately 2.8m Ash Pike with Leaf Spearhead & Silk Tassel
+      // 2. Stately 2.6m Ash Spear (Dory) with Leaf Tip & Gold Sauroter
       const pikePivot = new THREE.Group();
       pikePivot.name = 'pike_pivot';
       pikePivot.position.set(0.24, 0.52, 0.12);
 
-      const pikeShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 2.5, 10), woodMat);
-      pikeShaft.position.set(0, 0.75, 0);
+      const pikeShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 2.6, 10), woodMat);
+      pikeShaft.position.set(0, 0.78, 0);
       pikeShaft.rotation.x = Math.PI / 18;
       pikePivot.add(pikeShaft);
 
-      const pikeBlade = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.38, 10), steelMat);
-      pikeBlade.position.set(0, 2.05, 0.15);
+      const pikeBlade = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.42, 10), steelMat);
+      pikeBlade.position.set(0, 2.12, 0.15);
       pikeBlade.rotation.x = Math.PI / 18;
       pikePivot.add(pikeBlade);
 
-      const pikeTassel = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), teamMat);
-      pikeTassel.position.set(0, 1.85, 0.14);
-      pikePivot.add(pikeTassel);
+      const buttSpike = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.18, 8), goldMat);
+      buttSpike.position.set(0, -0.52, -0.05);
+      buttSpike.rotation.x = Math.PI + Math.PI / 18;
+      pikePivot.add(buttSpike);
 
       root.add(pikePivot);
 
-      // Forearm Steel Buckler Shield
-      const buckler = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.035, 14), steelMat);
+      // 3. Forearm Round Aspis Shield (Matching reference image)
+      const buckler = new THREE.Group();
       buckler.name = 'left_arm';
-      buckler.position.set(-0.24, 0.48, 0.08);
-      buckler.rotation.z = Math.PI / 2;
-      const bucklerBoss = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.065, 8), goldMat);
-      bucklerBoss.position.set(0, 0.035, 0);
-      buckler.add(bucklerBoss);
+      buckler.position.set(-0.25, 0.48, 0.08);
+
+      const shieldDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.04, 16), teamMat);
+      shieldDisc.rotation.z = Math.PI / 2;
+      buckler.add(shieldDisc);
+
+      const shieldRimRing = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.018, 8, 18), goldMat);
+      shieldRimRing.rotation.y = Math.PI / 2;
+      buckler.add(shieldRimRing);
+
+      const shieldBoss = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.08, 10), goldMat);
+      shieldBoss.position.set(-0.03, 0, 0);
+      shieldBoss.rotation.z = Math.PI / 2;
+      buckler.add(shieldBoss);
+
       root.add(buckler);
 
-      // Articulated Legs
-      root.add(createArticulatedLeg(darkIronMat, -0.09, 'left_leg', 0.42, true));
-      root.add(createArticulatedLeg(darkIronMat, 0.09, 'right_leg', 0.42, true));
+      // Articulated Legs with Bronze Greaves
+      root.add(createArticulatedLeg(goldMat, -0.09, 'left_leg', 0.42, true));
+      root.add(createArticulatedLeg(goldMat, 0.09, 'right_leg', 0.42, true));
       break;
     }
 
@@ -894,10 +910,10 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     }
 
     case 'cavalry': {
-      // 1. Armored Destrier Warhorse with Caparison & Chanfron
+      // 1. Armored Destrier Warhorse with Caparison & Chanfron (Reference Accurate)
       root.add(createArticulatedHorse(whiteHorseMat, darkLeatherMat, true, teamMat));
 
-      // 2. Knight in Full Gothic Plate Armor seated in saddle
+      // 2. Knight in Full Gothic Plate Armor seated in saddle (Reference Accurate)
       const knightGroup = new THREE.Group();
       knightGroup.position.set(0, 0.88, -0.06);
 
@@ -909,7 +925,7 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       knightTabard.position.set(0, 0.14, 0.11);
       knightGroup.add(knightTabard);
 
-      // Pauldrons
+      // Pauldrons with Gold Crests
       const lPauldron = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), steelMat);
       lPauldron.position.set(-0.2, 0.22, 0);
       knightGroup.add(lPauldron);
@@ -918,7 +934,15 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       rPauldron.position.set(0.2, 0.22, 0);
       knightGroup.add(rPauldron);
 
-      // Arms: left forward holding reins, right holding lance
+      const lPauldronGold = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.12), goldMat);
+      lPauldronGold.position.set(-0.23, 0.24, 0);
+      knightGroup.add(lPauldronGold);
+
+      const rPauldronGold = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.12), goldMat);
+      rPauldronGold.position.set(0.23, 0.24, 0);
+      knightGroup.add(rPauldronGold);
+
+      // Arms: left holding shield/reins, right holding lance
       const lArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.26, 8), steelMat);
       lArm.position.set(-0.18, 0.12, 0.08);
       lArm.rotation.set(-Math.PI / 4, 0, -Math.PI / 10);
@@ -929,7 +953,7 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       rArm.rotation.set(Math.PI / 10, 0, Math.PI / 10);
       knightGroup.add(rArm);
 
-      // Greathelm with visor and plume
+      // Greathelm with visor and plume (Blue & White Crest - exact to reference!)
       const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.22, 14), steelMat);
       helm.position.y = 0.42;
       knightGroup.add(helm);
@@ -938,9 +962,13 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       visor.position.set(0, 0.42, 0.12);
       knightGroup.add(visor);
 
-      const knightPlume = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.28, 0.18), teamMat);
-      knightPlume.position.set(0, 0.6, -0.06);
+      const knightPlume = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.2), teamMat);
+      knightPlume.position.set(0, 0.62, -0.06);
       knightGroup.add(knightPlume);
+
+      const plumeWhiteTip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.1, 0.22), canvasMat);
+      plumeWhiteTip.position.set(0, 0.74, -0.06);
+      knightGroup.add(plumeWhiteTip);
 
       // Mounted plate legs in stirrups
       const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.42, 8), steelMat);
@@ -953,6 +981,22 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
       legR.rotation.set(Math.PI / 7, 0, -Math.PI / 12);
       knightGroup.add(legR);
 
+      // Left Flank Mounted Heater Shield (Reference Accurate)
+      const knightShield = new THREE.Group();
+      knightShield.position.set(-0.28, 0.15, 0.06);
+
+      const kShieldBody = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.46, 12, 1, false, 0, Math.PI), teamMat);
+      kShieldBody.rotation.y = -Math.PI / 2;
+      knightShield.add(kShieldBody);
+
+      const kShieldRim = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.48, 0.36), goldMat);
+      knightShield.add(kShieldRim);
+
+      const kShieldEmblem = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), goldMat);
+      kShieldEmblem.position.set(-0.035, 0.04, 0);
+      knightShield.add(kShieldEmblem);
+
+      knightGroup.add(knightShield);
       root.add(knightGroup);
 
       // 3. Heavy Tournament Lance (Points forward along +Z!)
@@ -977,83 +1021,156 @@ export function createUnitModel(unit: UnitData, teamColor: string): THREE.Group 
     }
 
     case 'siege_unit': {
-      // 1. Reinforced Oak Timber Chassis with Heavy Iron Strapping
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.3, 1.8), woodMat);
+      // 1. Mangonel / Onager Open Timber Frame Chassis (Exact to AoE Reference Photo!)
+      const chassis = new THREE.Group();
       chassis.name = 'siege_chassis';
       chassis.position.y = 0.32;
-      root.add(chassis);
 
-      // Heavy Forged Iron Corner Straps and Rivet Plates
-      for (const z of [0.72, -0.72]) {
-        const strap = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.06, 0.1), ironMat);
-        strap.position.set(0, 0.32, z);
-        root.add(strap);
+      // Two thick longitudinal squared timber side beams
+      const sideBeamL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 2.0), woodMat);
+      sideBeamL.position.set(-0.48, 0, 0);
+      chassis.add(sideBeamL);
+
+      const sideBeamR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 2.0), woodMat);
+      sideBeamR.position.set(0.48, 0, 0);
+      chassis.add(sideBeamR);
+
+      // Front and rear heavy crossbars
+      const frontCross = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.22, 0.18), woodMat);
+      frontCross.position.set(0, 0, 0.88);
+      chassis.add(frontCross);
+
+      const rearCross = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.22, 0.18), woodMat);
+      rearCross.position.set(0, 0, -0.88);
+      chassis.add(rearCross);
+
+      // Central fulcrum axle beam
+      const midAxle = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.18, 0.16), woodMat);
+      midAxle.position.set(0, -0.02, 0);
+      chassis.add(midAxle);
+
+      // 2. Iconic Purple/Team-Colored Torsion Skein Roller (Exact to reference photo!)
+      const torsionRoller = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.76, 16), teamClothMat);
+      torsionRoller.rotation.z = Math.PI / 2;
+      torsionRoller.position.set(0, 0.05, 0.45);
+      chassis.add(torsionRoller);
+
+      // Torsion skein rope windings flanking the roller
+      for (const rx of [-0.28, 0.28]) {
+        const ropeWinding = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.04, 8, 16), canvasMat);
+        ropeWinding.position.set(rx, 0.05, 0.45);
+        ropeWinding.rotation.y = Math.PI / 2;
+        chassis.add(ropeWinding);
       }
 
-      // 4 Heavy 16-Spoke Wooden Wheels with Iron Rim Tires & Brass Hubs
-      const wheelGeom = new THREE.CylinderGeometry(0.34, 0.34, 0.12, 18);
+      // External Iron Ratchet Wheels and Winding Handles
+      for (const side of [-0.58, 0.58]) {
+        const ratchet = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.05, 12), darkIronMat);
+        ratchet.position.set(side, 0.05, 0.45);
+        ratchet.rotation.z = Math.PI / 2;
+        chassis.add(ratchet);
+
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.32, 0.04), ironMat);
+        handle.position.set(side * 1.05, 0.12, 0.45);
+        chassis.add(handle);
+      }
+
+      // 3. 4 Solid Timber Disc Wheels with Iron Tire Rims & Hub Pegs
+      const wheelGeom = new THREE.CylinderGeometry(0.32, 0.32, 0.14, 16);
       wheelGeom.rotateZ(Math.PI / 2);
-      const wheels = [
-        [-0.7, 0.34, -0.62], [0.7, 0.34, -0.62],
-        [-0.7, 0.34, 0.62], [0.7, 0.34, 0.62]
+      const wheelPos = [
+        [-0.68, 0.02, -0.65], [0.68, 0.02, -0.65],
+        [-0.68, 0.02, 0.65], [0.68, 0.02, 0.65]
       ];
       const wheelNames = ['wheel_fl', 'wheel_fr', 'wheel_bl', 'wheel_br'];
-      wheels.forEach(([wx, wy, wz], wIdx) => {
-        const wheel = new THREE.Mesh(wheelGeom, darkIronMat);
+      wheelPos.forEach(([wx, wy, wz], wIdx) => {
+        const wheel = new THREE.Mesh(wheelGeom, woodMat);
         wheel.name = wheelNames[wIdx];
         wheel.position.set(wx, wy, wz);
-        root.add(wheel);
+        chassis.add(wheel);
 
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.16, 12), goldMat);
+        // Iron Tire Rim Band
+        const rimBand = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.02, 6, 16), darkIronMat);
+        rimBand.position.set(wx, wy, wz);
+        rimBand.rotation.y = Math.PI / 2;
+        chassis.add(rimBand);
+
+        // Axle Hub Pin
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.22, 12), darkIronMat);
         hub.position.set(wx, wy, wz);
         hub.rotation.z = Math.PI / 2;
-        root.add(hub);
+        chassis.add(hub);
       });
 
-      // 2. Heavy Timber A-Frame Upright Trestle with Cross Braces
-      const frameL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.4, 10), woodMat);
-      frameL.position.set(-0.45, 0.9, -0.1);
-      root.add(frameL);
+      // 4. A-Frame Vertical Uprights, Diagonal Braces & Cross-Bumper
+      const postL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.25, 0.16), woodMat);
+      postL.position.set(-0.45, 0.65, 0.02);
+      chassis.add(postL);
 
-      const frameR = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.4, 10), woodMat);
-      frameR.position.set(0.45, 0.9, -0.1);
-      root.add(frameR);
+      const postR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.25, 0.16), woodMat);
+      postR.position.set(0.45, 0.65, 0.02);
+      chassis.add(postR);
 
-      const crossBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.05, 12), woodMat);
-      crossBeam.position.set(0, 1.38, -0.1);
-      crossBeam.rotation.z = Math.PI / 2;
-      root.add(crossBeam);
+      // Diagonal timber kick-braces (front to top of posts)
+      const braceL = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 1.15, 8), woodMat);
+      braceL.position.set(-0.45, 0.5, 0.42);
+      braceL.rotation.x = -Math.PI / 4.5;
+      chassis.add(braceL);
 
-      // 3. Catapult / Trebuchet Throwing Arm Pivot
+      const braceR = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 1.15, 8), woodMat);
+      braceR.position.set(0.45, 0.5, 0.42);
+      braceR.rotation.x = -Math.PI / 4.5;
+      chassis.add(braceR);
+
+      // Horizontal Cross-Bumper stop beam across top
+      const bumperBeam = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.2, 0.2), woodMat);
+      bumperBeam.position.set(0, 1.25, 0.02);
+      chassis.add(bumperBeam);
+
+      // White/Canvas Rope Bindings wrapped around joint tops (matching reference photo!)
+      for (const lx of [-0.45, 0.45]) {
+        const ropeLash = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, 0.24), canvasMat);
+        ropeLash.position.set(lx, 1.25, 0.02);
+        chassis.add(ropeLash);
+      }
+
+      root.add(chassis);
+
+      // 5. Catapult Throwing Arm Pivot with Carved Wooden Cup & Stone Missile
       const armPivot = new THREE.Group();
       armPivot.name = 'arm_pivot';
-      armPivot.position.set(0, 0.88, -0.15);
+      armPivot.position.set(0, 0.48, 0.05);
 
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.8, 0.14), woodMat);
+      // Tapered timber throwing arm
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.75, 0.14), woodMat);
       arm.position.set(0, 0.82, 0);
       arm.rotation.x = -Math.PI / 4.2;
       armPivot.add(arm);
 
-      // Heavy Counterweight Box loaded with Granite Ballast
-      const counterweight = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.46, 0.42), darkStoneMat);
-      counterweight.position.set(0, -0.26, 0.2);
-      armPivot.add(counterweight);
+      // Rope bindings along the arm
+      const armRope = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.18, 10), canvasMat);
+      armRope.position.set(0, 0.45, 0);
+      armRope.rotation.x = -Math.PI / 4.2;
+      armPivot.add(armRope);
 
-      // Throwing Sling Bucket with Chiseled Granite Ballistic Stone Payload (AoE II Trebuchet Style)
-      const bucket = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.28, 0.48), ironMat);
-      bucket.position.set(0, 1.62, -0.46);
-      armPivot.add(bucket);
+      // Carved Wooden Bowl / Cup at throwing end (exact to reference photo!)
+      const cupGeom = new THREE.CylinderGeometry(0.24, 0.16, 0.22, 14);
+      const cup = new THREE.Mesh(cupGeom, woodMat);
+      cup.position.set(0, 1.55, -0.42);
+      cup.rotation.x = Math.PI / 5;
+      armPivot.add(cup);
 
-      // Realistic Chiseled Granite Boulder Payload
-      const graniteBoulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.26, 1), darkStoneMat);
-      graniteBoulder.position.set(0, 1.78, -0.46);
-      graniteBoulder.scale.set(1.0, 0.85, 1.0);
-      armPivot.add(graniteBoulder);
+      // Rough Chiseled Granite Rock Payload sitting in the cup (exact to reference!)
+      const rockPayload = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22, 1), darkStoneMat);
+      rockPayload.position.set(0, 1.68, -0.42);
+      rockPayload.scale.set(1.15, 0.85, 1.05);
+      armPivot.add(rockPayload);
 
-      // Iron strapping around boulder
-      const boulderBand = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.02, 6, 14), darkIronMat);
-      boulderBand.position.set(0, 1.78, -0.46);
-      armPivot.add(boulderBand);
+      // Leather Sling Strap & Iron Release Claw
+      const slingStrap = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.32, 0.04), darkLeatherMat);
+      slingStrap.position.set(0, 1.48, -0.32);
+      slingStrap.rotation.x = -Math.PI / 4.2;
+      armPivot.add(slingStrap);
 
       root.add(armPivot);
       break;
