@@ -455,3 +455,54 @@ export function getWaterRippleTexture(): THREE.CanvasTexture {
   textureCache.set(key, texture);
   return texture;
 }
+
+
+/**
+ * Creates a seamless procedural billowing cloud shadow texture.
+ * When scrolled with MultiplyBlending over terrain, it casts natural drifting cloud shadows.
+ */
+export function getCloudShadowTexture(): THREE.CanvasTexture {
+  const key = 'cloud_shadow_tex';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 48; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const r = Math.random() * 95 + 45;
+    const grad = ctx.createRadialGradient(cx, cy, r * 0.05, cx, cy, r);
+    grad.addColorStop(0, 'rgba(85, 95, 110, 0.42)');
+    grad.addColorStop(0.55, 'rgba(130, 140, 155, 0.22)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    const offsets = [
+      { x: size, y: 0 }, { x: -size, y: 0 },
+      { x: 0, y: size }, { x: 0, y: -size }
+    ];
+    offsets.forEach(off => {
+      ctx.beginPath();
+      ctx.arc(cx + off.x, cy + off.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3.2, 3.2);
+  textureCache.set(key, texture);
+  return texture;
+}

@@ -12,6 +12,7 @@ import {
 } from '@agefront/shared';
 import { CameraController } from '../camera/cameraController.js';
 import { TerrainMesh } from './terrainMesh.js';
+import { getCloudShadowTexture } from './proceduralTextures.js';
 import { FogOfWar } from './fogOfWar.js';
 import { createBuildingModel } from './buildingModels.js';
 import { createUnitModel } from './unitModels.js';
@@ -124,6 +125,12 @@ export class GameRenderer {
   public unitMeshes: Map<string, THREE.Group> = new Map();
   public buildingMeshes: Map<string, THREE.Group> = new Map();
   private selectionRings: Map<string, THREE.Mesh> = new Map();
+  private cloudShadowMesh: THREE.Mesh | null = null;
+  private cloudShadowTexture: THREE.CanvasTexture | null = null;
+  private dustMotes: THREE.Points | null = null;
+  private activeMapWidth: number = 240;
+  private activeMapHeight: number = 240;
+
   private selectionDecalTexture: THREE.CanvasTexture | null = null;
   private scorchTexture: THREE.CanvasTexture | null = null;
   private groundScars: { mesh: THREE.Mesh; createdAt: number; maxLifetime: number }[] = [];
@@ -200,6 +207,16 @@ export class GameRenderer {
   }
 
   public clearGameScene(): void {
+        if (this.cloudShadowMesh) {
+      this.scene.remove(this.cloudShadowMesh);
+      this.cloudShadowMesh = null;
+      this.cloudShadowTexture = null;
+    }
+    if (this.dustMotes) {
+      this.scene.remove(this.dustMotes);
+      this.dustMotes = null;
+    }
+
     // 1. Remove all units
     for (const mesh of this.unitMeshes.values()) {
       this.scene.remove(mesh);
@@ -297,6 +314,47 @@ export class GameRenderer {
 
     this.fogOfWar = new FogOfWar(width, height, myTeam);
     this.scene.add(this.fogOfWar.mesh);
+    this.activeMapWidth = width;
+    this.activeMapHeight = height;
+
+    // Drifting Cloud Shadows (MultiplyBlending layer over terrain and structures)
+    const cloudTex = getCloudShadowTexture();
+    const cloudGeom = new THREE.PlaneGeometry(width * 2.2, height * 2.2);
+    cloudGeom.rotateX(-Math.PI / 2);
+    cloudGeom.translate(width / 2, 0, height / 2);
+    const cloudMat = new THREE.MeshBasicMaterial({
+      map: cloudTex,
+      transparent: true,
+      blending: THREE.MultiplyBlending,
+      depthWrite: false,
+      opacity: 0.62
+    });
+    this.cloudShadowMesh = new THREE.Mesh(cloudGeom, cloudMat);
+    this.cloudShadowMesh.position.y = 0.22;
+    this.scene.add(this.cloudShadowMesh);
+    this.cloudShadowTexture = cloudTex;
+
+    // Atmospheric Sunlight Pollen / Dust Motes
+    const moteCount = 160;
+    const moteGeom = new THREE.BufferGeometry();
+    const motePositions = new Float32Array(moteCount * 3);
+    for (let i = 0; i < moteCount; i++) {
+      motePositions[i * 3] = Math.random() * width;
+      motePositions[i * 3 + 1] = Math.random() * 3.5 + 0.3;
+      motePositions[i * 3 + 2] = Math.random() * height;
+    }
+    moteGeom.setAttribute('position', new THREE.BufferAttribute(motePositions, 3));
+    const moteMat = new THREE.PointsMaterial({
+      color: 0xfef08a,
+      size: 0.12,
+      transparent: true,
+      opacity: 0.52,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    this.dustMotes = new THREE.Points(moteGeom, moteMat);
+    this.scene.add(this.dustMotes);
+
   }
 
   // Exact 3D Interactive Raycasting for Units, Buildings, and Resources
@@ -2034,6 +2092,26 @@ export class GameRenderer {
           }
         });
       }
+    }
+
+    
+    // Animate drifting cloud shadows across the landscape
+    if (this.cloudShadowTexture) {
+      this.cloudShadowTexture.offset.x += dt * 0.0032;
+      this.cloudShadowTexture.offset.y += dt * 0.0019;
+    }
+
+    // Animate swirling sunlight pollen / dust motes
+    if (this.dustMotes) {
+      const pos = this.dustMotes.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        let y = pos.getY(i) + Math.sin(now * 0.0018 + i) * dt * 0.15;
+        let x = pos.getX(i) + dt * 0.35;
+        if (x > this.activeMapWidth) x = 0;
+        pos.setX(i, x);
+        pos.setY(i, y);
+      }
+      pos.needsUpdate = true;
     }
 
     this.terrainMesh?.update(now * 0.001, dt);
