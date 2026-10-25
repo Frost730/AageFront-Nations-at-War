@@ -24,6 +24,7 @@ export class MainMenuView {
   public rootElem: HTMLElement;
   private callbacks: MainMenuCallbacks;
   private currentModal: 'none' | 'sp_setup' | 'host_setup' | 'join_setup' | 'how_to_play' | 'settings' = 'none';
+  private currentSettingsTab: 'graphics' | 'audio' | 'game' | 'hotkeys' | 'interface' = 'graphics';
 
   // Join LAN State
   private discoveredRooms: ActiveRoomSummary[] = [];
@@ -1086,16 +1087,338 @@ export class MainMenuView {
   }
 
   private renderSettings(): void {
+    // Determine active tab styling
+    const tabs = [
+      { id: 'graphics', label: 'Graphics' },
+      { id: 'audio', label: 'Audio' },
+      { id: 'game', label: 'Game' },
+      { id: 'hotkeys', label: 'Hotkeys' },
+      { id: 'interface', label: 'Interface' }
+    ] as const;
+
+    const tabsHtml = tabs.map(t => {
+      const activeClass = this.currentSettingsTab === t.id ? 'active' : '';
+      return `<div class="aoe-tab ${activeClass}" data-tab="${t.id}" style="cursor: pointer; user-select: none;">${t.label}</div>`;
+    }).join('');
+
+    let contentHtml = '';
+
+    if (this.currentSettingsTab === 'graphics') {
+      contentHtml = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <!-- Left Panel: Display & Video Mode -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Display & Resolution
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Display Mode</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Full Screen Borderless</option>
+                <option>Windowed Desktop</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Visual Quality Preset</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Ultra (PBR Shading & PCF Soft Shadows)</option>
+                <option>High (60 FPS Performance)</option>
+                <option>Classic RTS (Low Poly Fidelity)</option>
+              </select>
+            </div>
+
+            <div style="margin-top: 4px;">
+              <button id="btn-toggle-fs" class="aoe-btn-crimson" style="width: 100%; padding: 8px; font-size: 12px;">
+                Toggle Fullscreen Mode
+              </button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #451a03; margin-top: 4px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Anti-Aliasing (FXAA 4x)</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Cascaded Dynamic Sun Shadows</label>
+            </div>
+          </div>
+
+          <!-- Right Panel: Water & Terrain -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Terrain & Water Shaders
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Water Rendering Style</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>3D Deep Water & Shore Foam Wave</option>
+                <option>Classic Flat Cerulean Surface</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Foliage Sway & Wind</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Realistic Ambient Wind Waves</option>
+                <option>Static Forest Canopy</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #451a03; margin-top: 10px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Smooth Elevation Contours</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Construction Scaffolding Dust</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Explosive Cannon & Siege Smoke</label>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (this.currentSettingsTab === 'audio') {
+      contentHtml = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <!-- Left Panel: Volume Mixers -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 14px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Volume Master Levels
+            </div>
+
+            <div>
+              <div class="cinzel" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #451a03; margin-bottom: 4px;">
+                <span>Sound Effects (AoE Acoustics)</span>
+                <span id="sfx-val" style="color: #991b1b; font-weight: 800;">50%</span>
+              </div>
+              <input id="slider-sfx" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #991b1b; cursor: pointer;" />
+            </div>
+
+            <div>
+              <div class="cinzel" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #451a03; margin-bottom: 4px;">
+                <span>Imperial Symphony & Music</span>
+                <span id="music-val" style="color: #991b1b; font-weight: 800;">30%</span>
+              </div>
+              <input id="slider-music" type="range" min="0" max="100" value="30" style="width: 100%; accent-color: #991b1b; cursor: pointer;" />
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #451a03; margin-top: 6px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Play Tactical Combat Horns</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Civilization Vocal Order Acknowledgement</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Nature & Wilderness Ambient Birds</label>
+            </div>
+          </div>
+
+          <!-- Right Panel: Audio Acoustic Previews -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Acoustic Sound Previews
+            </div>
+            <div style="font-size: 11px; color: #78350f; font-family: 'Cinzel', serif; margin-bottom: 4px;">
+              Test authentic Age of Empires synthesizers:
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <button id="btn-test-horn" class="aoe-btn-crimson" style="padding: 8px; font-size: 11px;">
+                📯 Brass Horn
+              </button>
+              <button id="btn-test-sword" class="aoe-btn-crimson" style="padding: 8px; font-size: 11px;">
+                ⚔️ Sword Clash
+              </button>
+              <button id="btn-test-hammer" class="aoe-btn-crimson" style="padding: 8px; font-size: 11px;">
+                🔨 Masonry Hammer
+              </button>
+              <button id="btn-test-ageup" class="aoe-btn-crimson" style="padding: 8px; font-size: 11px;">
+                🔔 Age Up Carillon
+              </button>
+            </div>
+
+            <div style="font-size: 10px; color: #573010; font-family: 'Cinzel', serif; margin-top: 8px; line-height: 1.4;">
+              Synthesizes real wood-block transients, resonant metallic parries, and majestic dual-tone brass flourishes via Web Audio.
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (this.currentSettingsTab === 'game') {
+      contentHtml = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <!-- Left Panel: Tactical & Controls -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Tactics & Automation
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Game Simulation Speed</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Normal (1.0x Standard RTS)</option>
+                <option>Fast (1.5x Rapid Campaign)</option>
+                <option>Epic (2.0x Blitzkrieg)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Right-Click Combat Target Priority</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Threat First (Soldiers > Siege > Forts)</option>
+                <option>Standard (Target Clicked Object)</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #451a03; margin-top: 4px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Auto-Assign Idle Builders to Foundations</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Workers Auto-Gather Nearby After Dropoff</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Industrial Age Instant Troop Spawns</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Idle Citizen Audio Chime Notification</label>
+            </div>
+          </div>
+
+          <!-- Right Panel: Camera & Navigation -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Camera Navigation
+            </div>
+
+            <div>
+              <div class="cinzel" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #451a03; margin-bottom: 4px;">
+                <span>Camera Scroll Speed</span>
+                <span style="color: #991b1b; font-weight: 800;">1.5x</span>
+              </div>
+              <input type="range" min="10" max="30" value="15" style="width: 100%; accent-color: #991b1b; cursor: pointer;" />
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #451a03; margin-top: 8px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Screen Edge Panning with Mouse</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Isometric Camera Pan Smoothing & Inertia</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Double-Click Group Selection</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Smart Formation Drag Line</label>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (this.currentSettingsTab === 'hotkeys') {
+      contentHtml = `
+        <div class="aoe-parchment-inner" style="padding: 14px; max-height: 280px; overflow-y: auto;">
+          <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Keyboard Shortcuts & Command Matrix</span>
+            <button id="btn-reset-hotkeys" class="aoe-btn-crimson" style="padding: 4px 10px; font-size: 10px;">
+              Reset Hotkeys to Default
+            </button>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #2b1809;">
+            <thead>
+              <tr style="border-bottom: 1.5px solid #8c6a34; text-align: left; font-family: 'Cinzel', serif;">
+                <th style="padding: 4px 8px; color: #78350f;">Action Command</th>
+                <th style="padding: 4px 8px; color: #78350f;">Primary Key</th>
+                <th style="padding: 4px 8px; color: #78350f;">Alternate Key</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Command Console / Cheat Code</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">Enter</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">—</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Select All Idle Citizens</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">.</kbd></td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">V</kbd></td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Focus Town Center Capital</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">H</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">Space</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Barracks Recruitment Queue</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">Q, W, E, R, T</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">Grid</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Attack Move</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">A</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">Right Click</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Stop / Hold Position</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">S</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">—</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Assign Control Group</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">Ctrl + 1..9</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">—</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(140, 106, 52, 0.25);">
+                <td style="padding: 5px 8px; font-weight: 600;">Recall Control Group</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">1..9</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">Double-tap</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 8px; font-weight: 600;">Deselect / Pause Game</td>
+                <td style="padding: 5px 8px;"><kbd style="background: #2b1809; color: #fef08a; padding: 2px 6px; border-radius: 3px; font-size: 10px;">Escape</kbd></td>
+                <td style="padding: 5px 8px; color: #785a36;">F10</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else if (this.currentSettingsTab === 'interface') {
+      contentHtml = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <!-- Left Panel: HUD Styling -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Interface Theme & Style
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Console HUD Framework</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Age of Empires III Definitive Wood & Parchment</option>
+                <option>Imperial Gilded Bronze</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Unit Overhead Status</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Always Show Unit Health & Morale</option>
+                <option>Show On Damage Or Selection</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #451a03; margin-top: 6px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Show Tactical Damage Numbers</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Resource Production Rates (+X/min)</label>
+            </div>
+          </div>
+
+          <!-- Right Panel: Minimap & Fog -->
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
+              Minimap & Radar
+            </div>
+
+            <div>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Minimap Display Size</label>
+              <select class="aoe-select" style="width: 100%;">
+                <option>Standard Historical Radar (210px)</option>
+                <option>Expanded Command Radar (260px)</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #451a03; margin-top: 8px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> High Contrast Military Radar Dots</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Show Camera Frustum Trapezoid</label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" checked /> Display Imperial Match Clock</label>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     this.rootElem.innerHTML = `
-      <!-- Age of Empires Options Window (Exact Image 2 layout) -->
-      <div style="display: flex; flex-direction: column; width: 720px; max-width: 95vw;">
-        <!-- Top Folder Tabs (Image 2 style) -->
+      <!-- Age of Empires Options Window -->
+      <div style="display: flex; flex-direction: column; width: 740px; max-width: 95vw;">
+        <!-- Top Folder Tabs -->
         <div style="display: flex; gap: 4px; padding-left: 20px;">
-          <div class="aoe-tab">Interface</div>
-          <div class="aoe-tab active">Graphics</div>
-          <div class="aoe-tab active">Audio</div>
-          <div class="aoe-tab">Game</div>
-          <div class="aoe-tab">Hotkeys</div>
+          ${tabsHtml}
         </div>
 
         <!-- Main Parchment Card -->
@@ -1111,93 +1434,31 @@ export class MainMenuView {
           <div class="aoe-corner-rivet" style="bottom: 8px; left: 8px;"></div>
           <div class="aoe-corner-rivet" style="bottom: 8px; right: 8px;"></div>
 
-          <!-- Ornate Filigree Header Ribbon (Image 2 style) -->
+          <!-- Ornate Filigree Header Ribbon -->
           <div style="text-align: center; border-bottom: 2px solid #8c6a34; padding-bottom: 8px;">
             <div style="font-size: 13px; color: #854d0e; letter-spacing: 4px;">⚜ &bull; ⚜ &bull; ⚜</div>
             <h2 class="cinzel" style="font-size: 22px; font-weight: 800; color: #451a03; margin: 2px 0;">
-              Options — Audio & Graphics
+              Options — ${tabs.find(t => t.id === this.currentSettingsTab)?.label}
             </h2>
             <div style="font-size: 11px; color: #78350f; font-family: 'Cinzel', serif;">
               Age of Empires Tactical Visual & Audio Configuration
             </div>
           </div>
 
-          <!-- 2 Columns of Settings Panels (Image 2 style) -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <!-- Left Panel: Display & Video Mode -->
-            <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 12px;">
-              <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
-                Display & Camera
-              </div>
-
-              <div>
-                <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Display Mode</label>
-                <select class="aoe-select" style="width: 100%;">
-                  <option>Full Screen Borderless</option>
-                  <option>Windowed Mode</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 4px;">Graphics Presets</label>
-                <select class="aoe-select" style="width: 100%;">
-                  <option>Ultra (PBR Smooth Shading & PCF Shadows)</option>
-                  <option>High (60 FPS Performance)</option>
-                </select>
-              </div>
-
-              <div style="margin-top: 4px;">
-                <button id="btn-toggle-fs" class="aoe-btn-crimson" style="width: 100%; padding: 8px; font-size: 12px;">
-                  Toggle Fullscreen
-                </button>
-              </div>
-
-              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #451a03; margin-top: 4px;">
-                <label><input type="checkbox" checked /> Anti-Aliasing (FXAA)</label>
-                <label><input type="checkbox" checked /> Render 3D Water & Reflection</label>
-                <label><input type="checkbox" checked /> Dynamic Sun Shadows</label>
-              </div>
-            </div>
-
-            <!-- Right Panel: Audio Volumes -->
-            <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 14px;">
-              <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; border-bottom: 1.5px solid #a38249; padding-bottom: 4px;">
-                Audio & Acoustics
-              </div>
-
-              <div>
-                <div class="cinzel" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #451a03; margin-bottom: 4px;">
-                  <span>Sound Effects Volume</span>
-                  <span id="sfx-val" style="color: #991b1b;">50%</span>
-                </div>
-                <input id="slider-sfx" type="range" min="0" max="100" value="50" style="width: 100%; accent-color: #991b1b;" />
-              </div>
-
-              <div>
-                <div class="cinzel" style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #451a03; margin-bottom: 4px;">
-                  <span>Music Volume</span>
-                  <span id="music-val" style="color: #991b1b;">30%</span>
-                </div>
-                <input id="slider-music" type="range" min="0" max="100" value="30" style="width: 100%; accent-color: #991b1b;" />
-              </div>
-
-              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #451a03; margin-top: 6px;">
-                <label><input type="checkbox" checked /> Play Tactical Combat Horns</label>
-                <label><input type="checkbox" checked /> Civilization Vocal Confirmations</label>
-                <label><input type="checkbox" checked /> Ambient River & Bird Nature</label>
-              </div>
-            </div>
+          <!-- Tab Content Body -->
+          <div id="settings-tab-content">
+            ${contentHtml}
           </div>
 
-          <!-- Bottom Action Buttons (Image 2 style) -->
+          <!-- Bottom Action Buttons -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-top: 2px solid #8c6a34; padding-top: 14px;">
-            <button id="btn-back" class="aoe-btn-crimson" style="padding: 10px 24px; font-size: 13px;">
-              Confirm
+            <button id="btn-confirm-settings" class="aoe-btn-crimson" style="padding: 10px 24px; font-size: 13px;">
+              Confirm & Save
             </button>
-            <button class="aoe-btn-crimson" style="padding: 10px 24px; font-size: 13px; opacity: 0.9;" onclick="this.closest('.modal-backdrop').querySelector('#btn-back')?.click()">
+            <button id="btn-cancel-settings" class="aoe-btn-crimson" style="padding: 10px 24px; font-size: 13px; opacity: 0.9;">
               Cancel
             </button>
-            <button class="aoe-btn-crimson" style="padding: 10px 20px; font-size: 13px; opacity: 0.85;">
+            <button id="btn-reset-defaults" class="aoe-btn-crimson" style="padding: 10px 20px; font-size: 13px; opacity: 0.85;">
               Reset to Defaults
             </button>
           </div>
@@ -1205,22 +1466,65 @@ export class MainMenuView {
       </div>
     `;
 
+    // Connect top tab click handlers
+    this.rootElem.querySelectorAll('.aoe-tab[data-tab]').forEach(tabElem => {
+      tabElem.addEventListener('click', () => {
+        const targetTab = tabElem.getAttribute('data-tab') as any;
+        if (targetTab && targetTab !== this.currentSettingsTab) {
+          this.currentSettingsTab = targetTab;
+          soundManager.playClick();
+          this.renderSettings();
+        }
+      });
+    });
+
+    // Audio Tab listeners (if present)
     const sliderSfx = this.rootElem.querySelector('#slider-sfx') as HTMLInputElement;
     const sliderMusic = this.rootElem.querySelector('#slider-music') as HTMLInputElement;
 
     sliderSfx?.addEventListener('input', () => {
       const val = parseInt(sliderSfx.value, 10);
-      (this.rootElem.querySelector('#sfx-val') as HTMLElement).textContent = `${val}%`;
+      const valElem = this.rootElem.querySelector('#sfx-val');
+      if (valElem) valElem.textContent = `${val}%`;
       soundManager.setSfxVolume(val / 100);
     });
 
     sliderMusic?.addEventListener('input', () => {
       const val = parseInt(sliderMusic.value, 10);
-      (this.rootElem.querySelector('#music-val') as HTMLElement).textContent = `${val}%`;
+      const valElem = this.rootElem.querySelector('#music-val');
+      if (valElem) valElem.textContent = `${val}%`;
       soundManager.setMusicVolume(val / 100);
     });
 
+    // Sound preview buttons
+    this.rootElem.querySelector('#btn-test-horn')?.addEventListener('click', () => {
+      soundManager.playSelect();
+    });
+    this.rootElem.querySelector('#btn-test-sword')?.addEventListener('click', () => {
+      soundManager.playAttack();
+    });
+    this.rootElem.querySelector('#btn-test-hammer')?.addEventListener('click', () => {
+      soundManager.playBuild();
+    });
+    this.rootElem.querySelector('#btn-test-ageup')?.addEventListener('click', () => {
+      soundManager.playAgeUp();
+    });
+
+    // Hotkey Reset listener
+    this.rootElem.querySelector('#btn-reset-hotkeys')?.addEventListener('click', () => {
+      soundManager.playOrder();
+      const btn = this.rootElem.querySelector('#btn-reset-hotkeys') as HTMLButtonElement;
+      if (btn) {
+        btn.textContent = '✓ Defaults Restored';
+        setTimeout(() => {
+          if (btn) btn.textContent = 'Reset Hotkeys to Default';
+        }, 1500);
+      }
+    });
+
+    // Fullscreen toggle button
     this.rootElem.querySelector('#btn-toggle-fs')?.addEventListener('click', () => {
+      soundManager.playClick();
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
       } else {
@@ -1228,10 +1532,24 @@ export class MainMenuView {
       }
     });
 
-    this.rootElem.querySelector('#btn-back')?.addEventListener('click', () => {
+    // Bottom action buttons
+    this.rootElem.querySelector('#btn-confirm-settings')?.addEventListener('click', () => {
+      soundManager.playSelect();
       this.currentModal = 'none';
-      soundManager.playClick();
       this.render();
+    });
+
+    this.rootElem.querySelector('#btn-cancel-settings')?.addEventListener('click', () => {
+      soundManager.playClick();
+      this.currentModal = 'none';
+      this.render();
+    });
+
+    this.rootElem.querySelector('#btn-reset-defaults')?.addEventListener('click', () => {
+      soundManager.playClick();
+      soundManager.setSfxVolume(0.5);
+      soundManager.setMusicVolume(0.3);
+      this.renderSettings();
     });
   }
 }

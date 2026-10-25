@@ -23,27 +23,42 @@ export class ChatConsole {
 
     this.container = document.createElement('div');
     this.container.id = 'ingame-chat-console';
+    this.container.className = 'aoe-parchment-card';
     this.container.style.cssText = `
       position: absolute;
-      bottom: 210px;
-      left: 24px;
-      width: 480px;
+      bottom: 205px;
+      left: 16px;
+      width: 460px;
       max-width: 90vw;
-      background: rgba(12, 18, 30, 0.88);
-      border: 1px solid rgba(212, 175, 55, 0.4);
-      border-radius: 8px;
-      padding: 10px 14px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(8px);
+      padding: 12px 14px;
+      border: 2px solid #8c6a34;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.9), inset 0 0 35px rgba(120, 75, 25, 0.25);
+      border-radius: 4px;
       z-index: 1000;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Inter', sans-serif;
       display: none;
       flex-direction: column;
       gap: 8px;
-      color: #f1f5f9;
+      color: #2b1809;
       pointer-events: auto;
       user-select: none;
     `;
+
+    // 4 Corner Rivets
+    ['tl', 'tr', 'bl', 'br'].forEach(pos => {
+      const rivet = document.createElement('div');
+      rivet.className = `aoe-corner-rivet aoe-corner-rivet-${pos}`;
+      rivet.style.cssText = `
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        top: ${pos.startsWith('t') ? '4px' : 'auto'};
+        bottom: ${pos.startsWith('b') ? '4px' : 'auto'};
+        left: ${pos.endsWith('l') ? '4px' : 'auto'};
+        right: ${pos.endsWith('r') ? '4px' : 'auto'};
+      `;
+      this.container.appendChild(rivet);
+    });
 
     // Header / Title bar
     const header = document.createElement('div');
@@ -52,29 +67,33 @@ export class ChatConsole {
       justify-content: space-between;
       align-items: center;
       font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      color: #fbbf24;
-      border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      color: #451a03;
+      border-bottom: 1.5px solid #8c6a34;
       padding-bottom: 4px;
+      font-family: 'Cinzel', serif;
     `;
     header.innerHTML = `
-      <span>🏛️ COMMAND CONSOLE & CHEAT CODES</span>
-      <span style="font-size: 10px; color: #94a3b8; font-weight: normal;">[ENTER] Send · [ESC] Cancel · [↑/↓] History</span>
+      <span>🏛️ COMMAND CONSOLE & CHEATS</span>
+      <span style="font-size: 9.5px; color: #78350f; font-family: 'Inter', sans-serif; font-weight: 600;">[ENTER] Send · [ESC] Close · [↑/↓] History</span>
     `;
     this.container.appendChild(header);
 
     // Message Log
     this.logElem = document.createElement('div');
+    this.logElem.className = 'aoe-parchment-inner';
     this.logElem.style.cssText = `
-      max-height: 120px;
+      max-height: 115px;
       overflow-y: auto;
-      font-size: 12px;
+      font-size: 11px;
       display: flex;
       flex-direction: column;
       gap: 4px;
-      padding-right: 4px;
+      padding: 6px 10px;
+      color: #2b1809;
+      background: rgba(255, 255, 255, 0.45);
+      border: 1px solid #8c6a34;
     `;
     this.container.appendChild(this.logElem);
 
@@ -86,22 +105,29 @@ export class ChatConsole {
     inputRow.style.cssText = `
       display: flex;
       align-items: center;
-      gap: 8px;
-      background: rgba(0, 0, 0, 0.45);
-      border: 1px solid rgba(212, 175, 55, 0.5);
-      border-radius: 4px;
-      padding: 4px 8px;
+      gap: 6px;
+    `;
+
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'aoe-input';
+    inputWrap.style.cssText = `
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      background: #fdf6e7;
+      border: 1.5px solid #8c6a34;
+      border-radius: 3px;
     `;
 
     const prefix = document.createElement('span');
     prefix.style.cssText = `
-      color: #38bdf8;
-      font-weight: bold;
       font-size: 12px;
-      font-family: monospace;
+      color: #78350f;
     `;
-    prefix.textContent = '>';
-    inputRow.appendChild(prefix);
+    prefix.textContent = '⚔️';
+    inputWrap.appendChild(prefix);
 
     this.inputElem = document.createElement('input');
     this.inputElem.type = 'text';
@@ -111,23 +137,20 @@ export class ChatConsole {
       background: transparent;
       border: none;
       outline: none;
-      color: #fff;
-      font-size: 13px;
+      color: #2b1809;
+      font-size: 11.5px;
+      font-weight: 600;
       font-family: 'Consolas', 'Courier New', monospace;
     `;
-    inputRow.appendChild(this.inputElem);
+    inputWrap.appendChild(this.inputElem);
+    inputRow.appendChild(inputWrap);
 
     const sendBtn = document.createElement('button');
-    sendBtn.textContent = '↵ Send';
+    sendBtn.className = 'aoe-btn-crimson';
+    sendBtn.textContent = 'Send ↵';
     sendBtn.style.cssText = `
-      background: #d97706;
-      color: #fff;
-      border: 1px solid #b45309;
-      border-radius: 4px;
-      padding: 3px 8px;
+      padding: 4px 12px;
       font-size: 11px;
-      cursor: pointer;
-      font-weight: 600;
     `;
     sendBtn.addEventListener('click', () => this.submitCurrentText());
     inputRow.appendChild(sendBtn);
@@ -266,16 +289,16 @@ export class ChatConsole {
 
   public addLogMessage(type: 'user' | 'system' | 'success' | 'error', text: string): void {
     const line = document.createElement('div');
-    line.style.cssText = `line-height: 1.4; word-break: break-word;`;
+    line.style.cssText = `line-height: 1.35; word-break: break-word; font-family: monospace; font-size: 11px;`;
 
     if (type === 'user') {
-      line.innerHTML = `<span style="color: #93c5fd; font-weight: 600;">[Commander]:</span> <span style="color: #f8fafc;">${this.escapeHtml(text)}</span>`;
+      line.innerHTML = `<span style="color: #78350f; font-weight: 700;">[Commander]:</span> <span style="color: #1c0e05; font-weight: 600;">${this.escapeHtml(text)}</span>`;
     } else if (type === 'success') {
-      line.innerHTML = `<span style="color: #4ade80; font-weight: 600;">✓</span> <span style="color: #86efac;">${this.escapeHtml(text)}</span>`;
+      line.innerHTML = `<span style="color: #166534; font-weight: 700;">👑 [Success]:</span> <span style="color: #14532d; font-weight: 600;">${this.escapeHtml(text)}</span>`;
     } else if (type === 'error') {
-      line.innerHTML = `<span style="color: #f87171; font-weight: 600;">✕</span> <span style="color: #fca5a5;">${this.escapeHtml(text)}</span>`;
+      line.innerHTML = `<span style="color: #991b1b; font-weight: 700;">⚠️ [Denied]:</span> <span style="color: #7f1d1d; font-weight: 600;">${this.escapeHtml(text)}</span>`;
     } else {
-      line.innerHTML = `<span style="color: #fbbf24; font-weight: 600;">ℹ</span> <span style="color: #cbd5e1;">${this.escapeHtml(text)}</span>`;
+      line.innerHTML = `<span style="color: #854d0e; font-weight: 700;">📜 [System]:</span> <span style="color: #3b1d08;">${this.escapeHtml(text)}</span>`;
     }
 
     this.logElem.appendChild(line);
