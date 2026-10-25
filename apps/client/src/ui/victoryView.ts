@@ -1,4 +1,4 @@
-import { PlayerState } from '@agefront/shared';
+import { PlayerState, escapeHtml } from '@agefront/shared';
 import { soundManager } from '../audio/soundManager.js';
 
 export interface VictoryCallbacks {
@@ -40,76 +40,148 @@ export class VictoryView {
 
     this.rootElem.style.display = 'flex';
     this.rootElem.innerHTML = `
-      <div style="
-        width: 600px;
-        background: #0f172a;
-        border: 2px solid ${isVictory ? '#eab308' : '#ef4444'};
-        border-radius: 16px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px ${isVictory ? 'rgba(234, 179, 8, 0.25)' : 'rgba(239, 68, 68, 0.25)'};
-        padding: 32px;
+      <div class="aoe-parchment-card" style="
+        width: 620px;
+        max-width: 95vw;
+        padding: 30px 34px 26px 34px;
         text-align: center;
-        color: #f8fafc;
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 16px;
+        border: 2.5px solid ${isVictory ? '#8c6a34' : '#7f1d1d'};
+        box-shadow: 0 22px 65px rgba(0, 0, 0, 0.92), inset 0 0 60px ${isVictory ? 'rgba(120, 75, 25, 0.35)' : 'rgba(127, 29, 29, 0.35)'};
+        position: relative;
       ">
+        <!-- Historical Corner Rivets -->
+        <div class="aoe-corner-rivet" style="top: 8px; left: 8px;"></div>
+        <div class="aoe-corner-rivet" style="top: 8px; right: 8px;"></div>
+        <div class="aoe-corner-rivet" style="bottom: 8px; left: 8px;"></div>
+        <div class="aoe-corner-rivet" style="bottom: 8px; right: 8px;"></div>
+
+        <!-- Triumph / Defeat Header -->
         <div>
-          <div style="font-size: 48px; margin-bottom: 4px;">${isVictory ? '👑' : '⚔️'}</div>
-          <h1 class="cinzel" style="font-size: 38px; font-weight: 900; color: ${isVictory ? '#fbbf24' : '#ef4444'}; letter-spacing: 3px; text-shadow: 0 0 20px ${isVictory ? 'rgba(251, 191, 36, 0.4)' : 'rgba(239, 68, 68, 0.4)'};">
+          <div style="font-size: 42px; margin-bottom: 2px; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
+            ${isVictory ? '👑' : '⚔️'}
+          </div>
+          <h1 class="cinzel" style="
+            font-size: 38px;
+            font-weight: 900;
+            color: ${isVictory ? '#451a03' : '#7f1d1d'};
+            letter-spacing: 4px;
+            margin: 0;
+            line-height: 1.1;
+            text-shadow: 0 1px 0 rgba(254, 240, 138, 0.9), 0 2px 4px rgba(74, 4, 4, 0.35);
+          ">
             ${isVictory ? 'VICTORY' : 'DEFEAT'}
           </h1>
-          <div style="font-size: 15px; font-weight: 500; color: #cbd5e1; margin-top: 6px;">
-            ${reason}
+          <div class="cinzel" style="font-size: 13px; font-weight: 700; color: ${isVictory ? '#78350f' : '#991b1b'}; letter-spacing: 0.5px; margin-top: 6px;">
+            ${escapeHtml(reason)}
           </div>
-          <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
-            Campaign Duration: ${mins}m ${secs}s
-          </div>
-        </div>
-
-        <!-- Battlefield Statistics Table -->
-        <div style="background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px; text-align: left; display: flex; flex-direction: column; gap: 10px;">
-          <div style="font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #334155; padding-bottom: 8px; letter-spacing: 1px;">
-            Battlefield Performance Summary
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px;">
-            <div>Commander Score: <strong style="color: #38bdf8;">${stats.score}</strong></div>
-            <div>Enemies Defeated: <strong style="color: #ef4444;">${stats.enemiesDefeated}</strong></div>
-            <div>Structures Built: <strong style="color: #10b981;">${stats.buildingsConstructed}</strong></div>
-            <div>Techs Researched: <strong style="color: #f59e0b;">${stats.technologiesResearched}</strong></div>
-          </div>
-
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 6px; text-transform: uppercase; font-weight: 600;">Total Resources Harvested:</div>
-          <div style="display: flex; gap: 14px; font-size: 12px; color: #cbd5e1; flex-wrap: wrap;">
-            <span>🌾 Food: <strong style="color: #4ade80;">${gathered.food}</strong></span>
-            <span>🪵 Wood: <strong style="color: #fb923c;">${gathered.wood}</strong></span>
-            <span>🪨 Stone: <strong style="color: #cbd5e1;">${gathered.stone}</strong></span>
-            <span>🪙 Metal: <strong style="color: #facc15;">${gathered.metal}</strong></span>
-            <span>📜 Knowledge: <strong style="color: #60a5fa;">${gathered.knowledge}</strong></span>
+          <div style="font-size: 11px; font-weight: 600; color: #8c6a34; font-family: 'Cinzel', serif; letter-spacing: 0.5px; margin-top: 3px;">
+            Campaign Duration: <strong>${mins}m ${secs}s</strong>
           </div>
         </div>
 
-        <div style="display: flex; justify-content: center; gap: 16px; margin-top: 10px;">
-          
-          <button id="btn-download-replay" style="background: linear-gradient(135deg, #d97706, #b45309); border: 1px solid #fbbf24; color: #ffffff; border-radius: 8px; padding: 12px 20px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+        <div style="height: 2px; background: linear-gradient(90deg, transparent, #8c6a34 25%, #d4af37 50%, #8c6a34 75%, transparent); margin: 0 10px;"></div>
+
+        <!-- Battlefield Performance Summary (Aged Parchment Inner Panel) -->
+        <div class="aoe-parchment-inner" style="
+          padding: 16px 20px;
+          text-align: left;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          border: 1.5px solid #a38249;
+          background: rgba(255, 255, 255, 0.45);
+        ">
+          <div class="cinzel" style="
+            font-size: 11px;
+            font-weight: 800;
+            color: #451a03;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1.5px solid #a38249;
+            padding-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          ">
+            <span>📜 Battlefield Performance Summary</span>
+            <span style="font-size: 10px; color: #78350f; font-weight: 700;">
+              ${escapeHtml(player?.civ || 'Imperial Sovereign')} • Team ${player?.team || 1}
+            </span>
+          </div>
+
+          <!-- Primary 4 Combat Stats -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+            <div style="background: rgba(255, 255, 255, 0.55); border: 1.5px solid #c2a66e; border-radius: 4px; padding: 8px 6px; text-align: center; box-shadow: inset 1px 1px 2px rgba(0,0,0,0.06);">
+              <div class="cinzel" style="font-size: 9px; font-weight: 800; color: #78350f; text-transform: uppercase;">Score</div>
+              <div class="cinzel" style="font-size: 19px; font-weight: 900; color: #1e3a8a; margin-top: 2px;">${stats.score}</div>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.55); border: 1.5px solid #c2a66e; border-radius: 4px; padding: 8px 6px; text-align: center; box-shadow: inset 1px 1px 2px rgba(0,0,0,0.06);">
+              <div class="cinzel" style="font-size: 9px; font-weight: 800; color: #78350f; text-transform: uppercase;">Defeated</div>
+              <div class="cinzel" style="font-size: 19px; font-weight: 900; color: #991b1b; margin-top: 2px;">${stats.enemiesDefeated}</div>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.55); border: 1.5px solid #c2a66e; border-radius: 4px; padding: 8px 6px; text-align: center; box-shadow: inset 1px 1px 2px rgba(0,0,0,0.06);">
+              <div class="cinzel" style="font-size: 9px; font-weight: 800; color: #78350f; text-transform: uppercase;">Constructed</div>
+              <div class="cinzel" style="font-size: 19px; font-weight: 900; color: #15803d; margin-top: 2px;">${stats.buildingsConstructed}</div>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.55); border: 1.5px solid #c2a66e; border-radius: 4px; padding: 8px 6px; text-align: center; box-shadow: inset 1px 1px 2px rgba(0,0,0,0.06);">
+              <div class="cinzel" style="font-size: 9px; font-weight: 800; color: #78350f; text-transform: uppercase;">Researched</div>
+              <div class="cinzel" style="font-size: 19px; font-weight: 900; color: #854d0e; margin-top: 2px;">${stats.technologiesResearched}</div>
+            </div>
+          </div>
+
+          <!-- Total Resources Harvested -->
+          <div>
+            <div class="cinzel" style="font-size: 10px; font-weight: 800; color: #78350f; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Total Tributes & Harvested Resources:
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 90px; background: #fbf3e0; border: 1.5px solid #c2a66e; border-radius: 3px; padding: 4px 6px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <span>🌾 Food:</span> <strong style="color: #15803d; font-family: monospace; font-size: 12px;">${gathered.food}</strong>
+              </div>
+              <div style="flex: 1; min-width: 90px; background: #fbf3e0; border: 1.5px solid #c2a66e; border-radius: 3px; padding: 4px 6px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <span>🪵 Wood:</span> <strong style="color: #9a3412; font-family: monospace; font-size: 12px;">${gathered.wood}</strong>
+              </div>
+              <div style="flex: 1; min-width: 90px; background: #fbf3e0; border: 1.5px solid #c2a66e; border-radius: 3px; padding: 4px 6px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <span>🪨 Stone:</span> <strong style="color: #475569; font-family: monospace; font-size: 12px;">${gathered.stone}</strong>
+              </div>
+              <div style="flex: 1; min-width: 90px; background: #fbf3e0; border: 1.5px solid #c2a66e; border-radius: 3px; padding: 4px 6px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <span>🪙 Metal:</span> <strong style="color: #854d0e; font-family: monospace; font-size: 12px;">${gathered.metal}</strong>
+              </div>
+              <div style="flex: 1; min-width: 90px; background: #fbf3e0; border: 1.5px solid #c2a66e; border-radius: 3px; padding: 4px 6px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <span>📜 Lore:</span> <strong style="color: #1e40af; font-family: monospace; font-size: 12px;">${gathered.knowledge}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Historic Crimson & Gilded Action Buttons -->
+        <div style="display: flex; justify-content: center; gap: 14px; margin-top: 6px;">
+          <button id="btn-download-replay" class="aoe-btn-crimson" style="padding: 10px 18px; font-size: 12px;" title="Export Match Recording">
             💾 Download Replay (.afr)
           </button>
-            <button id="btn-rematch" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: 1px solid #3b82f6; color: #ffffff; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+          <button id="btn-rematch" class="aoe-btn-crimson" style="padding: 10px 26px; font-size: 13px;" title="Begin Rematch with Current Settings">
             ⚔️ Rematch
           </button>
-          <button id="btn-return-menu" style="background: #1e293b; border: 1px solid #475569; color: #f8fafc; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
-            Return to Main Menu
+          <button id="btn-return-menu" class="aoe-btn-crimson" style="
+            padding: 10px 20px;
+            font-size: 12px;
+            background: linear-gradient(180deg, #3f2512 0%, #29170a 100%) !important;
+            border-color: #8c6a34 !important;
+          " title="Leave Battlefield to War Room">
+            🏛️ Return to Main Menu
           </button>
         </div>
       </div>
     `;
 
-    
     this.rootElem.querySelector('#btn-download-replay')?.addEventListener('click', () => {
       soundManager.playClick();
       this.callbacks.onDownloadReplay?.();
     });
-  
+
     this.rootElem.querySelector('#btn-rematch')?.addEventListener('click', () => {
       this.rootElem.style.display = 'none';
       this.callbacks.onRematch();
