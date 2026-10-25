@@ -76,8 +76,8 @@ export class GameRenderer {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0c1324);
-    this.scene.fog = new THREE.FogExp2(0x0c1324, 0.0032);
+    this.scene.background = new THREE.Color(0x6b8ea8); // Soft historical daytime sky (Rise of Nations / AoE)
+    this.scene.fog = new THREE.FogExp2(0x6b8ea8, 0.0016); // Gentle atmospheric distance haze
 
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.5, 500);
@@ -92,11 +92,11 @@ export class GameRenderer {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
 
-    // Atmospheric Warm Natural Lighting
-    const hemiLight = new THREE.HemisphereLight(0xc7d2fe, 0x1e293b, 0.85);
+    // Atmospheric Warm Natural Lighting (Rise of Nations / AoE style)
+    const hemiLight = new THREE.HemisphereLight(0xd8e8f6, 0x3d4d2d, 0.95);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.55);
+    const sunLight = new THREE.DirectionalLight(0xfffaed, 1.6);
     sunLight.position.set(65, 95, 55);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;

@@ -76,36 +76,36 @@ export class TerrainMesh {
 
       const tile = getTileAt(vx, vz);
 
-      let color = new THREE.Color(0x34d399); // Base vibrant meadow green
+      let color = new THREE.Color(0x446d2c); // Base rich temperate meadow green
 
       if (tile.terrain === 'water') {
-        color = new THREE.Color(0x0284c7); // Vibrant azure riverbed (eliminates dark blackhole effect)
+        color = new THREE.Color(0x0e354a); // Deep rich aquatic riverbed (AoE / RoN style)
       } else if (tile.terrain === 'sand') {
-        color = new THREE.Color(0xf59e0b); // Warm golden shore sand
-        color.lerp(new THREE.Color(0xd97706), Math.abs(Math.sin(vx * 0.8)));
+        color = new THREE.Color(0x9e845c); // Natural warm river sand / shore sediment
+        color.lerp(new THREE.Color(0x826c48), Math.abs(Math.sin(vx * 0.8)));
       } else if (tile.terrain === 'forest') {
-        color = new THREE.Color(0x166534); // Deep woodland emerald
-        color.lerp(new THREE.Color(0x14532d), Math.abs(Math.cos(vz * 0.6)));
+        color = new THREE.Color(0x234419); // Rich pine needle and moss woodland floor
+        color.lerp(new THREE.Color(0x1c3714), Math.abs(Math.cos(vz * 0.6)));
       } else if (tile.terrain === 'mountain') {
         // Restricted Mountain High Ground
         if (vy >= 2.6) {
           // Alpine Snow Peak
-          color = new THREE.Color(0xf8fafc);
-          color.lerp(new THREE.Color(0xe2e8f0), 0.2);
+          color = new THREE.Color(0xe8edf2);
+          color.lerp(new THREE.Color(0xd0dbe4), 0.25);
         } else if (vy >= 1.6) {
           // High granite slate
-          color = new THREE.Color(0x475569);
-          if (ny < 0.65) color.lerp(new THREE.Color(0x1e293b), 0.4); // Deep shadow on steep cliff walls
+          color = new THREE.Color(0x4b5563);
+          if (ny < 0.65) color.lerp(new THREE.Color(0x263238), 0.45); // Deep shadow on steep cliff walls
         } else {
           // Rocky mountain slope base
-          color = new THREE.Color(0x64748b);
+          color = new THREE.Color(0x5a6875);
         }
       } else {
-        // Smooth natural grassland gradient (eliminates artificial checkerboard / polka-dot grid)
+        // Smooth natural grassland gradient (Rise of Nations / Age of Empires style)
         const varChoice = Math.sin(vx * 0.08) * Math.cos(vz * 0.08) * 0.5 + Math.sin(vx * 0.15 + 1.2) * 0.2;
-        const baseGrass = new THREE.Color(0x22c55e); // Lush spring grass
-        const deepMeadow = new THREE.Color(0x15803d); // Rich meadow green
-        const sunlitGrass = new THREE.Color(0x4ade80); // Sunlit warm hillside
+        const baseGrass = new THREE.Color(0x446d2c); // Lush temperate meadow
+        const deepMeadow = new THREE.Color(0x2f4c1c); // Forest edge & valley shadow
+        const sunlitGrass = new THREE.Color(0x567e35); // Sunlit warm hillside knoll
         if (varChoice > 0.1) {
           color = baseGrass.clone().lerp(sunlitGrass, Math.min(1.0, (varChoice - 0.1) * 2.5));
         } else {
@@ -115,7 +115,7 @@ export class TerrainMesh {
 
       // Slope Cliff Shading: Any steep slope automatically turns into striated rock cliff face
       if (tile.terrain !== 'water' && tile.terrain !== 'sand' && ny < 0.72) {
-        const cliffColor = new THREE.Color(0x334155); // Dark granite cliff wall
+        const cliffColor = new THREE.Color(0x323a42); // Dark granite cliff wall
         const cliffMix = Math.min(1.0, (0.72 - ny) * 3.5);
         color.lerp(cliffColor, cliffMix);
       }
@@ -134,8 +134,8 @@ export class TerrainMesh {
 
     const groundMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.82,
-      metalness: 0.08,
+      roughness: 0.86,
+      metalness: 0.04,
       flatShading: false
     });
 
@@ -150,16 +150,17 @@ export class TerrainMesh {
     skirtGeom.translate(width / 2, -1.0, height / 2);
 
     const skirtMat = new THREE.MeshStandardMaterial({
-      color: 0x122718,
+      color: 0x22351f,
       roughness: 0.95,
-      metalness: 0.05,
+      metalness: 0.02,
       flatShading: false
     });
     const skirtMesh = new THREE.Mesh(skirtGeom, skirtMat);
     skirtMesh.receiveShadow = true;
     this.group.add(skirtMesh);
 
-    // 3. Optimized Static Water Surface - built strictly over actual water tiles with zero vertical movement!
+    // 3. Seamless Continuous Indexed Water Surface (Rise of Nations / Age of Empires style)
+    // Eliminates all tile seam lines, double-transparency overlaps, and blockiness!
     const waterTiles: { tx: number; tz: number }[] = [];
     for (let tz = 0; tz < height; tz++) {
       for (let tx = 0; tx < width; tx++) {
@@ -170,37 +171,45 @@ export class TerrainMesh {
     }
 
     if (waterTiles.length > 0) {
-      const pos: number[] = [];
-      const waterSurfaceY = -0.08;
-      const pad = 0.15; // seamless margin into shoreline
+      const waterSurfaceY = -0.06;
+      const vertexMap = new Map<number, number>();
+      const positions: number[] = [];
+      const indices: number[] = [];
 
-      waterTiles.forEach(({ tx, tz }) => {
-        const x0 = tx - pad;
-        const x1 = tx + 1 + pad;
-        const z0 = tz - pad;
-        const z1 = tz + 1 + pad;
+      const getOrCreateVertex = (gx: number, gz: number): number => {
+        const key = gz * (width + 1) + gx;
+        const existing = vertexMap.get(key);
+        if (existing !== undefined) return existing;
 
-        pos.push(
-          x0, waterSurfaceY, z0,
-          x0, waterSurfaceY, z1,
-          x1, waterSurfaceY, z0,
+        const newIndex = positions.length / 3;
+        positions.push(gx, waterSurfaceY, gz);
+        vertexMap.set(key, newIndex);
+        return newIndex;
+      };
 
-          x1, waterSurfaceY, z0,
-          x0, waterSurfaceY, z1,
-          x1, waterSurfaceY, z1
-        );
-      });
+      for (const { tx, tz } of waterTiles) {
+        // Shared 4 corners of tile quad (tx, tz):
+        const v0 = getOrCreateVertex(tx, tz);
+        const v1 = getOrCreateVertex(tx + 1, tz);
+        const v2 = getOrCreateVertex(tx, tz + 1);
+        const v3 = getOrCreateVertex(tx + 1, tz + 1);
+
+        // Counter-clockwise triangles facing upward (+Y):
+        indices.push(v0, v2, v1);
+        indices.push(v1, v2, v3);
+      }
 
       const waterGeom = new THREE.BufferGeometry();
-      waterGeom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      waterGeom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      waterGeom.setIndex(indices);
       waterGeom.computeVertexNormals();
 
       const waterMat = new THREE.MeshStandardMaterial({
-        color: 0x38bdf8, // Clear brilliant sky-cyan water
-        emissive: 0x0284c7, // Radiant self-luminous azure glow - ensures water is always luminous and never black!
-        emissiveIntensity: 0.45,
-        roughness: 0.12,
-        metalness: 0.1,
+        color: 0x16537e, // Deep sapphire aquatic blue (AoE / RoN style)
+        emissive: 0x092e42, // Natural subtle oceanic luminescence
+        emissiveIntensity: 0.16,
+        roughness: 0.14,
+        metalness: 0.22,
         transparent: true,
         opacity: 0.82,
         depthWrite: false
@@ -233,121 +242,103 @@ export class TerrainMesh {
   }
 
   // -------------------------------------------------------------
-  // 3D MOUNTAIN MASSIFS & JAGGED RESTRICTED PEAKS
+  // 3D MOUNTAIN MASSIFS & ORGANIC ROCKY CRAGS (Rise of Nations / AoE style)
+  // Continuous majestic alpine ridges sculpted in terrain; natural scattered crags
   // -------------------------------------------------------------
   private buildMountainMassifs(width: number, height: number, tiles: MapTile[]): void {
-    const mountainSpots: { pos: THREE.Vector3; elev: number; isHighPeak: boolean }[] = [];
+    const cragSpots: { pos: THREE.Vector3; elev: number; isHighPeak: boolean; hash: number }[] = [];
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const t = tiles[y * width + x];
         if (t && t.terrain === 'mountain') {
           const elev = t.elevation || 2;
-          const baseY = elev >= 3 ? 3.0 : elev >= 2 ? 2.1 : 1.3;
-          mountainSpots.push({
-            pos: new THREE.Vector3(x + 0.5, baseY, y + 0.5),
-            elev,
-            isHighPeak: elev >= 2
-          });
+          const hash = (x * 19 + y * 37) % 100;
+          // Organic distribution: Place rocky crags only on prominent ridges and summits (avoiding uniform grids)
+          if (elev >= 2 && hash < 45) {
+            const baseY = elev >= 3 ? 2.8 : 1.9;
+            cragSpots.push({
+              pos: new THREE.Vector3(x + 0.5, baseY, y + 0.5),
+              elev,
+              isHighPeak: elev >= 3,
+              hash
+            });
+          }
         }
       }
     }
 
-    if (mountainSpots.length === 0) return;
+    if (cragSpots.length === 0) return;
 
     const mountainGroup = new THREE.Group();
 
-    // 1. Towering Granite Mountain Spire
-    const rockSpireGeom = new THREE.ConeGeometry(0.85, 2.2, 12);
-    const rockSpireMat = new THREE.MeshStandardMaterial({
-      color: 0x475569, // Slate granite rock
+    // 1. Weathered Granite Rock Outcropping
+    const cragGeom = new THREE.DodecahedronGeometry(0.72, 1);
+    const cragMat = new THREE.MeshStandardMaterial({
+      color: 0x475569, // Weathered slate granite
       roughness: 0.88,
-      metalness: 0.12,
+      metalness: 0.08,
       flatShading: false
     });
 
-    // 2. High Alpine Snow Cap Crown
-    const snowCapGeom = new THREE.ConeGeometry(0.55, 1.0, 12);
-    const snowCapMat = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc, // Pure sparkling alpine snow
-      roughness: 0.35,
+    // 2. Jagged Summit Crags & Boulders
+    const boulderGeom = new THREE.DodecahedronGeometry(0.55, 0);
+    const boulderMat = new THREE.MeshStandardMaterial({
+      color: 0x334155, // Dark basalt crevice rock
+      roughness: 0.92,
       metalness: 0.05,
       flatShading: false
     });
 
-    // 3. Secondary Flanking Shoulder Boulder
-    const flankGeom = new THREE.DodecahedronGeometry(0.65, 1);
-    const flankMat = new THREE.MeshStandardMaterial({
-      color: 0x334155, // Dark granite crevice rock
-      roughness: 0.9,
-      flatShading: false
-    });
+    const instCrags = new THREE.InstancedMesh(cragGeom, cragMat, cragSpots.length);
+    const instBoulders = new THREE.InstancedMesh(boulderGeom, boulderMat, cragSpots.length);
 
-    const instRock = new THREE.InstancedMesh(rockSpireGeom, rockSpireMat, mountainSpots.length);
-    const instSnow = new THREE.InstancedMesh(snowCapGeom, snowCapMat, mountainSpots.length);
-    const instFlank1 = new THREE.InstancedMesh(flankGeom, flankMat, mountainSpots.length);
-    const instFlank2 = new THREE.InstancedMesh(flankGeom, flankMat, mountainSpots.length);
-
-    instRock.castShadow = true;
-    instRock.receiveShadow = true;
-    instSnow.castShadow = true;
-    instSnow.receiveShadow = true;
-    instFlank1.castShadow = true;
-    instFlank2.castShadow = true;
+    instCrags.castShadow = true;
+    instCrags.receiveShadow = true;
+    instBoulders.castShadow = true;
+    instBoulders.receiveShadow = true;
 
     const dummy = new THREE.Object3D();
 
-    mountainSpots.forEach((spot, idx) => {
-      const scaleY = spot.elev >= 3 ? 1.5 : spot.elev >= 2 ? 1.2 : 0.9;
-      const rotY = (idx * 1.37) % (Math.PI * 2);
+    cragSpots.forEach((spot, idx) => {
+      const rotY = (spot.hash * 0.17) % (Math.PI * 2);
+      const rotX = (((spot.hash * 13) % 9) - 4) * 0.03;
+      const rotZ = (((spot.hash * 23) % 9) - 4) * 0.03;
 
-      // Central Rock Spire
-      dummy.position.set(spot.pos.x, spot.pos.y + 0.3, spot.pos.z);
-      dummy.scale.set(1.15, scaleY, 1.15);
-      dummy.rotation.set(0, rotY, 0);
+      // Natural organic placement jitter
+      const jx = (((spot.hash * 7) % 11) - 5) * 0.04;
+      const jz = (((spot.hash * 11) % 11) - 5) * 0.04;
+
+      const scaleX = 0.9 + ((spot.hash * 3) % 4) * 0.15;
+      const scaleY = spot.elev >= 3 ? 1.35 + ((spot.hash * 5) % 4) * 0.18 : 0.95 + ((spot.hash * 5) % 3) * 0.15;
+      const scaleZ = 0.85 + ((spot.hash * 7) % 4) * 0.15;
+
+      // Primary Granite Outcropping
+      dummy.position.set(spot.pos.x + jx, spot.pos.y + 0.1, spot.pos.z + jz);
+      dummy.scale.set(scaleX, scaleY, scaleZ);
+      dummy.rotation.set(rotX, rotY, rotZ);
       dummy.updateMatrix();
-      instRock.setMatrixAt(idx, dummy.matrix);
+      instCrags.setMatrixAt(idx, dummy.matrix);
 
-      // Snow Cap (placed at summit of high peaks)
-      if (spot.isHighPeak) {
-        dummy.position.set(spot.pos.x, spot.pos.y + 0.3 + scaleY * 0.65, spot.pos.z);
-        dummy.scale.set(0.9, scaleY * 0.7, 0.9);
-        dummy.rotation.set(0, rotY, 0);
-        dummy.updateMatrix();
-        instSnow.setMatrixAt(idx, dummy.matrix);
-      } else {
-        dummy.scale.set(0, 0, 0);
-        dummy.updateMatrix();
-        instSnow.setMatrixAt(idx, dummy.matrix);
-      }
-
-      // Flanking Crag 1
-      dummy.position.set(spot.pos.x + 0.38, spot.pos.y - 0.2, spot.pos.z + 0.3);
-      dummy.scale.set(0.65, 0.8, 0.65);
-      dummy.rotation.set(0.2, rotY + 0.8, -0.3);
+      // Flanking Jagged Boulder
+      const bx = spot.pos.x - jx * 1.5 + 0.25;
+      const bz = spot.pos.z - jz * 1.5 - 0.22;
+      dummy.position.set(bx, spot.pos.y - 0.15, bz);
+      dummy.scale.set(scaleX * 0.75, scaleY * 0.6, scaleZ * 0.75);
+      dummy.rotation.set(-rotX, rotY + 1.2, rotZ + 0.4);
       dummy.updateMatrix();
-      instFlank1.setMatrixAt(idx, dummy.matrix);
-
-      // Flanking Crag 2
-      dummy.position.set(spot.pos.x - 0.35, spot.pos.y - 0.25, spot.pos.z - 0.28);
-      dummy.scale.set(0.6, 0.75, 0.6);
-      dummy.rotation.set(-0.3, rotY - 0.9, 0.2);
-      dummy.updateMatrix();
-      instFlank2.setMatrixAt(idx, dummy.matrix);
+      instBoulders.setMatrixAt(idx, dummy.matrix);
     });
 
-    mountainGroup.add(instRock);
-    mountainGroup.add(instSnow);
-    mountainGroup.add(instFlank1);
-    mountainGroup.add(instFlank2);
+    mountainGroup.add(instCrags);
+    mountainGroup.add(instBoulders);
     this.group.add(mountainGroup);
   }
 
   // -------------------------------------------------------------
-  // RESTRICTED AREA BOUNDARY MARKERS (Clear mountain cliff borders)
+  // RESTRICTED AREA BOUNDARY MARKERS (Natural scree talus along mountain base)
   // -------------------------------------------------------------
   private buildRestrictedAreaBoundaryMarkers(width: number, height: number, tiles: MapTile[]): void {
-    const boundaryPoints: THREE.Vector3[] = [];
     const cairnSpots: THREE.Vector3[] = [];
 
     for (let y = 0; y < height; y++) {
@@ -355,57 +346,40 @@ export class TerrainMesh {
         const t = tiles[y * width + x];
         if (t && t.terrain === 'mountain') {
           // Check 4 cardinal neighbors
-          const checkEdge = (nx: number, ny: number, p1: THREE.Vector3, p2: THREE.Vector3) => {
+          const checkEdge = (nx: number, ny: number) => {
             if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
             const neighbor = tiles[ny * width + nx];
             if (neighbor && neighbor.terrain !== 'mountain') {
-              boundaryPoints.push(p1, p2);
-              if (Math.random() < 0.35) {
-                cairnSpots.push(new THREE.Vector3((p1.x + p2.x) / 2, 0.2, (p1.z + p2.z) / 2));
+              if (((x * 13 + y * 29) % 10) < 3) {
+                cairnSpots.push(new THREE.Vector3((x + nx) * 0.5 + 0.5, 0.15, (y + ny) * 0.5 + 0.5));
               }
             }
           };
 
-          const baseY = 0.25;
-          // North edge (z)
-          checkEdge(x, y - 1, new THREE.Vector3(x, baseY, y), new THREE.Vector3(x + 1, baseY, y));
-          // South edge (z + 1)
-          checkEdge(x, y + 1, new THREE.Vector3(x, baseY, y + 1), new THREE.Vector3(x + 1, baseY, y + 1));
-          // West edge (x)
-          checkEdge(x - 1, y, new THREE.Vector3(x, baseY, y), new THREE.Vector3(x, baseY, y + 1));
-          // East edge (x + 1)
-          checkEdge(x + 1, y, new THREE.Vector3(x + 1, baseY, y), new THREE.Vector3(x + 1, baseY, y + 1));
+          checkEdge(x, y - 1);
+          checkEdge(x, y + 1);
+          checkEdge(x - 1, y);
+          checkEdge(x + 1, y);
         }
       }
     }
 
-    // 1. Subtle, stylish cliff-edge hazard boundary lines
-    if (boundaryPoints.length > 0) {
-      const lineGeom = new THREE.BufferGeometry().setFromPoints(boundaryPoints);
-      const lineMat = new THREE.LineBasicMaterial({
-        color: 0xf59e0b, // Amber-gold restricted border highlight
-        transparent: true,
-        opacity: 0.65,
-        linewidth: 2
-      });
-      const lines = new THREE.LineSegments(lineGeom, lineMat);
-      this.restrictedBorderGroup.add(lines);
-    }
-
-    // 2. Talus Boulder & Rock Cairn markers along restricted mountain foot
+    // Natural scree stones & talus boulders along mountain foot (AoE / RoN style)
     if (cairnSpots.length > 0) {
-      const boulderGeom = new THREE.DodecahedronGeometry(0.28, 1);
+      const boulderGeom = new THREE.DodecahedronGeometry(0.24, 0);
       const boulderMat = new THREE.MeshStandardMaterial({
-        color: 0x64748b,
-        roughness: 0.9,
+        color: 0x526071,
+        roughness: 0.92,
         flatShading: false
       });
       const instCairn = new THREE.InstancedMesh(boulderGeom, boulderMat, cairnSpots.length);
       const dummy = new THREE.Object3D();
       cairnSpots.forEach((pos, idx) => {
-        dummy.position.copy(pos);
-        const s = 0.6 + (idx % 5) * 0.15;
-        dummy.scale.set(s, s * 0.7, s);
+        const jx = (((idx * 17) % 7) - 3) * 0.04;
+        const jz = (((idx * 23) % 7) - 3) * 0.04;
+        dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
+        const s = 0.5 + (idx % 4) * 0.15;
+        dummy.scale.set(s, s * 0.65, s);
         dummy.rotation.set((idx * 0.4) % 1, (idx * 0.7) % 2, 0);
         dummy.updateMatrix();
         instCairn.setMatrixAt(idx, dummy.matrix);
@@ -431,18 +405,18 @@ export class TerrainMesh {
       }
     });
 
-    // 1. Diverse Forest Trees: Conifer Pines & Noble Firs
+    // 1. Diverse Forest Trees: Conifer Pines & Noble Firs (AoE / RoN style)
     if (forestSpots.length > 0) {
       const trunkGeom = new THREE.CylinderGeometry(0.12, 0.18, 0.95, 8);
-      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, flatShading: false });
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3d2613, roughness: 0.92, flatShading: false });
 
       const cone1Geom = new THREE.ConeGeometry(0.88, 1.25, 8);
       cone1Geom.translate(0, 0.9, 0);
       const cone2Geom = new THREE.ConeGeometry(0.68, 1.05, 8);
       cone2Geom.translate(0, 1.55, 0);
 
-      const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.72, flatShading: false });
-      const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.68, flatShading: false });
+      const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x1e4b1a, roughness: 0.74, flatShading: false });
+      const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x275e22, roughness: 0.70, flatShading: false });
 
       const instTrunk = new THREE.InstancedMesh(trunkGeom, trunkMat, forestSpots.length);
       const instCone1 = new THREE.InstancedMesh(cone1Geom, foliageMat1, forestSpots.length);
@@ -450,10 +424,16 @@ export class TerrainMesh {
 
       const dummy = new THREE.Object3D();
       forestSpots.forEach((pos, idx) => {
-        dummy.position.copy(pos);
-        const scale = 0.82 + ((idx * 23) % 40) * 0.01;
-        dummy.scale.set(scale, scale, scale);
+        // Natural organic cluster jitter so trees don't align in a grid
+        const jitterX = (((idx * 17 + 7) % 15) / 14 - 0.5) * 0.52;
+        const jitterZ = (((idx * 31 + 11) % 15) / 14 - 0.5) * 0.52;
+        dummy.position.set(pos.x + jitterX, pos.y, pos.z + jitterZ);
+
+        const scale = 0.85 + ((idx * 23) % 35) * 0.012;
+        dummy.scale.set(scale, scale * (0.9 + ((idx * 7) % 25) * 0.01), scale);
         dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
+        dummy.rotation.x = (((idx * 13) % 9) - 4) * 0.015;
+        dummy.rotation.z = (((idx * 19) % 9) - 4) * 0.015;
         dummy.updateMatrix();
 
         instTrunk.setMatrixAt(idx, dummy.matrix);
