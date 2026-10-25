@@ -62,7 +62,7 @@ export class TerrainMesh {
 
     // 1. High-Resolution Ground Geometry with Organic Slopes, Cliffs & Alpine Peaks
     // Using a dense grid for smooth hills, craggy mountain slopes, and river valleys
-    const geom = new THREE.PlaneGeometry(width, height, width - 1, height - 1);
+    const geom = new THREE.PlaneGeometry(width, height, width, height);
     geom.rotateX(-Math.PI / 2);
     geom.translate(width / 2, 0, height / 2);
 
@@ -74,6 +74,23 @@ export class TerrainMesh {
       const tx = Math.min(width - 1, Math.max(0, Math.floor(x)));
       const tz = Math.min(height - 1, Math.max(0, Math.floor(z)));
       return tiles[tz * width + tx] || { terrain: 'grass', elevation: 0, walkable: true };
+    };
+
+    // Precompute mountain influence for each tile or sample locally
+    // For smooth, realistic alpine massifs without discontinuous green holes
+    const getMountainWeight = (x: number, z: number): { weight: number; maxElev: number } => {
+      let w = 0;
+      let maxElev = 0;
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const t = getTileAt(x + dx * 0.85, z + dz * 0.85);
+          if (t.terrain === 'mountain') {
+            w += 1;
+            if ((t.elevation || 1) > maxElev) maxElev = t.elevation || 1;
+          }
+        }
+      }
+      return { weight: w / 9.0, maxElev: Math.max(1, maxElev) };
     };
 
     // Calculate height and organic vertex offsets
@@ -94,15 +111,23 @@ export class TerrainMesh {
       } else if (tile.terrain === 'forest') {
         elevY = 0.12 + (tile.elevation || 0) * 0.8 + microNoise;
       } else if (tile.terrain === 'mountain') {
-        // Continuous alpine mountain massif matching reference
-        const baseHeight = tile.elevation >= 3 ? 3.8 : tile.elevation >= 2 ? 2.8 : 1.8;
+        // Continuous alpine mountain massif matching reference ba65d829.jpg
+        const baseHeight = tile.elevation >= 3 ? 3.6 : tile.elevation >= 2 ? 2.6 : 1.6;
         // Natural geological ridge and arête formations
-        const ridge1 = Math.abs(Math.sin(vx * 0.35 + vz * 0.25) * Math.cos(vx * 0.25 - vz * 0.35)) * 1.35;
-        const crag = Math.sin(vx * 0.85) * Math.cos(vz * 0.85) * 0.45;
-        elevY = baseHeight + ridge1 + crag + microNoise * 0.6;
+        const ridge1 = Math.pow(Math.abs(Math.sin(vx * 0.28 + vz * 0.2) * Math.cos(vx * 0.2 - vz * 0.28)), 0.85) * 1.25;
+        const crag = Math.sin(vx * 0.75) * Math.cos(vz * 0.75) * 0.35;
+        elevY = baseHeight + ridge1 + crag + microNoise * 0.5;
       } else {
-        // Grass / hills
-        elevY = (tile.elevation || 0) * 0.85 + microNoise;
+        // Check if adjacent to mountain for natural cliff slope transition
+        const mInfo = getMountainWeight(vx, vz);
+        if (mInfo.weight > 0.15) {
+          // Foothill ramp up to mountain cliff base
+          const baseHeight = mInfo.maxElev >= 3 ? 2.2 : 1.4;
+          elevY = baseHeight * mInfo.weight * 0.75 + (tile.elevation || 0) * 0.6 + microNoise;
+        } else {
+          // Grass / hills
+          elevY = (tile.elevation || 0) * 0.85 + microNoise;
+        }
       }
 
       posAttr.setY(i, elevY);
@@ -142,6 +167,8 @@ export class TerrainMesh {
       const ny = normAttr ? normAttr.getY(i) : 1.0; // slope steepness (1 = flat ground, < 0.7 = steep cliff)
 
       const tile = getTileAt(vx, vz);
+      const mInfo = getMountainWeight(vx, vz);
+      const isMountainArea = tile.terrain === 'mountain' || mInfo.weight > 0.22 || vy >= 1.35;
 
       let color = new THREE.Color(0x446d2c); // Base rich temperate meadow green
 
@@ -150,26 +177,45 @@ export class TerrainMesh {
       } else if (tile.terrain === 'sand') {
         color = new THREE.Color(0x9e845c); // Natural warm river sand / shore sediment
         color.lerp(new THREE.Color(0x826c48), Math.abs(Math.sin(vx * 0.8)));
-      } else if (tile.terrain === 'forest') {
+      } else if (tile.terrain === 'forest' && !isMountainArea) {
         color = new THREE.Color(0x234419); // Rich pine needle and moss woodland floor
         color.lerp(new THREE.Color(0x1c3714), Math.abs(Math.cos(vz * 0.6)));
-      } else if (tile.terrain === 'mountain') {
-        // Alpine Mountain Massif (Faithfully matching user photo reference)
-        if (vy >= 3.0) {
-          // Alpine Snow Peak & Glacial Couloirs
-          color = new THREE.Color(0xf1f5f9);
-          color.lerp(new THREE.Color(0xdce5ed), 0.2);
-        } else if (vy >= 2.0) {
-          // Luminous Stratified Granite Ridge (Matching Pedestal C)
-          color = new THREE.Color(0x828f9f);
-          if (ny < 0.7) color.lerp(new THREE.Color(0x657180), 0.35); // Geological shadow on steep faces
-          else color.lerp(new THREE.Color(0x9aa6b6), 0.25); // Sunlit granite crest
+      } else if (isMountainArea) {
+        // Alpine Mountain Massif (Faithfully matching user photo reference ba65d829.jpg)
+        // 1. Granite mountain rock is dominant (weathered alpine granite & stratified stone)
+        const strata = Math.sin(vy * 6.5 + Math.sin(vx * 1.5 + vz * 1.2) * 1.1) * 0.5 + 0.5;
+        const cliffDark = new THREE.Color(0x48525f); // Dark weathered slate fissure
+        const cliffSunlit = new THREE.Color(0x8896a7); // Luminous exposed granite ledge
+        const graniteBase = cliffDark.clone().lerp(cliffSunlit, strata * 0.6 + 0.2);
+
+        // Cliff steepness shading (steep faces darker, flat shoulders sunlit)
+        if (ny < 0.72) {
+          const shadeMix = Math.min(1.0, (0.72 - ny) * 3.0);
+          graniteBase.lerp(new THREE.Color(0x38414c), shadeMix * 0.5);
         } else {
-          // Foothills blending granite scree into alpine meadow grass
-          const blendToGrass = Math.max(0, Math.min(1, (2.0 - vy) / 0.8));
-          const rockColor = new THREE.Color(0x738090);
-          const foothillGrass = new THREE.Color(0x486b2e);
-          color = rockColor.lerp(foothillGrass, blendToGrass * 0.7);
+          graniteBase.lerp(new THREE.Color(0x98a5b6), 0.2);
+        }
+
+        color = graniteBase;
+
+        // 2. Subtle, realistic snow ONLY on highest crests & arêtes (vy >= 3.6 AND ny > 0.52)
+        // Never excessive, strictly crowning the peaks where snow naturally accumulates
+        if (vy >= 3.6 && ny > 0.52) {
+          const snowFactor = Math.min(1.0, (vy - 3.6) / 0.85);
+          const snowSlopeFactor = Math.min(1.0, (ny - 0.52) / 0.3);
+          const snowAmount = snowFactor * snowSlopeFactor;
+          const alpineSnow = new THREE.Color(0xf0f4f8); // Crisp alpine snow
+          alpineSnow.lerp(new THREE.Color(0xd4e0ec), 0.25); // Subtle cool shadow tint
+          color.lerp(alpineSnow, snowAmount * 0.88);
+        }
+
+        // 3. Foothill transition: blend into scree gravel then deep alpine meadow moss
+        if (vy < 1.8) {
+          const foothillBlend = Math.max(0, Math.min(1, (1.8 - vy) / 0.9));
+          const foothillMoss = new THREE.Color(0x3e5a26);
+          const screeGravel = new THREE.Color(0x606c7a);
+          const lowerColor = screeGravel.lerp(foothillMoss, foothillBlend * 0.65);
+          color.lerp(lowerColor, foothillBlend * 0.85);
         }
       } else {
         // Smooth natural grassland gradient (Rise of Nations / Age of Empires style)
@@ -228,7 +274,7 @@ export class TerrainMesh {
       }
 
       // Slope Cliff Shading: Any steep slope automatically turns into striated rock cliff face (AoE II: DE style)
-      if (tile.terrain !== 'water' && tile.terrain !== 'sand' && ny < 0.75) {
+      if (tile.terrain !== 'water' && tile.terrain !== 'sand' && !isMountainArea && ny < 0.75) {
         const strata = Math.sin(vy * 9.0 + Math.sin(vx * 1.5 + vz * 1.2) * 1.2) * 0.5 + 0.5;
         const cliffDark = new THREE.Color(0x2d343c); // Dark slate crevice
         const cliffLight = new THREE.Color(0x5a636e); // Exposed stone ledge strata
@@ -473,6 +519,7 @@ export class TerrainMesh {
 
   // -------------------------------------------------------------
   // MOUNTAIN MASSIFS (Pedestal C: Valley Bedrock Formations & Scree)
+  // Realistic rock accents: stratified bedrock slabs, talus boulders & spires
   // -------------------------------------------------------------
   private buildMountainMassifs(width: number, height: number, tiles: MapTile[]): void {
     const mountainSpots: { pos: THREE.Vector3; elev: number; isCliff: boolean; isPeak: boolean }[] = [];
@@ -482,9 +529,8 @@ export class TerrainMesh {
         const tx = idx % width;
         const tz = Math.floor(idx / width);
         const elev = t.elevation || 1;
-        const elevY = elev >= 3 ? 3.8 : elev >= 2 ? 2.8 : 1.8;
+        const elevY = elev >= 3 ? 3.6 : elev >= 2 ? 2.6 : 1.6;
 
-        // Check neighboring tiles to see if this is an edge / cliff face
         let hasNonMountainNeighbor = false;
         const neighbors = [
           [-1, 0], [1, 0], [0, -1], [0, 1]
@@ -513,32 +559,26 @@ export class TerrainMesh {
     const cliffTex = getMountainCliffTexture();
     const graniteRockMat = new THREE.MeshStandardMaterial({
       map: cliffTex,
-      color: 0x8a96a6, // Luminous weathered granite (Pedestal C Valley Bedrock)
-      roughness: 0.82,
+      color: 0x768393, // Weathered alpine granite (Pedestal C Valley Bedrock)
+      roughness: 0.86,
       metalness: 0.05,
       flatShading: true
     });
 
-    const warmStoneMat = new THREE.MeshStandardMaterial({
+    const darkSlateMat = new THREE.MeshStandardMaterial({
       map: cliffTex,
-      color: 0x98a4b4, // Sunlit granite face
-      roughness: 0.84,
+      color: 0x586472, // Shadowed slate rock & scree
+      roughness: 0.90,
       metalness: 0.04,
       flatShading: true
     });
 
-    const snowPeakMat = new THREE.MeshStandardMaterial({
-      color: 0xf1f5f9, // Alpine snow dusting
-      roughness: 0.65,
-      metalness: 0.02,
-      flatShading: true
-    });
-
-    // 1. Valley Bedrock Outcrop Formations (Pedestal C: Stratified rock slabs jutting from terrain)
-    const bedrockSpots = mountainSpots.filter(m => m.isCliff || ((m.pos.x * 7 + m.pos.z * 13) % 5 === 0));
+    // 1. Natural Bedrock Outcrop Formations (Pedestal C: Stratified rock slabs jutting along cliff slopes)
+    // Sparse placement: ~11% of cliff faces for natural accents instead of repetitive clutter
+    const bedrockSpots = mountainSpots.filter(m => m.isCliff && ((m.pos.x * 17 + m.pos.z * 31) % 9 === 0));
     if (bedrockSpots.length > 0) {
-      const rockGeom = new THREE.DodecahedronGeometry(0.85, 1);
-      rockGeom.scale(1.65, 0.75, 1.25); // Natural horizontal bedrock slab proportion
+      const rockGeom = new THREE.DodecahedronGeometry(0.75, 1);
+      rockGeom.scale(1.8, 0.45, 1.25); // Stratified flat rock slab
 
       const instBedrock = new THREE.InstancedMesh(rockGeom, graniteRockMat, bedrockSpots.length);
       instBedrock.castShadow = true;
@@ -546,12 +586,12 @@ export class TerrainMesh {
 
       const dummy = new THREE.Object3D();
       bedrockSpots.forEach((spot, idx) => {
-        dummy.position.set(spot.pos.x, spot.pos.y - 0.25, spot.pos.z);
-        const scale = 0.95 + ((idx * 17) % 30) * 0.015;
-        dummy.scale.set(scale, scale * (0.8 + ((idx * 7) % 20) * 0.015), scale);
-        dummy.rotation.y = ((idx * 53) % 360) * (Math.PI / 180);
-        dummy.rotation.x = (((idx * 13) % 15) - 7) * 0.025;
-        dummy.rotation.z = (((idx * 23) % 15) - 7) * 0.025;
+        dummy.position.set(spot.pos.x, spot.pos.y * 0.65, spot.pos.z);
+        const scale = 0.85 + ((idx * 19) % 25) * 0.02;
+        dummy.scale.set(scale, scale, scale);
+        dummy.rotation.y = ((idx * 67) % 360) * (Math.PI / 180);
+        dummy.rotation.x = (((idx * 13) % 15) - 7) * 0.03;
+        dummy.rotation.z = (((idx * 29) % 15) - 7) * 0.03;
         dummy.updateMatrix();
         instBedrock.setMatrixAt(idx, dummy.matrix);
       });
@@ -559,69 +599,57 @@ export class TerrainMesh {
       this.group.add(instBedrock);
     }
 
-    // 2. High Summit Snow Crags (Alpine mountain crests matching reference top center)
-    const summitSpots = mountainSpots.filter(m => m.isPeak || m.elev >= 3);
-    if (summitSpots.length > 0) {
-      const summitCragGeom = new THREE.DodecahedronGeometry(0.9, 1);
-      summitCragGeom.scale(1.3, 1.05, 1.2);
-
-      const instSummits = new THREE.InstancedMesh(summitCragGeom, warmStoneMat, summitSpots.length);
-      const instSnow = new THREE.InstancedMesh(summitCragGeom, snowPeakMat, summitSpots.length);
-      instSummits.castShadow = true;
-      instSummits.receiveShadow = true;
-      instSnow.castShadow = true;
-
-      const dummy = new THREE.Object3D();
-      summitSpots.forEach((spot, idx) => {
-        dummy.position.set(spot.pos.x, spot.pos.y + 0.1, spot.pos.z);
-        const scale = 1.0 + ((idx * 31) % 25) * 0.015;
-        dummy.scale.set(scale, scale * 1.1, scale);
-        dummy.rotation.y = ((idx * 79) % 360) * (Math.PI / 180);
-        dummy.rotation.x = (((idx * 11) % 9) - 4) * 0.02;
-        dummy.rotation.z = (((idx * 17) % 9) - 4) * 0.02;
-        dummy.updateMatrix();
-
-        instSummits.setMatrixAt(idx, dummy.matrix);
-
-        // Snow-capped layer slightly scaled up
-        const snowDummy = dummy.clone();
-        snowDummy.position.y += 0.12;
-        snowDummy.scale.set(scale * 0.92, scale * 0.95, scale * 0.92);
-        snowDummy.updateMatrix();
-        instSnow.setMatrixAt(idx, snowDummy.matrix);
-      });
-      instSummits.instanceMatrix.needsUpdate = true;
-      instSnow.instanceMatrix.needsUpdate = true;
-      this.group.add(instSummits);
-      this.group.add(instSnow);
-    }
-
-    // 3. Talus Scree & Glacial Boulders along Foothills (Pedestal C)
-    const screeSpots = mountainSpots.filter(m => m.isCliff);
+    // 2. Talus Scree & Valley Boulders along Foothills (Pedestal C: Scree tumble at mountain base)
+    // Sparse placement: ~12% of cliff bases
+    const screeSpots = mountainSpots.filter(m => m.isCliff && ((m.pos.x * 23 + m.pos.z * 11) % 8 === 0));
     if (screeSpots.length > 0) {
-      const boulderGeom = new THREE.DodecahedronGeometry(0.38, 0);
-      boulderGeom.scale(1.3, 0.75, 1.0);
+      const boulderGeom = new THREE.DodecahedronGeometry(0.35, 0);
+      boulderGeom.scale(1.2, 0.75, 1.0);
 
-      const instBoulders = new THREE.InstancedMesh(boulderGeom, graniteRockMat, screeSpots.length * 2);
+      const instBoulders = new THREE.InstancedMesh(boulderGeom, darkSlateMat, screeSpots.length * 2);
       instBoulders.castShadow = true;
       instBoulders.receiveShadow = true;
 
       const dummy = new THREE.Object3D();
-      let sIdx = 0;
+      let bIdx = 0;
       screeSpots.forEach((spot, idx) => {
         for (let k = 0; k < 2; k++) {
-          const ox = (((idx * 13 + k * 19) % 15) / 14 - 0.5) * 0.95;
-          const oz = (((idx * 29 + k * 23) % 15) / 14 - 0.5) * 0.95;
-          dummy.position.set(spot.pos.x + ox, Math.max(0.15, spot.pos.y * 0.35), spot.pos.z + oz);
-          const sc = 0.55 + ((idx * 37 + k * 11) % 25) * 0.02;
-          dummy.scale.set(sc, sc * 0.75, sc * 1.1);
-          dummy.rotation.set((idx * 43) % 6, (idx * 67) % 6, (idx * 29) % 6);
+          const ox = (((idx * 13 + k * 17) % 15) / 14 - 0.5) * 0.9;
+          const oz = (((idx * 29 + k * 23) % 15) / 14 - 0.5) * 0.9;
+          dummy.position.set(spot.pos.x + ox, 0.18 + ((idx + k) % 3) * 0.08, spot.pos.z + oz);
+          const sc = 0.5 + ((idx * 31 + k * 19) % 20) * 0.025;
+          dummy.scale.set(sc, sc * 0.8, sc * 1.1);
+          dummy.rotation.set((idx * 43) % 6, (idx * 67 + k) % 6, (idx * 29) % 6);
           dummy.updateMatrix();
-          instBoulders.setMatrixAt(sIdx++, dummy.matrix);
+          instBoulders.setMatrixAt(bIdx++, dummy.matrix);
         }
       });
       instBoulders.instanceMatrix.needsUpdate = true;
       this.group.add(instBoulders);
+    }
+
+    // 3. Rare Alpine Granite Spires / Pinnacles (Only 1 per ~20 peak tiles)
+    const spireSpots = mountainSpots.filter(m => m.isPeak && ((m.pos.x * 19 + m.pos.z * 43) % 17 === 0));
+    if (spireSpots.length > 0) {
+      const spireGeom = new THREE.ConeGeometry(0.4, 1.4, 6);
+      spireGeom.scale(1.1, 1.0, 0.85);
+
+      const instSpires = new THREE.InstancedMesh(spireGeom, graniteRockMat, spireSpots.length);
+      instSpires.castShadow = true;
+      instSpires.receiveShadow = true;
+
+      const dummy = new THREE.Object3D();
+      spireSpots.forEach((spot, idx) => {
+        dummy.position.set(spot.pos.x, spot.pos.y + 0.35, spot.pos.z);
+        const sc = 0.85 + ((idx * 11) % 15) * 0.03;
+        dummy.scale.set(sc, sc, sc);
+        dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
+        dummy.rotation.z = (((idx * 17) % 11) - 5) * 0.02;
+        dummy.updateMatrix();
+        instSpires.setMatrixAt(idx, dummy.matrix);
+      });
+      instSpires.instanceMatrix.needsUpdate = true;
+      this.group.add(instSpires);
     }
   }
 
