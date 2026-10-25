@@ -1529,7 +1529,7 @@ export class GameRenderer {
         if (rLeg) rLeg.rotation.x = -stride * 0.62;
         if (lArm) lArm.rotation.x = -stride * 0.45;
         if (torso) {
-          const baseTorsoY = unit.type === 'advanced_unit' ? 0.62 : unit.type === 'spearman' ? 0.5 : 0.48;
+          const baseTorsoY = 0.44;
           torso.position.y = baseTorsoY + Math.abs(Math.sin(time * strideRate)) * 0.045;
           torso.rotation.y = stride * 0.09;
           torso.rotation.z = Math.cos(time * strideRate * 0.5) * 0.025;
@@ -1540,7 +1540,7 @@ export class GameRenderer {
         if (rLeg) rLeg.rotation.x = 0;
         if (lArm) lArm.rotation.x = 0;
         if (torso) {
-          const baseTorsoY = unit.type === 'advanced_unit' ? 0.62 : unit.type === 'spearman' ? 0.5 : 0.48;
+          const baseTorsoY = 0.44;
           torso.position.y = baseTorsoY + Math.sin(time * 2.2) * 0.012;
           torso.rotation.set(0, 0, 0);
         }
@@ -1798,57 +1798,59 @@ export class GameRenderer {
         const legBL = this.getNamedPart(group, 'horse_leg_bl');
         const legBR = this.getNamedPart(group, 'horse_leg_br');
 
-        const baseHorseY = unit.type === 'cavalry' ? 0.58 : 0.52;
+        const baseHorseY = unit.type === 'cavalry' ? 0.55 : 0.52;
+        const lanceOffset = unit.type === 'cavalry' ? { x: 0.28, y: 0.98, z: 0.1 } : { x: 0.24, y: 0.88, z: 0.1 };
 
         if (unit.state === 'attacking') {
-          // Warhorse Rearing Up & Heavy Mounted Lance Thrust
+          // Warhorse Rearing Up & Forward Couched Lance Thrust
           const rearCycle = Math.sin(time * 9);
           if (horse) {
-            horse.rotation.x = -0.32 + rearCycle * 0.15;
-            horse.position.y = baseHorseY + 0.18 + Math.max(0, rearCycle) * 0.1;
+            horse.rotation.x = -0.22 + rearCycle * 0.1;
+            horse.position.y = baseHorseY + 0.12 + Math.max(0, rearCycle) * 0.08;
           }
-          if (horseNeck) horseNeck.rotation.x = -Math.PI / 6 - 0.2;
+          if (horseNeck) horseNeck.rotation.x = -0.15;
           if (lancePivot) {
-            lancePivot.position.z = 0.35 + rearCycle * 0.55;
-            lancePivot.rotation.x = Math.PI / 3 - rearCycle * 0.3;
+            // Forward couched thrust! Level with target
+            lancePivot.position.set(lanceOffset.x, lanceOffset.y, lanceOffset.z + 0.25 + rearCycle * 0.35);
+            lancePivot.rotation.x = -0.05 + rearCycle * 0.08;
           }
-          // Front hooves flail slightly when rearing
-          if (legFL) legFL.rotation.x = 0.4 + rearCycle * 0.25;
-          if (legFR) legFR.rotation.x = 0.2 - rearCycle * 0.25;
-          if (legBL) legBL.rotation.x = -0.3;
-          if (legBR) legBR.rotation.x = -0.3;
+          // Hooves flail slightly when rearing
+          if (legFL) legFL.rotation.x = 0.35 + rearCycle * 0.2;
+          if (legFR) legFR.rotation.x = 0.2 - rearCycle * 0.2;
+          if (legBL) legBL.rotation.x = -0.25;
+          if (legBR) legBR.rotation.x = -0.25;
         } else if (isMoving && !isStationary) {
           // Authentic 4-Beat Equine Gallop Cadence
-          const gallop = time * 14.0;
+          const gallop = time * 13.0;
           const strideL = Math.sin(gallop);
-          const strideR = Math.sin(gallop + 0.6);
+          const strideR = Math.sin(gallop + 0.7);
 
-          if (legFL) legFL.rotation.x = strideL * 0.72;
-          if (legFR) legFR.rotation.x = strideR * 0.72;
-          if (legBL) legBL.rotation.x = -strideL * 0.72;
-          if (legBR) legBR.rotation.x = -strideR * 0.72;
+          if (legFL) legFL.rotation.x = strideL * 0.65;
+          if (legFR) legFR.rotation.x = strideR * 0.65;
+          if (legBL) legBL.rotation.x = -strideL * 0.65;
+          if (legBR) legBR.rotation.x = -strideR * 0.65;
 
           if (horse) {
-            horse.position.y = baseHorseY + Math.abs(Math.sin(gallop)) * 0.14;
-            horse.rotation.x = Math.sin(gallop) * 0.1;
+            horse.position.y = baseHorseY + Math.abs(Math.sin(gallop)) * 0.08;
+            horse.rotation.x = Math.sin(gallop) * 0.04;
           }
           if (horseNeck) {
-            horseNeck.rotation.x = -Math.PI / 6 + Math.sin(gallop * 2) * 0.12;
+            horseNeck.rotation.x = Math.sin(gallop * 2) * 0.06;
           }
           if (lancePivot) {
-            lancePivot.position.set(0.38, 1.1, 0.35);
-            lancePivot.rotation.x = Math.PI / 3.2 + Math.sin(time * 7) * 0.08;
+            lancePivot.position.set(lanceOffset.x, lanceOffset.y, lanceOffset.z);
+            lancePivot.rotation.x = -0.25 + Math.sin(time * 7) * 0.05;
           }
         } else {
-          // Standing idle horse
+          // Standing idle horse - completely level, zero pitch
           if (horse) {
             horse.rotation.x = 0;
             horse.position.y = baseHorseY;
           }
-          if (horseNeck) horseNeck.rotation.x = -Math.PI / 6 + Math.sin(time * 2.0) * 0.04;
+          if (horseNeck) horseNeck.rotation.x = Math.sin(time * 1.8) * 0.03;
           if (lancePivot) {
-            lancePivot.position.set(0.38, 1.1, 0.35);
-            lancePivot.rotation.set(0, 0, 0);
+            lancePivot.position.set(lanceOffset.x, lanceOffset.y, lanceOffset.z);
+            lancePivot.rotation.x = -0.32; // Relaxed natural forward tilt (pointing forward and slightly up, ~18°)
           }
           if (legFL) legFL.rotation.x = 0;
           if (legFR) legFR.rotation.x = 0;

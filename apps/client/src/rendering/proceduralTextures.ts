@@ -758,3 +758,74 @@ export function getPineNeedleTexture(): THREE.CanvasTexture {
   textureCache.set(key, texture);
   return texture;
 }
+
+
+/**
+ * Creates high-detail procedural granite mountain cliff & crag texture.
+ * Features stratified rock layers, vertical tectonic fissures, mineral veins, and alpine lichen.
+ */
+export function getMountainCliffTexture(): THREE.CanvasTexture {
+  const key = 'mountain_cliff';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  // Deep dark basalt rock base
+  ctx.fillStyle = '#2b323b';
+  ctx.fillRect(0, 0, size, size);
+
+  // Horizontal sedimentary rock strata bands
+  const strataColors = ['#38424e', '#45505d', '#313944', '#4f5c6b', '#252a31', '#5a6878'];
+  for (let y = 0; y < size; y += 8) {
+    ctx.fillStyle = strataColors[Math.floor(Math.random() * strataColors.length)];
+    ctx.fillRect(0, y, size, Math.random() * 12 + 4);
+  }
+
+  // Vertical tectonic cracks & fractures
+  ctx.strokeStyle = 'rgba(15, 18, 22, 0.75)';
+  ctx.lineWidth = 2.0;
+  for (let i = 0; i < 45; i++) {
+    let x = Math.random() * size;
+    let y = 0;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    while (y < size) {
+      y += Math.random() * 25 + 10;
+      x += (Math.random() - 0.5) * 16;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Chiseled angular granite ledge highlights
+  ctx.strokeStyle = 'rgba(215, 225, 235, 0.35)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const len = Math.random() * 35 + 15;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + len, y + (Math.random() - 0.5) * 6);
+    ctx.stroke();
+  }
+
+  // Alpine lichen / moss flecks
+  for (let i = 0; i < 600; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillStyle = Math.random() > 0.6 ? 'rgba(74, 94, 60, 0.45)' : 'rgba(148, 163, 130, 0.3)';
+    ctx.fillRect(x, y, Math.random() * 4 + 2, Math.random() * 3 + 1);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3, 3);
+  textureCache.set(key, texture);
+  return texture;
+}
