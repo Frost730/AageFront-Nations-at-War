@@ -774,37 +774,37 @@ export function getMountainCliffTexture(): THREE.CanvasTexture {
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  // Deep dark basalt rock base
-  ctx.fillStyle = '#2b323b';
+  // Weathered alpine granite bedrock base (Matching Pedestal C Valley Bedrock reference)
+  ctx.fillStyle = '#7a8594';
   ctx.fillRect(0, 0, size, size);
 
-  // Horizontal sedimentary rock strata bands
-  const strataColors = ['#38424e', '#45505d', '#313944', '#4f5c6b', '#252a31', '#5a6878'];
+  // Horizontal sedimentary rock strata bands (Luminous granite & limestone layers)
+  const strataColors = ['#8893a2', '#97a2b2', '#727d8c', '#a6b1c0', '#697482', '#b3becd', '#8f9baa'];
   for (let y = 0; y < size; y += 8) {
     ctx.fillStyle = strataColors[Math.floor(Math.random() * strataColors.length)];
-    ctx.fillRect(0, y, size, Math.random() * 12 + 4);
+    ctx.fillRect(0, y, size, Math.random() * 14 + 6);
   }
 
-  // Vertical tectonic cracks & fractures
-  ctx.strokeStyle = 'rgba(15, 18, 22, 0.75)';
-  ctx.lineWidth = 2.0;
-  for (let i = 0; i < 45; i++) {
+  // Vertical tectonic cracks & geological fissures
+  ctx.strokeStyle = 'rgba(42, 48, 56, 0.65)';
+  ctx.lineWidth = 1.8;
+  for (let i = 0; i < 35; i++) {
     let x = Math.random() * size;
     let y = 0;
     ctx.beginPath();
     ctx.moveTo(x, y);
     while (y < size) {
       y += Math.random() * 25 + 10;
-      x += (Math.random() - 0.5) * 16;
+      x += (Math.random() - 0.5) * 14;
       ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
 
   // Chiseled angular granite ledge highlights
-  ctx.strokeStyle = 'rgba(215, 225, 235, 0.35)';
+  ctx.strokeStyle = 'rgba(235, 242, 250, 0.45)';
   ctx.lineWidth = 1.5;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 50; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const len = Math.random() * 35 + 15;
@@ -814,11 +814,11 @@ export function getMountainCliffTexture(): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  // Alpine lichen / moss flecks
-  for (let i = 0; i < 600; i++) {
+  // Alpine lichen / moss flecks (Valley Bedrock reference)
+  for (let i = 0; i < 700; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    ctx.fillStyle = Math.random() > 0.6 ? 'rgba(74, 94, 60, 0.45)' : 'rgba(148, 163, 130, 0.3)';
+    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(92, 116, 75, 0.55)' : 'rgba(165, 178, 142, 0.4)';
     ctx.fillRect(x, y, Math.random() * 4 + 2, Math.random() * 3 + 1);
   }
 
