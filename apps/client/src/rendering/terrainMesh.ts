@@ -17,11 +17,27 @@ export class TerrainMesh {
   private borderLinesGroup: THREE.Group;
   private restrictedBorderGroup: THREE.Group;
   private treesGroup: THREE.Group;
+  private tiles: MapTile[];
+
+  
+  public getElevationAt(x: number, z: number): number {
+    if (!this.tiles || this.tiles.length === 0) return 0;
+    const tx = Math.min(this.width - 1, Math.max(0, Math.floor(x)));
+    const tz = Math.min(this.height - 1, Math.max(0, Math.floor(z)));
+    const tile = this.tiles[tz * this.width + tx];
+    if (!tile) return 0;
+    if (tile.terrain === 'water') return -0.32;
+    if (tile.terrain === 'sand') return 0.04;
+    if (tile.terrain === 'forest') return 0.12 + (tile.elevation || 0) * 0.8;
+    if (tile.terrain === 'mountain') return 0.6 + (tile.elevation || 0) * 1.5;
+    return (tile.elevation || 0) * 0.6;
+  }
 
   constructor(width: number, height: number, tiles: MapTile[], resourceNodes: ResourceNodeData[]) {
     this.width = width;
     this.height = height;
     this.group = new THREE.Group();
+    this.tiles = tiles;
 
     // 1. High-Resolution Ground Geometry with Organic Slopes, Cliffs & Alpine Peaks
     // Using a dense grid for smooth hills, craggy mountain slopes, and river valleys

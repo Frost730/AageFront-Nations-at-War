@@ -7,6 +7,7 @@ import {
   PlayerState,
   Vector2D,
   BuildingType,
+  UnitType,
   BUILDING_DEFINITIONS
 } from '@agefront/shared';
 import { CameraController } from '../camera/cameraController.js';
@@ -39,6 +40,79 @@ interface VisualEffect {
   update?: (progress: number) => void;
 }
 
+
+function createSelectionDecalTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+
+  const cx = 64;
+  const cy = 64;
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 54, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 45, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const pips = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+  pips.forEach(ang => {
+    const px = cx + Math.cos(ang) * 54;
+    const py = cy + Math.sin(ang) * 54;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 61);
+  ctx.lineTo(cx - 7, cy - 50);
+  ctx.lineTo(cx + 7, cy - 50);
+  ctx.closePath();
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  return texture;
+}
+
+function createScorchTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+
+  const grad = ctx.createRadialGradient(64, 64, 6, 64, 64, 58);
+  grad.addColorStop(0, 'rgba(15, 10, 8, 0.95)');
+  grad.addColorStop(0.35, 'rgba(38, 20, 10, 0.85)');
+  grad.addColorStop(0.7, 'rgba(65, 35, 15, 0.45)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(64, 64, 60, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#f97316';
+  for (let i = 0; i < 16; i++) {
+    const r = Math.random() * 32 + 5;
+    const theta = Math.random() * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(64 + Math.cos(theta) * r, 64 + Math.sin(theta) * r, Math.random() * 1.5 + 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  return texture;
+}
+
 export class GameRenderer {
   public scene: THREE.Scene;
   public camera: THREE.PerspectiveCamera;
@@ -50,6 +124,11 @@ export class GameRenderer {
   public unitMeshes: Map<string, THREE.Group> = new Map();
   public buildingMeshes: Map<string, THREE.Group> = new Map();
   private selectionRings: Map<string, THREE.Mesh> = new Map();
+  private selectionDecalTexture: THREE.CanvasTexture | null = null;
+  private scorchTexture: THREE.CanvasTexture | null = null;
+  private groundScars: { mesh: THREE.Mesh; createdAt: number; maxLifetime: number }[] = [];
+  private battlefieldRemains: { group: THREE.Group; createdAt: number; maxLifetime: number; baseElevation: number }[] = [];
+
   private healthBars: Map<string, THREE.Sprite> = new Map();
   private buildingStatusBars: Map<string, THREE.Sprite> = new Map();
   private healthBarLastHp: Map<string, number> = new Map();
@@ -324,7 +403,7 @@ export class GameRenderer {
 
           // Ground shadow / selection ring directly beneath dragon on terrain
           const groundPos = new THREE.Vector3(group.position.x, 0.05, group.position.z);
-          this.updateSelectionRing(unit.id, groundPos, 1.3, selectedIds.has(unit.id));
+          this.updateSelectionRing(unit.id, groundPos, 1.3, selectedIds.has(unit.id), unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
 
           // Floating health bar above the soaring dragon
           const healthBarPos = new THREE.Vector3(group.position.x, group.position.y + 1.25, group.position.z);
@@ -337,7 +416,7 @@ export class GameRenderer {
           }
 
           // Selection ring
-          this.updateSelectionRing(unit.id, group.position, 0.75, selectedIds.has(unit.id));
+          this.updateSelectionRing(unit.id, group.position, 0.75, selectedIds.has(unit.id), unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
 
           // Floating health bar
           this.updateHealthBar(unit.id, group.position, unit.hp, unit.maxHp, 1.5);
@@ -351,6 +430,7 @@ export class GameRenderer {
     // Remove deleted units
     for (const [id, mesh] of this.unitMeshes.entries()) {
       if (!currentUnitIds.has(id)) {
+        this.spawnBattlefieldRemains(mesh.position.x, mesh.position.z, mesh.userData?.unitType);
         this.scene.remove(mesh);
         this.unitMeshes.delete(id);
         this.removeSelectionRing(id);
@@ -638,26 +718,151 @@ export class GameRenderer {
     }
   }
 
-  private updateSelectionRing(id: string, pos: THREE.Vector3, radius: number, isSelected: boolean): void {
+  private updateSelectionRing(id: string, pos: THREE.Vector3, radius: number, isSelected: boolean, facingAngle: number = 0, colorHex: number = 0xfacc15): void {
     let ring = this.selectionRings.get(id);
     if (isSelected) {
+      if (!this.selectionDecalTexture) {
+        this.selectionDecalTexture = createSelectionDecalTexture();
+      }
       if (!ring) {
-        const ringGeom = new THREE.RingGeometry(radius * 0.82, radius, 36);
+        const ringGeom = new THREE.PlaneGeometry(radius * 2.3, radius * 2.3);
         ringGeom.rotateX(-Math.PI / 2);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: 0x38bdf8,
+          map: this.selectionDecalTexture,
+          color: colorHex,
           side: THREE.DoubleSide,
           transparent: true,
-          opacity: 0.85
+          opacity: 0.9,
+          depthWrite: false
         });
         ring = new THREE.Mesh(ringGeom, ringMat);
         this.scene.add(ring);
         this.selectionRings.set(id, ring);
       }
-      ring.position.set(pos.x, 0.08, pos.z);
+      const groundElev = this.terrainMesh?.getElevationAt(pos.x, pos.z) || 0;
+      ring.position.set(pos.x, groundElev + 0.04, pos.z);
+      ring.rotation.y = -facingAngle + Math.PI / 2;
+      const pulse = 0.82 + Math.sin(performance.now() * 0.005) * 0.12;
+      (ring.material as THREE.MeshBasicMaterial).opacity = pulse;
+      (ring.material as THREE.MeshBasicMaterial).color.setHex(colorHex);
       ring.visible = true;
     } else if (ring) {
       ring.visible = false;
+    }
+  }
+
+  
+  public spawnGroundScorch(x: number, z: number, radius: number = 1.0): void {
+    if (!this.scorchTexture) {
+      this.scorchTexture = createScorchTexture();
+    }
+    const groundElev = this.terrainMesh?.getElevationAt(x, z) || 0;
+    const geom = new THREE.PlaneGeometry(radius * 2.2, radius * 2.2);
+    geom.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({
+      map: this.scorchTexture,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.set(x, groundElev + 0.02, z);
+    mesh.rotation.y = Math.random() * Math.PI * 2;
+    this.scene.add(mesh);
+
+    this.groundScars.push({
+      mesh,
+      createdAt: performance.now(),
+      maxLifetime: 45000
+    });
+
+    if (this.groundScars.length > 100) {
+      const oldest = this.groundScars.shift();
+      if (oldest) this.scene.remove(oldest.mesh);
+    }
+  }
+
+  public spawnBattlefieldRemains(x: number, z: number, unitType?: UnitType): void {
+    const groundElev = this.terrainMesh?.getElevationAt(x, z) || 0;
+    const group = new THREE.Group();
+    group.position.set(x, groundElev + 0.015, z);
+    group.rotation.y = Math.random() * Math.PI * 2;
+
+    const stainGeom = new THREE.CircleGeometry(0.48, 12);
+    stainGeom.rotateX(-Math.PI / 2);
+    const stainMat = new THREE.MeshBasicMaterial({
+      color: 0x220c0c,
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false
+    });
+    const stainMesh = new THREE.Mesh(stainGeom, stainMat);
+    group.add(stainMesh);
+
+    const boneMat = new THREE.MeshStandardMaterial({
+      color: 0xd8d4cb,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+
+    const spineGeom = new THREE.CylinderGeometry(0.04, 0.04, 0.45, 6);
+    spineGeom.rotateZ(Math.PI / 2);
+    const spine = new THREE.Mesh(spineGeom, boneMat);
+    spine.position.set(0, 0.04, 0);
+    group.add(spine);
+
+    for (let r = -2; r <= 2; r++) {
+      const ribGeom = new THREE.TorusGeometry(0.09, 0.02, 4, 8, Math.PI);
+      ribGeom.rotateX(Math.PI / 2);
+      const rib = new THREE.Mesh(ribGeom, boneMat);
+      rib.position.set(r * 0.07, 0.05, 0);
+      group.add(rib);
+    }
+
+    const skullGeom = new THREE.BoxGeometry(0.12, 0.11, 0.14);
+    const skull = new THREE.Mesh(skullGeom, boneMat);
+    skull.position.set(0.3, 0.06, 0);
+    group.add(skull);
+
+    const weaponMat = new THREE.MeshStandardMaterial({
+      color: 0x475569,
+      metalness: 0.8,
+      roughness: 0.4
+    });
+    const shaftMat = new THREE.MeshStandardMaterial({
+      color: 0x78350f,
+      roughness: 0.9
+    });
+
+    if (unitType === 'spearman') {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 5), shaftMat);
+      shaft.rotateZ(Math.PI / 2 - 0.2);
+      shaft.position.set(-0.1, 0.03, 0.22);
+      group.add(shaft);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.14, 4), weaponMat);
+      tip.rotateZ(-Math.PI / 2);
+      tip.position.set(0.28, 0.03, 0.26);
+      group.add(tip);
+    } else {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.06), weaponMat);
+      blade.position.set(-0.05, 0.03, 0.22);
+      group.add(blade);
+      const crossguard = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.14), weaponMat);
+      crossguard.position.set(0.14, 0.03, 0.22);
+      group.add(crossguard);
+    }
+
+    this.scene.add(group);
+    this.battlefieldRemains.push({
+      group,
+      createdAt: performance.now(),
+      maxLifetime: 60000,
+      baseElevation: groundElev
+    });
+
+    if (this.battlefieldRemains.length > 80) {
+      const oldest = this.battlefieldRemains.shift();
+      if (oldest) this.scene.remove(oldest.group);
     }
   }
 
@@ -1481,6 +1686,7 @@ export class GameRenderer {
   }
 
   private spawnExplosion(pos: THREE.Vector3, colorHex: number, maxRadius: number): void {
+    this.spawnGroundScorch(pos.x, pos.z, maxRadius * 0.85);
     // 1. Expanding fiery blast sphere
     const blastGeom = new THREE.SphereGeometry(maxRadius * 0.6, 7, 7);
     const blastMat = new THREE.MeshBasicMaterial({
@@ -1759,6 +1965,39 @@ export class GameRenderer {
       if (rot.axis === 'z') rot.obj.rotation.z += rot.speed * dt;
       else if (rot.axis === 'y') rot.obj.rotation.y += rot.speed * dt;
       else if (rot.axis === 'x') rot.obj.rotation.x += rot.speed * dt;
+    }
+
+    
+    // Animate persistent battlefield ground scars / scorch marks
+    for (let i = this.groundScars.length - 1; i >= 0; i--) {
+      const scar = this.groundScars[i];
+      const elapsed = now - scar.createdAt;
+      if (elapsed > scar.maxLifetime) {
+        this.scene.remove(scar.mesh);
+        this.groundScars.splice(i, 1);
+      } else if (elapsed > 25000) {
+        const fadeProgress = (elapsed - 25000) / (scar.maxLifetime - 25000);
+        (scar.mesh.material as THREE.MeshBasicMaterial).opacity = 0.88 * (1.0 - fadeProgress);
+      }
+    }
+
+    // Animate battlefield fallen skeletons and remains (weathering & sinking)
+    for (let i = this.battlefieldRemains.length - 1; i >= 0; i--) {
+      const remains = this.battlefieldRemains[i];
+      const elapsed = now - remains.createdAt;
+      if (elapsed > remains.maxLifetime) {
+        this.scene.remove(remains.group);
+        this.battlefieldRemains.splice(i, 1);
+      } else if (elapsed > 35000) {
+        const sinkProgress = (elapsed - 35000) / (remains.maxLifetime - 35000);
+        remains.group.position.y = remains.baseElevation + 0.015 - sinkProgress * 0.25;
+        remains.group.traverse(child => {
+          if (child instanceof THREE.Mesh && child.material) {
+            child.material.transparent = true;
+            child.material.opacity = Math.max(0, 1.0 - sinkProgress);
+          }
+        });
+      }
     }
 
     this.terrainMesh?.update(now * 0.001, dt);
