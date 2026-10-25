@@ -8,6 +8,7 @@ import {
   UNIT_DEFINITIONS,
   BUILDING_DEFINITIONS,
   TECHNOLOGIES,
+  TechDefinition,
   AGE_ADVANCEMENT_REQUIREMENTS,
   AgeName,
   ResourceType,
@@ -32,6 +33,25 @@ export interface HudCallbacks {
   onTransferResources?: (recipientId: string, resource: ResourceType, amount: number) => void;
 }
 
+const TECH_DISPLAY_INFO: Record<string, { line1: string; line2?: string }> = {
+  forestry_axes: { line1: 'Forestry', line2: 'Axes' },
+  crop_rotation: { line1: 'Crop', line2: 'Rotation' },
+  deep_shaft_mining: { line1: 'Deep Shaft', line2: 'Mining' },
+  logistics_caravans: { line1: 'Logistics', line2: 'Caravans' },
+  forged_blades: { line1: 'Forged Steel', line2: 'Blades' },
+  bodkin_arrows: { line1: 'Bodkin', line2: 'Arrows' },
+  barding_stirrups: { line1: 'Barding &', line2: 'Stirrups' },
+  siege_engineering: { line1: 'Siege', line2: 'Engineering' },
+  masonry: { line1: 'Reinforced', line2: 'Masonry' },
+  architecture: { line1: 'Urban', line2: 'Architecture' },
+  arrow_slits: { line1: 'Arrow Slits', line2: 'Embrasures' },
+  cartography: { line1: 'Cartography' },
+  forced_march: { line1: 'Forced', line2: 'March' },
+  urban_planning: { line1: 'Urban', line2: 'Planning' },
+  scholasticism: { line1: 'Scholasticism' },
+  standing_army: { line1: 'Standing', line2: 'Army' }
+};
+
 export class HudView {
   public rootElem: HTMLElement;
   private callbacks: HudCallbacks;
@@ -50,12 +70,16 @@ export class HudView {
 
   private ageModalElem: HTMLElement | null = null;
   private coopModalElem: HTMLElement | null = null;
+  private techModalElem: HTMLElement | null = null;
   private coopBtnElem!: HTMLElement;
   private allPlayers: PlayerState[] = [];
   private currentPlayer: PlayerState | null = null;
   private currentStance: UnitStance = 'aggressive';
   private currentFormation: FormationType = 'line';
   private townCentreId: string | null = null;
+  private activeTechCategory: string = 'all';
+  private isHoveringTech: boolean = false;
+  private allBuildings: BuildingData[] = [];
 
   private currentContextKey: string = '';
   private activePlacementType: BuildingType | null = null;
@@ -74,6 +98,7 @@ export class HudView {
     this.createNarratorAndScorePanels();
     this.createBottomBar();
     this.createHoverTooltip();
+    this.setupGlobalKeyboardShortcuts();
   }
 
   public show(): void {
@@ -84,6 +109,7 @@ export class HudView {
     this.rootElem.style.display = 'none';
     if (this.ageModalElem) this.ageModalElem.style.display = 'none';
     if (this.coopModalElem) this.coopModalElem.style.display = 'none';
+    if (this.techModalElem) this.techModalElem.style.display = 'none';
     if (this.placementBannerElem) this.placementBannerElem.style.display = 'none';
     this.hideResourceHoverTooltip();
   }
@@ -179,12 +205,17 @@ export class HudView {
 
         <!-- Utility Buttons (Tribute, Objectives, Tech Tree, Menu) -->
         <button id="btn-hud-coop" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Co-op Ally Tribute">🤝</button>
-        <button id="btn-hud-objectives" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Toggle Objectives & Scoreboard">📜</button>
+        <button id="btn-hud-tech-tree" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Civilization Tech Tree & Academy Codex (T)">🔬</button>
+        <button id="btn-hud-objectives" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Toggle Objectives & Scoreboard">🏆</button>
         <button id="btn-hud-menu" class="aoe3-action-btn" style="width: 32px; height: 32px; font-size: 14px;" title="Game Menu & Settings">⚙️</button>
       </div>
     `;
 
     this.rootElem.appendChild(this.topBarElem);
+
+    this.topBarElem.querySelector('#btn-hud-tech-tree')?.addEventListener('click', () => {
+      this.toggleTechTreeModal();
+    });
 
     // Quick Action Strip right under top-left bar (Matching Image 2)
     const quickStrip = document.createElement('div');
@@ -738,6 +769,11 @@ export class HudView {
     this.currentPlayer = player;
     if (townCentreId) this.townCentreId = townCentreId;
     if (allPlayers) this.allPlayers = allPlayers;
+    if (buildings) this.allBuildings = buildings;
+
+    if (this.techModalElem) {
+      this.updateTechModalDynamicState(player);
+    }
 
     const f = (n: number) => Math.floor(n).toLocaleString();
     const setEl = (id: string, text: string) => {
@@ -1090,7 +1126,8 @@ export class HudView {
         `;
       }
 
-      this.selectionDetailsElem.innerHTML = `
+      if (!this.isHoveringTech) {
+        this.selectionDetailsElem.innerHTML = `
         <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
           <!-- Header: Title & Civ -->
           <div>
@@ -1134,12 +1171,16 @@ export class HudView {
           </div>
         </div>
       `;
+      }
 
       if (bldg.ownerId === player.id) {
-        const targetKey = `bldg_${bldg.type}_${bldg.isConstructed}_${player.age}`;
+        const queueKey = bldg.productionQueue.map(q => `${q.itemType}:${Math.floor(q.progress)}`).join(',');
+        const techKey = player.researchedTechs.length;
+        const targetKey = `bldg_${bldg.id}_${bldg.type}_${bldg.isConstructed}_${player.age}_${techKey}_${queueKey}_${this.activeTechCategory}`;
         if (this.currentContextKey !== targetKey) {
           this.currentContextKey = targetKey;
           if (!bldg.isConstructed) {
+            this.resetActionMatrixGrid();
             this.actionMatrixElem.innerHTML = `
               <button id="btn-assign-builders" class="aoe3-action-btn" style="grid-column: span 5; grid-row: span 2; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px;">
                 <span>🔨</span> Send Workers to Build
@@ -1271,10 +1312,21 @@ export class HudView {
     });
   }
 
+  private resetActionMatrixGrid(): void {
+    this.actionMatrixElem.style.display = 'grid';
+    this.actionMatrixElem.style.gridTemplateColumns = 'repeat(5, 1fr)';
+    this.actionMatrixElem.style.gridTemplateRows = 'repeat(3, 1fr)';
+    this.actionMatrixElem.style.flexDirection = 'unset';
+    this.actionMatrixElem.style.gap = '4px';
+    this.actionMatrixElem.style.padding = '5px';
+    this.actionMatrixElem.style.overflow = 'hidden';
+    this.actionMatrixElem.innerHTML = '';
+  }
+
   // ACTION MATRICES WITH AOE3 HOTKEYS (Q, W, E, R...)
   // ==========================================
   private renderWorkerBuildMatrix(player: PlayerState): void {
-    this.actionMatrixElem.innerHTML = '';
+    this.resetActionMatrixGrid();
 
     const buildingsToOffer: { type: BuildingType; label: string; icon: string; costText: string }[] = [
       { type: 'house', label: 'House', icon: '🏠', costText: '60W' },
@@ -1355,7 +1407,11 @@ export class HudView {
   }
 
   private renderBuildingActionMatrix(bldg: BuildingData, player: PlayerState): void {
-    this.actionMatrixElem.innerHTML = '';
+    if (bldg.type !== 'research_hall') {
+      this.resetActionMatrixGrid();
+    } else {
+      this.actionMatrixElem.innerHTML = '';
+    }
 
     
     // If Market: train Trade Cart + Commodity Trading
@@ -1539,12 +1595,65 @@ export class HudView {
       const curPlayer = this.currentPlayer || player;
       const playerAgeRank = ageRank(curPlayer.age);
 
-      // Sort technologies:
-      // 1. Available in current age with prerequisites met (top priority)
-      // 2. Available in current age with missing prerequisites
-      // 3. Higher age technologies (locked)
+      this.actionMatrixElem.style.display = 'flex';
+      this.actionMatrixElem.style.flexDirection = 'column';
+      this.actionMatrixElem.style.padding = '4px';
+      this.actionMatrixElem.style.gap = '3px';
+      this.actionMatrixElem.style.overflow = 'hidden';
+      this.actionMatrixElem.innerHTML = '';
+
+      // Top Filter & Codex Navigation Bar
+      const topBar = document.createElement('div');
+      topBar.style.cssText = 'display: flex; gap: 2px; align-items: center; justify-content: space-between; flex-shrink: 0; height: 20px;';
+      topBar.innerHTML = `
+        <div style="display: flex; gap: 2px;">
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'all' ? 'active' : ''}" data-cat="all">All (16)</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Economy' ? 'active' : ''}" data-cat="Economy">🌾 Eco</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Military' ? 'active' : ''}" data-cat="Military">⚔️ Mil</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Construction' ? 'active' : ''}" data-cat="Construction">🏛️ Build</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Civilization' ? 'active' : ''}" data-cat="Civilization">📜 Civ</button>
+        </div>
+        <button id="btn-open-codex-bay" class="aoe3-tech-tab-btn" style="background: linear-gradient(180deg, #854d0e 0%, #713f12 100%); border-color: #fef08a; color: #fef08a; font-weight: 800;" title="Open Civilization Tech Tree & Research Codex (T)">🌳 Codex</button>
+      `;
+
+      topBar.querySelectorAll<HTMLButtonElement>('.aoe3-tech-tab-btn[data-cat]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const cat = btn.dataset.cat || 'all';
+          this.activeTechCategory = cat;
+          this.currentContextKey = '';
+          this.renderBuildingActionMatrix(bldg, curPlayer);
+        });
+      });
+
+      topBar.querySelector('#btn-open-codex-bay')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleTechTreeModal();
+      });
+
+      this.actionMatrixElem.appendChild(topBar);
+
+      // Grid Container
+      const gridContainer = document.createElement('div');
+      gridContainer.id = 'aoe3-tech-matrix-grid';
+      gridContainer.style.cssText = 'flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; overflow-y: auto; padding-right: 2px;';
+      this.actionMatrixElem.appendChild(gridContainer);
+
+      // Filter techs
       const allTechs = Object.values(TECHNOLOGIES).filter(t => !curPlayer.researchedTechs.includes(t.id));
-      allTechs.sort((a, b) => {
+      let filteredTechs = allTechs;
+      if (this.activeTechCategory === 'Economy') {
+        filteredTechs = allTechs.filter(t => t.category === 'Economy');
+      } else if (this.activeTechCategory === 'Military') {
+        filteredTechs = allTechs.filter(t => t.category === 'Military');
+      } else if (this.activeTechCategory === 'Construction') {
+        filteredTechs = allTechs.filter(t => t.category === 'Construction');
+      } else if (this.activeTechCategory === 'Civilization') {
+        filteredTechs = allTechs.filter(t => t.category === 'Civilization' || t.category === 'Exploration');
+      }
+
+      // Sort: Available first -> Missing prereq -> Age locked
+      filteredTechs.sort((a, b) => {
         const aAgeRank = ageRank(a.requiredAge);
         const bAgeRank = ageRank(b.requiredAge);
         const aUnlocked = aAgeRank <= playerAgeRank && a.prerequisites.every(p => curPlayer.researchedTechs.includes(p));
@@ -1554,8 +1663,8 @@ export class HudView {
         return a.name.localeCompare(b.name);
       });
 
-      const hotkeys = ['Q', 'W', 'E', 'R', 'T', 'A', 'S', 'D', 'F', 'G'];
-      allTechs.slice(0, 10).forEach((t, idx) => {
+      const hotkeys = ['Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V', 'T', 'G', 'B', 'Y'];
+      filteredTechs.forEach((t, idx) => {
         const tAgeRank = ageRank(t.requiredAge);
         const isAgeLocked = tAgeRank > playerAgeRank;
         const missingPrereqs = t.prerequisites.filter(p => !curPlayer.researchedTechs.includes(p));
@@ -1563,7 +1672,6 @@ export class HudView {
         const isLocked = isAgeLocked || isPrereqLocked;
         const isCurrentlyQueued = bldg.productionQueue.some(item => item.itemType === t.id);
 
-        // Build compact cost text
         const costItems: string[] = [];
         if (t.cost.food) costItems.push(`${t.cost.food}F`);
         if (t.cost.wood) costItems.push(`${t.cost.wood}W`);
@@ -1572,7 +1680,6 @@ export class HudView {
         if (t.cost.knowledge) costItems.push(`${t.cost.knowledge}Kn`);
         const costStr = costItems.slice(0, 2).join(' ') + (costItems.length > 2 ? '+' : '');
 
-        // Category icon
         const catIcons: Record<string, string> = {
           Economy: '🌾',
           Military: '⚔️',
@@ -1582,16 +1689,32 @@ export class HudView {
         };
         const icon = isCurrentlyQueued ? '⏳' : isLocked ? '🔒' : (catIcons[t.category] || '🔬');
 
+        const disp = TECH_DISPLAY_INFO[t.id] || { line1: t.name };
+        const titleColor = isCurrentlyQueued ? '#38bdf8' : isLocked ? '#94a3b8' : '#fef08a';
+        const subColor = isCurrentlyQueued ? '#38bdf8' : isAgeLocked ? '#f87171' : isPrereqLocked ? '#f59e0b' : '#cbd5e1';
+        const subText = isCurrentlyQueued ? 'Queued' : isAgeLocked ? t.requiredAge.replace(' Age', '') : isPrereqLocked ? 'Prereq' : costStr;
+
         const btn = document.createElement('button');
         btn.className = 'aoe3-action-btn';
-        btn.style.cssText = `padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; ${isCurrentlyQueued ? 'border-color: #38bdf8; background: #0c2b42;' : isLocked ? 'opacity: 0.65; border-color: #64748b;' : 'border-color: #a855f7;'}`;
+        btn.dataset.hotkey = hotkeys[idx] || '';
+        btn.style.cssText = `padding: 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 42px; ${isCurrentlyQueued ? 'border-color: #38bdf8; background: #0c2b42;' : isLocked ? 'opacity: 0.65; border-color: #64748b;' : 'border-color: #a855f7;'}`;
         btn.title = `${t.name} (${t.category})\n${t.description}\nRequired Age: ${t.requiredAge}${isPrereqLocked ? `\nMissing Prerequisites: ${missingPrereqs.map(p => TECHNOLOGIES[p]?.name || p).join(', ')}` : ''}\nCost: ${costItems.join(', ')}`;
         btn.innerHTML = `
           <span class="aoe3-hotkey-badge">${hotkeys[idx] || ''}</span>
-          <span style="font-size: 15px;">${icon}</span>
-          <span style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 58px; ${isCurrentlyQueued ? 'color: #38bdf8;' : isLocked ? 'color: #94a3b8;' : 'color: #fef08a;'}">${t.name}</span>
-          <span style="font-size: 8px; color: ${isCurrentlyQueued ? '#38bdf8' : isAgeLocked ? '#f87171' : isPrereqLocked ? '#f59e0b' : '#cbd5e1'};">${isCurrentlyQueued ? 'Queued' : isAgeLocked ? t.requiredAge.replace(' Age', '') : isPrereqLocked ? 'Prereq' : costStr}</span>
+          <span style="font-size: 13px; line-height: 1;">${icon}</span>
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; margin: 1px 0; text-align: center; max-width: 100%;">
+            <span style="font-weight: 700; font-size: 8.5px; color: ${titleColor}; white-space: nowrap;">${disp.line1}</span>
+            ${disp.line2 ? `<span style="font-weight: 700; font-size: 8.5px; color: ${titleColor}; white-space: nowrap;">${disp.line2}</span>` : ''}
+          </div>
+          <span style="font-size: 7.5px; font-weight: 700; color: ${subColor}; line-height: 1;">${subText}</span>
         `;
+
+        btn.addEventListener('mouseenter', () => {
+          this.showTechHoverDetails(t, bldg, curPlayer);
+        });
+        btn.addEventListener('mouseleave', () => {
+          this.clearTechHoverDetails(bldg, curPlayer);
+        });
 
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1633,8 +1756,10 @@ export class HudView {
           soundManager.playClick();
           this.showNotification(`🔬 Research started: ${t.name}`);
         });
-        this.actionMatrixElem.appendChild(btn);
+
+        gridContainer.appendChild(btn);
       });
+      return;
     }
   }
 
@@ -2133,6 +2258,397 @@ export class HudView {
           this.renderCoopModalContent();
         }
       });
+    });
+  }
+
+  // ==========================================
+  // RESEARCH TREE & ACADEMY CODEX
+  // ==========================================
+  private showTechHoverDetails(t: TechDefinition, bldg: BuildingData, player: PlayerState): void {
+    this.isHoveringTech = true;
+    const curPlayer = this.currentPlayer || player;
+    const ageRank = (a: any) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
+    const pAgeRank = ageRank(curPlayer.age);
+    const tAgeRank = ageRank(t.requiredAge);
+    const isAgeLocked = tAgeRank > pAgeRank;
+    const missingPrereqs = t.prerequisites.filter(p => !curPlayer.researchedTechs.includes(p));
+    const isPrereqLocked = missingPrereqs.length > 0;
+    const isResearched = curPlayer.researchedTechs.includes(t.id);
+    const isCurrentlyQueued = bldg.productionQueue.some(item => item.itemType === t.id);
+
+    const catIcons: Record<string, string> = {
+      Economy: '🌾',
+      Military: '⚔️',
+      Construction: '🏛️',
+      Exploration: '🧭',
+      Civilization: '📜'
+    };
+    const icon = catIcons[t.category] || '🔬';
+
+    const costList: string[] = [];
+    if (t.cost.food) costList.push(`<span style="color: #fca5a5;">🥩 ${t.cost.food}F</span>`);
+    if (t.cost.wood) costList.push(`<span style="color: #fde047;">🪵 ${t.cost.wood}W</span>`);
+    if (t.cost.stone) costList.push(`<span style="color: #cbd5e1;">🪨 ${t.cost.stone}S</span>`);
+    if (t.cost.metal) costList.push(`<span style="color: #fef08a;">🪙 ${t.cost.metal}G</span>`);
+    if (t.cost.knowledge) costList.push(`<span style="color: #67e8f9;">📜 ${t.cost.knowledge}Kn</span>`);
+
+    const missingRes: string[] = [];
+    if (curPlayer.resources.food < t.cost.food) missingRes.push(`${t.cost.food - curPlayer.resources.food} Food`);
+    if (curPlayer.resources.wood < t.cost.wood) missingRes.push(`${t.cost.wood - curPlayer.resources.wood} Wood`);
+    if (curPlayer.resources.stone < t.cost.stone) missingRes.push(`${t.cost.stone - curPlayer.resources.stone} Stone`);
+    if (curPlayer.resources.metal < t.cost.metal) missingRes.push(`${t.cost.metal - curPlayer.resources.metal} Metal`);
+    if (curPlayer.resources.knowledge < t.cost.knowledge) missingRes.push(`${t.cost.knowledge - curPlayer.resources.knowledge} Knowledge`);
+
+    const statusBadge = isResearched
+      ? '<span style="color: #22c55e; font-weight: 800;">✅ RESEARCHED</span>'
+      : isCurrentlyQueued
+      ? '<span style="color: #38bdf8; font-weight: 800;">⏳ IN RESEARCH QUEUE</span>'
+      : isAgeLocked
+      ? `<span style="color: #ef4444; font-weight: 800;">🔒 REQUIRES ${t.requiredAge.toUpperCase()}</span>`
+      : isPrereqLocked
+      ? `<span style="color: #f59e0b; font-weight: 800;">🔒 REQUIRES ${missingPrereqs.map(p => TECHNOLOGIES[p]?.name || p).join(', ').toUpperCase()}</span>`
+      : missingRes.length > 0
+      ? `<span style="color: #f87171; font-weight: 800;">⚠️ NEED ${missingRes.join(', ').toUpperCase()}</span>`
+      : '<span style="color: #4ade80; font-weight: 800;">✨ READY TO RESEARCH</span>';
+
+    this.selectionDetailsElem.innerHTML = `
+      <div style="display: flex; flex-direction: column; height: 100%; justify-content: space-between;">
+        <div>
+          <!-- Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div class="cinzel" style="font-weight: 800; font-size: 13.5px; color: #fef08a; letter-spacing: 0.5px;">${t.name.toUpperCase()}</div>
+              <div style="font-size: 10.5px; color: #cbd5e1; display: flex; align-items: center; gap: 5px; margin-top: 2px;">
+                <span style="background: rgba(140, 106, 52, 0.4); border: 1px solid #8c6a34; padding: 1px 5px; border-radius: 3px; font-weight: 700; color: #fef08a;">${t.requiredAge}</span>
+                <span style="color: #94a3b8;">•</span>
+                <span style="color: #93c5fd; font-weight: 600;">${t.category}</span>
+                <span style="color: #94a3b8;">•</span>
+                <span style="color: #cbd5e1;">⏱️ ${t.researchTime}s</span>
+              </div>
+            </div>
+            <span style="font-size: 26px;">${icon}</span>
+          </div>
+
+          <!-- Description Box -->
+          <div style="margin-top: 8px; font-size: 11px; color: #f8fafc; line-height: 1.4; background: rgba(0, 0, 0, 0.45); border: 1.5px solid #8c6a34; border-radius: 4px; padding: 6px 9px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);">
+            ${t.description}
+          </div>
+
+          <!-- Prerequisites & Status -->
+          <div style="margin-top: 6px; font-size: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span style="color: #94a3b8;">Prerequisites: </span>
+              ${t.prerequisites.length === 0
+                ? '<span style="color: #4ade80; font-weight: 600;">None</span>'
+                : t.prerequisites.map(p => {
+                    const pMet = curPlayer.researchedTechs.includes(p);
+                    return `<span style="color: ${pMet ? '#4ade80' : '#f87171'}; font-weight: 700;">${pMet ? '✓' : '✗'} ${TECHNOLOGIES[p]?.name || p}</span>`;
+                  }).join(', ')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer: Cost & Action State -->
+        <div style="background: rgba(14, 7, 3, 0.85); border-top: 1.5px solid #8c6a34; padding: 5px 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; gap: 8px; font-size: 10.5px; font-weight: 700; flex-wrap: wrap;">
+            ${costList.join(' ')}
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(140, 106, 52, 0.4); padding-top: 3px; font-size: 10px;">
+            <span>${statusBadge}</span>
+            <span style="color: #94a3b8; font-size: 9px;">Click action button to queue</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private clearTechHoverDetails(bldg: BuildingData, player: PlayerState): void {
+    this.isHoveringTech = false;
+    this.currentContextKey = '';
+    this.updateSelection([], [bldg], player);
+  }
+
+  public toggleTechTreeModal(): void {
+    if (this.techModalElem) {
+      this.techModalElem.remove();
+      this.techModalElem = null;
+      return;
+    }
+
+    if (!this.currentPlayer) return;
+    const player = this.currentPlayer;
+
+    this.techModalElem = document.createElement('div');
+    this.techModalElem.className = 'modal-backdrop interactive aoe-wood-backdrop';
+    this.techModalElem.style.cssText = 'position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2100; background: rgba(10, 6, 3, 0.82); backdrop-filter: blur(5px);';
+
+    this.renderTechTreeModalContent(player);
+    this.rootElem.appendChild(this.techModalElem);
+  }
+
+  private updateTechModalDynamicState(player: PlayerState): void {
+    if (!this.techModalElem) return;
+    this.renderTechTreeModalContent(player);
+  }
+
+  private renderTechTreeModalContent(player: PlayerState): void {
+    if (!this.techModalElem) return;
+    const ageRank = (a: any) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
+    const pAgeRank = ageRank(player.age);
+
+    // Find player's research hall
+    const selectedHall = this.selectedBuildingId && this.allBuildings.find(b => b.id === this.selectedBuildingId && b.type === 'research_hall' && b.isConstructed);
+    const activeHall = selectedHall || this.allBuildings.find(b => b.ownerId === player.id && b.type === 'research_hall' && b.isConstructed);
+
+    const ages: AgeName[] = ['Founding Age', 'Kingdom Age', 'Imperial Age'];
+    const catIcons: Record<string, string> = {
+      Economy: '🌾',
+      Military: '⚔️',
+      Construction: '🏛️',
+      Exploration: '🧭',
+      Civilization: '📜'
+    };
+
+    // Filter by active tech category
+    const allTechList = Object.values(TECHNOLOGIES);
+    let displayTechs = allTechList;
+    if (this.activeTechCategory === 'Economy') {
+      displayTechs = allTechList.filter(t => t.category === 'Economy');
+    } else if (this.activeTechCategory === 'Military') {
+      displayTechs = allTechList.filter(t => t.category === 'Military');
+    } else if (this.activeTechCategory === 'Construction') {
+      displayTechs = allTechList.filter(t => t.category === 'Construction');
+    } else if (this.activeTechCategory === 'Civilization') {
+      displayTechs = allTechList.filter(t => t.category === 'Civilization' || t.category === 'Exploration');
+    }
+
+    this.techModalElem.innerHTML = `
+      <div class="aoe-parchment-card" style="
+        width: 1020px;
+        max-width: 96vw;
+        max-height: 88vh;
+        padding: 24px;
+        color: #2b1809;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        position: relative;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.95);
+      ">
+        <div class="aoe-corner-rivet aoe-corner-rivet-tl"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-tr"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-bl"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-br"></div>
+
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 10px;">
+          <div>
+            <h2 class="cinzel" style="font-size: 20px; color: #451a03; margin: 0; font-weight: 800; letter-spacing: 1px;">
+              📜 ACADEMY RESEARCH CODEX & TECH TREE
+            </h2>
+            <div style="font-size: 11.5px; color: #78350f; margin-top: 2px;">
+              Civilization: <strong>${player.civ.toUpperCase()}</strong> • Current Era: <strong>${player.age}</strong> • Researched: <strong>${player.researchedTechs.length}/16</strong>
+            </div>
+          </div>
+          <button id="btn-close-tech-modal" class="aoe-btn-crimson" style="padding: 6px 14px; font-size: 12px; background: linear-gradient(180deg, #5c4033 0%, #3a2618 100%); border-color: #8c6a34; color: #fbf1dc;">
+            ✕ Close (Esc)
+          </button>
+        </div>
+
+        <!-- Filter Tab Bar -->
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <span style="font-size: 11.5px; font-weight: 800; color: #78350f; text-transform: uppercase;">Filter Discipline:</span>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'all' ? 'active' : ''}" data-cat="all" style="padding: 4px 10px; font-size: 11px;">All (16)</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Economy' ? 'active' : ''}" data-cat="Economy" style="padding: 4px 10px; font-size: 11px;">🌾 Economy</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Military' ? 'active' : ''}" data-cat="Military" style="padding: 4px 10px; font-size: 11px;">⚔️ Military</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Construction' ? 'active' : ''}" data-cat="Construction" style="padding: 4px 10px; font-size: 11px;">🏛️ Construction</button>
+          <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Civilization' ? 'active' : ''}" data-cat="Civilization" style="padding: 4px 10px; font-size: 11px;">📜 Civilization & Exploration</button>
+        </div>
+
+        <!-- 3 Columns for 3 Eras -->
+        <div class="aoe-scroll-pane" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; overflow-y: auto; flex: 1; padding: 4px 2px;">
+          ${ages.map(age => {
+            const ageTechs = displayTechs.filter(t => t.requiredAge === age);
+            const isEraReached = pAgeRank >= ageRank(age);
+            return `
+              <div class="aoe-parchment-inner" style="padding: 12px; display: flex; flex-direction: column; gap: 10px; ${!isEraReached ? 'opacity: 0.85; border-color: #64748b;' : 'border-color: #8c6a34;'}">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid ${isEraReached ? '#8c6a34' : '#94a3b8'}; padding-bottom: 6px;">
+                  <strong class="cinzel" style="font-size: 14px; color: ${isEraReached ? '#451a03' : '#64748b'};">${age.toUpperCase()}</strong>
+                  <span style="font-size: 10.5px; font-weight: 700; color: ${isEraReached ? '#166534' : '#991b1b'};">
+                    ${isEraReached ? '👑 UNLOCKED' : '🔒 ADVANCE ERA'}
+                  </span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  ${ageTechs.length === 0 ? '<div style="font-size: 11px; color: #94a3b8; text-align: center; padding: 20px;">No technologies match this category filter.</div>' : ''}
+                  ${ageTechs.map(t => {
+                    const isResearched = player.researchedTechs.includes(t.id);
+                    const isAgeLocked = ageRank(t.requiredAge) > pAgeRank;
+                    const missingPrereqs = t.prerequisites.filter(p => !player.researchedTechs.includes(p));
+                    const isPrereqLocked = missingPrereqs.length > 0;
+                    const isCurrentlyQueued = activeHall ? activeHall.productionQueue.some(item => item.itemType === t.id) : false;
+                    const queueItem = activeHall ? activeHall.productionQueue.find(item => item.itemType === t.id) : undefined;
+                    const queueProgress = queueItem ? Math.floor(queueItem.progress) : 0;
+
+                    const costBadges: string[] = [];
+                    if (t.cost.food) costBadges.push(`<span style="color: ${player.resources.food >= t.cost.food ? '#166534' : '#991b1b'}; font-weight: 700;">🥩 ${t.cost.food}</span>`);
+                    if (t.cost.wood) costBadges.push(`<span style="color: ${player.resources.wood >= t.cost.wood ? '#166534' : '#991b1b'}; font-weight: 700;">🪵 ${t.cost.wood}</span>`);
+                    if (t.cost.stone) costBadges.push(`<span style="color: ${player.resources.stone >= t.cost.stone ? '#166534' : '#991b1b'}; font-weight: 700;">🪨 ${t.cost.stone}</span>`);
+                    if (t.cost.metal) costBadges.push(`<span style="color: ${player.resources.metal >= t.cost.metal ? '#166534' : '#991b1b'}; font-weight: 700;">🪙 ${t.cost.metal}</span>`);
+                    if (t.cost.knowledge) costBadges.push(`<span style="color: ${player.resources.knowledge >= t.cost.knowledge ? '#166534' : '#991b1b'}; font-weight: 700;">📜 ${t.cost.knowledge}</span>`);
+
+                    const canAfford =
+                      player.resources.food >= t.cost.food &&
+                      player.resources.wood >= t.cost.wood &&
+                      player.resources.stone >= t.cost.stone &&
+                      player.resources.metal >= t.cost.metal &&
+                      player.resources.knowledge >= t.cost.knowledge;
+
+                    const missingRes: string[] = [];
+                    if (player.resources.food < t.cost.food) missingRes.push(`${t.cost.food - player.resources.food} Food`);
+                    if (player.resources.wood < t.cost.wood) missingRes.push(`${t.cost.wood - player.resources.wood} Wood`);
+                    if (player.resources.stone < t.cost.stone) missingRes.push(`${t.cost.stone - player.resources.stone} Stone`);
+                    if (player.resources.metal < t.cost.metal) missingRes.push(`${t.cost.metal - player.resources.metal} Metal`);
+                    if (player.resources.knowledge < t.cost.knowledge) missingRes.push(`${t.cost.knowledge - player.resources.knowledge} Knowledge`);
+
+                    return `
+                      <div style="background: rgba(255, 255, 255, 0.45); border: 1.5px solid ${isResearched ? '#166534' : isCurrentlyQueued ? '#0284c7' : '#8c6a34'}; border-radius: 4px; padding: 10px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <!-- Title & Category Row -->
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                          <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 18px;">${catIcons[t.category] || '🔬'}</span>
+                            <div>
+                              <strong style="font-size: 12.5px; color: #451a03; display: block; line-height: 1.2;">${t.name}</strong>
+                              <span style="font-size: 9.5px; color: #78350f; font-weight: 600;">${t.category} • ⏱️ ${t.researchTime}s</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div style="font-size: 11px; color: #2b1809; line-height: 1.35; background: rgba(0,0,0,0.04); padding: 5px 7px; border-radius: 3px;">
+                          ${t.description}
+                        </div>
+
+                        <!-- Prerequisites -->
+                        ${t.prerequisites.length > 0 ? `
+                          <div style="font-size: 10px; color: #573010;">
+                            <strong>Requires:</strong> ${t.prerequisites.map(p => {
+                              const met = player.researchedTechs.includes(p);
+                              return `<span style="color: ${met ? '#166534' : '#991b1b'}; font-weight: 700;">${met ? '✓' : '🔒'} ${TECHNOLOGIES[p]?.name || p}</span>`;
+                            }).join(', ')}
+                          </div>
+                        ` : ''}
+
+                        <!-- Cost Row -->
+                        <div style="display: flex; gap: 8px; font-size: 11px; margin-top: 2px;">
+                          ${costBadges.join(' ')}
+                        </div>
+
+                        <!-- Action Button / State -->
+                        <div style="margin-top: 4px;">
+                          ${isResearched ? `
+                            <div style="padding: 5px; background: rgba(22, 101, 52, 0.15); border: 1.5px solid #166534; color: #166534; font-weight: 800; font-size: 11px; text-align: center; border-radius: 4px;">
+                              ✅ Researched (Active)
+                            </div>
+                          ` : isCurrentlyQueued ? `
+                            <div style="padding: 5px; background: rgba(3, 105, 161, 0.15); border: 1.5px solid #0284c7; color: #0284c7; font-weight: 800; font-size: 11px; text-align: center; border-radius: 4px;">
+                              ⏳ Researching... (${queueProgress}%)
+                            </div>
+                          ` : isAgeLocked ? `
+                            <div style="padding: 4px; background: rgba(153, 27, 27, 0.1); border: 1px solid #991b1b; color: #991b1b; font-weight: 700; font-size: 10px; text-align: center; border-radius: 4px;">
+                              🔒 Requires ${t.requiredAge}
+                            </div>
+                          ` : isPrereqLocked ? `
+                            <div style="padding: 4px; background: rgba(217, 119, 6, 0.1); border: 1px solid #d97706; color: #b45309; font-weight: 700; font-size: 10px; text-align: center; border-radius: 4px;">
+                              🔒 Missing Prerequisite
+                            </div>
+                          ` : !canAfford ? `
+                            <div style="padding: 4px; background: rgba(153, 27, 27, 0.1); border: 1px solid #991b1b; color: #991b1b; font-weight: 700; font-size: 10px; text-align: center; border-radius: 4px;">
+                              ⚠️ Need: ${missingRes.join(', ')}
+                            </div>
+                          ` : `
+                            <button class="aoe-btn-crimson tech-modal-research-btn" data-techid="${t.id}" style="width: 100%; padding: 6px; font-size: 11px; font-weight: 800; cursor: pointer; background: linear-gradient(180deg, #15803d 0%, #166534 100%); border-color: #14532d; color: #fff;">
+                              🔬 Research Technology
+                            </button>
+                          `}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+
+    this.techModalElem.querySelector('#btn-close-tech-modal')?.addEventListener('click', () => {
+      this.toggleTechTreeModal();
+      soundManager.playClick();
+    });
+
+    this.techModalElem.querySelectorAll<HTMLButtonElement>('.aoe3-tech-tab-btn[data-cat]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.activeTechCategory = btn.dataset.cat || 'all';
+        this.renderTechTreeModalContent(player);
+      });
+    });
+
+    this.techModalElem.querySelectorAll<HTMLButtonElement>('.tech-modal-research-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const techId = btn.dataset.techid!;
+        const tech = TECHNOLOGIES[techId];
+        if (!tech) return;
+
+        if (!activeHall) {
+          soundManager.playError();
+          this.showNotification('⚠️ Construct a Research Academy first to research technologies!');
+          return;
+        }
+
+        this.callbacks.onResearchTech(activeHall.id, tech.id);
+        soundManager.playClick();
+        this.showNotification(`🔬 Research started: ${tech.name}`);
+        this.renderTechTreeModalContent(player);
+      });
+    });
+  }
+
+  private setupGlobalKeyboardShortcuts(): void {
+    window.addEventListener('keydown', (e) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      if (e.key === 'Escape') {
+        if (this.techModalElem) {
+          this.toggleTechTreeModal();
+          return;
+        }
+        if (this.ageModalElem) {
+          this.toggleAgeModal();
+          return;
+        }
+        if (this.coopModalElem) {
+          this.toggleCoopModal();
+          return;
+        }
+      }
+
+      // Check if button with matching hotkey exists in actionMatrixElem
+      const key = e.key.toUpperCase();
+      const targetBtn = this.actionMatrixElem.querySelector<HTMLButtonElement>(`.aoe3-action-btn[data-hotkey="${key}"]`);
+      if (targetBtn && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        targetBtn.click();
+        return;
+      }
+
+      // 'T' opens Tech Tree modal when no action button uses T
+      if (key === 'T' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        this.toggleTechTreeModal();
+      }
     });
   }
 }

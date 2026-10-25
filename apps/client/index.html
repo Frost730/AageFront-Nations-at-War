@@ -263,6 +263,43 @@
         border-radius: 3px;
         overflow: hidden;
       }
+      .aoe3-tech-tab-btn {
+        background: linear-gradient(180deg, #2b1809 0%, #1a0f07 100%);
+        border: 1px solid #8c6a34;
+        border-radius: 3px;
+        padding: 2px 6px;
+        font-size: 8.5px;
+        font-weight: 700;
+        color: #cbd5e1;
+        cursor: pointer;
+        transition: all 0.12s ease;
+        white-space: nowrap;
+      }
+      .aoe3-tech-tab-btn:hover {
+        background: linear-gradient(180deg, #422610 0%, #291508 100%);
+        border-color: #fef08a;
+        color: #fef08a;
+      }
+      .aoe3-tech-tab-btn.active {
+        background: linear-gradient(180deg, #854d0e 0%, #582a06 100%);
+        border-color: #fef08a;
+        color: #fef08a;
+        box-shadow: 0 0 6px rgba(212, 175, 55, 0.4);
+      }
+      #aoe3-tech-matrix-grid::-webkit-scrollbar,
+      .aoe-scroll-pane::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+      }
+      #aoe3-tech-matrix-grid::-webkit-scrollbar-thumb,
+      .aoe-scroll-pane::-webkit-scrollbar-thumb {
+        background: #8c6a34;
+        border-radius: 2px;
+      }
+      #aoe3-tech-matrix-grid::-webkit-scrollbar-track,
+      .aoe-scroll-pane::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3);
+      }
     </style>
   </head>
   <body>
