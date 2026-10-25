@@ -83,6 +83,96 @@
       .cinzel {
         font-family: 'Cinzel', serif;
       }
+
+      /* ========================================================
+         AGE OF EMPIRES THEME: AGED PARCHMENT, WOOD & CRIMSON GOLD
+         ======================================================== */
+      .aoe-wood-backdrop {
+        background: radial-gradient(circle at 50% 50%, #2f190e 0%, #150b05 100%) !important;
+        position: relative;
+      }
+      .aoe-wood-backdrop::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: repeating-linear-gradient(90deg, rgba(0,0,0,0.2) 0px, transparent 2px, transparent 48px, rgba(0,0,0,0.3) 50px);
+        pointer-events: none;
+        opacity: 0.65;
+      }
+      .aoe-parchment-card {
+        background: radial-gradient(ellipse at 50% 25%, #fef7e6 0%, #edd8a8 60%, #dcbe7c 100%);
+        border: 2.5px solid #8c6a34;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.9), inset 0 0 55px rgba(120, 75, 25, 0.35);
+        color: #2b1809;
+        border-radius: 4px;
+        position: relative;
+      }
+      .aoe-parchment-inner {
+        background: rgba(255, 255, 255, 0.32);
+        border: 1.5px solid #a38249;
+        border-radius: 4px;
+        box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.15);
+      }
+      .aoe-btn-crimson {
+        background: linear-gradient(180deg, #991b1b 0%, #700c0c 50%, #4a0606 100%) !important;
+        border: 2px solid #d4af37 !important;
+        box-shadow: inset 0 1px 0 rgba(254, 240, 138, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 3px 6px rgba(0, 0, 0, 0.6) !important;
+        color: #fef08a !important;
+        font-family: 'Cinzel', serif !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.8px !important;
+        text-shadow: 0 1px 2px #000 !important;
+        border-radius: 3px !important;
+        cursor: pointer !important;
+        transition: all 0.15s ease !important;
+      }
+      .aoe-btn-crimson:hover {
+        background: linear-gradient(180deg, #b91c1c 0%, #881212 50%, #5a0808 100%) !important;
+        border-color: #fef08a !important;
+        box-shadow: 0 0 12px rgba(220, 38, 38, 0.7), inset 0 1px 0 #fff !important;
+        color: #ffffff !important;
+      }
+      .aoe-btn-crimson:active {
+        transform: translateY(1px);
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.7) !important;
+      }
+      .aoe-select, .aoe-input {
+        background: #fbf1dc !important;
+        border: 1.5px solid #8c6a34 !important;
+        color: #2b1809 !important;
+        font-family: 'Cinzel', serif !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        border-radius: 3px !important;
+        padding: 4px 8px !important;
+        box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.15) !important;
+      }
+      .aoe-tab {
+        background: #dbc08b;
+        border: 1.5px solid #8c6a34;
+        border-bottom: none;
+        border-radius: 6px 6px 0 0;
+        color: #4a2d12;
+        font-family: 'Cinzel', serif;
+        font-weight: 700;
+        padding: 6px 16px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .aoe-tab.active, .aoe-tab:hover {
+        background: #fcf4de;
+        color: #991b1b;
+        border-color: #a38249;
+      }
+      .aoe-corner-rivet {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: radial-gradient(circle at 35% 35%, #94a3b8 0%, #334155 70%, #0f172a 100%);
+        border: 1px solid #1e293b;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+      }
     </style>
   </head>
   <body>

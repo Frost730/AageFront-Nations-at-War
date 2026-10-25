@@ -31,7 +31,7 @@ export class LobbyView {
   constructor(container: HTMLElement, callbacks: LobbyCallbacks) {
     this.callbacks = callbacks;
     this.rootElem = document.createElement('div');
-    this.rootElem.className = 'modal-backdrop interactive';
+    this.rootElem.className = 'modal-backdrop interactive aoe-wood-backdrop';
     container.appendChild(this.rootElem);
   }
 
@@ -59,53 +59,58 @@ export class LobbyView {
     const isHost = me ? me.isHost : false;
 
     this.rootElem.innerHTML = `
-      <div style="
-        width: 820px;
-        max-width: 95vw;
-        background: #0f172a;
-        border: 2px solid #334155;
-        border-radius: 14px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-        padding: 24px;
-        color: #f8fafc;
+      <div class="aoe-parchment-card" style="
+        width: 880px;
+        max-width: 96vw;
+        max-height: 92vh;
+        padding: 28px 32px;
         display: flex;
         flex-direction: column;
-        gap: 18px;
+        gap: 16px;
+        overflow-y: auto;
       ">
+        <div class="aoe-corner-rivet" style="top: 8px; left: 8px;"></div>
+        <div class="aoe-corner-rivet" style="top: 8px; right: 8px;"></div>
+        <div class="aoe-corner-rivet" style="bottom: 8px; left: 8px;"></div>
+        <div class="aoe-corner-rivet" style="bottom: 8px; right: 8px;"></div>
+
         <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 10px;">
           <div>
-            <h2 class="cinzel" style="font-size: 24px; color: #38bdf8; font-weight: 700;">LAN WAR ROOM LOBBY</h2>
-            <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Local Area Network Co-op & Skirmish</div>
+            <h2 class="cinzel" style="font-size: 24px; font-weight: 900; color: #451a03; margin: 0; letter-spacing: 2px;">
+              LAN WAR ROOM LOBBY
+            </h2>
+            <div style="font-size: 12px; color: #78350f; font-weight: 600; margin-top: 2px;">
+              Age of Empires Local Co-op & Multiplayer Skirmish
+            </div>
           </div>
-          <div style="text-align: right; background: #1e293b; border: 1px solid #38bdf8; border-radius: 8px; padding: 6px 14px;">
-            <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Direct LAN Connection URL</div>
-            <div style="font-family: monospace; font-size: 15px; color: #4ade80; font-weight: 700;">${escapeHtml(state.hostAddress)}</div>
+          <div style="text-align: right; background: rgba(255,255,255,0.45); border: 1.5px solid #a88a53; border-radius: 4px; padding: 4px 12px;">
+            <div class="cinzel" style="font-size: 10px; color: #78350f; text-transform: uppercase; font-weight: 700;">Host Network IP</div>
+            <div style="font-family: monospace; font-size: 14px; color: #991b1b; font-weight: 700;">${escapeHtml(state.hostAddress)}</div>
           </div>
         </div>
 
         <!-- Incoming Join Requests (Host Only) -->
         ${isHost && state.pendingRequests && state.pendingRequests.length > 0 ? `
-          <div style="background: linear-gradient(135deg, rgba(180, 83, 9, 0.25) 0%, rgba(120, 53, 15, 0.35) 100%); border: 2px solid #f59e0b; border-radius: 10px; padding: 14px 18px; box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-              <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fbbf24; font-size: 14px;">
-                <span style="font-size: 18px;">🔔</span>
-                <span>INCOMING JOIN REQUESTS (${state.pendingRequests.length})</span>
+          <div style="background: rgba(180, 83, 9, 0.15); border: 2px solid #b45309; border-radius: 4px; padding: 12px 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div class="cinzel" style="font-weight: 800; color: #991b1b; font-size: 13px;">
+                🔔 INCOMING JOIN REQUESTS (${state.pendingRequests.length})
               </div>
-              <span style="font-size: 12px; color: #fde68a;">Friend is asking permission to join your match</span>
+              <span style="font-size: 11px; color: #78350f;">Allied player requesting entry</span>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
               ${state.pendingRequests.map(req => `
-                <div style="display: flex; align-items: center; justify-content: space-between; background: #0f172a; border: 1px solid #78350f; border-radius: 8px; padding: 10px 14px;">
+                <div class="aoe-parchment-inner" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;">
                   <div>
-                    <div style="font-weight: 700; font-size: 14px; color: #f8fafc;">${escapeHtml(req.name)}</div>
-                    <div style="font-size: 11px; color: #94a3b8;">Civilization: <strong style="color: #38bdf8;">${escapeHtml(req.civ)}</strong> • Preferred Team: <strong style="color: #4ade80;">Team ${req.team}</strong></div>
+                    <div class="cinzel" style="font-weight: 800; font-size: 13px; color: #451a03;">${escapeHtml(req.name)}</div>
+                    <div style="font-size: 11px; color: #5c3a1e;">Civilization: <strong>${escapeHtml(req.civ)}</strong> • Preferred Team: <strong>Team ${req.team}</strong></div>
                   </div>
-                  <div style="display: flex; gap: 10px;">
-                    <button class="btn-approve-join" data-id="${req.requestId}" style="background: linear-gradient(180deg, #16a34a 0%, #15803d 100%); border: none; color: white; border-radius: 6px; padding: 8px 16px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(22, 163, 74, 0.4);">
-                      <span>✅</span> Approve & Admit
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn-approve-join aoe-btn-crimson" data-id="${req.requestId}" style="padding: 6px 14px; font-size: 11px;">
+                      Approve & Admit
                     </button>
-                    <button class="btn-decline-join" data-id="${req.requestId}" style="background: #334155; border: 1px solid #64748b; color: #f87171; border-radius: 6px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                    <button class="btn-decline-join" data-id="${req.requestId}" style="background: transparent; border: 1px solid #991b1b; color: #991b1b; font-family: 'Cinzel', serif; border-radius: 3px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;">
                       Decline
                     </button>
                   </div>
@@ -116,37 +121,39 @@ export class LobbyView {
         ` : ''}
 
         <!-- Middle Content: Players Roster & Match Settings -->
-        <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px;">
+        <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px;">
           <!-- Left: Player Roster -->
-          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
-              <div style="font-weight: 700; font-size: 14px; margin-bottom: 10px; color: #cbd5e1; display: flex; justify-content: space-between;">
+              <div class="cinzel" style="font-weight: 800; font-size: 13px; color: #451a03; border-bottom: 2px solid #8c6a34; padding-bottom: 6px; margin-bottom: 10px; display: flex; justify-content: space-between;">
                 <span>ACTIVE COMMANDERS (${state.players.length}/8)</span>
-                <span style="font-size: 12px; color: #64748b;">Co-op Team: Allies share Team 1</span>
+                <span style="font-size: 11px; color: #78350f;">Team 1 = Allies</span>
               </div>
-              <div id="roster-list" style="display: flex; flex-direction: column; gap: 8px;">
+              <div id="roster-list" style="display: flex; flex-direction: column; gap: 6px;">
                 ${state.players.map(p => `
                   <div style="
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    background: #0f172a;
-                    border: 1px solid ${p.color};
-                    border-radius: 8px;
-                    padding: 8px 12px;
+                    background: rgba(255, 255, 255, 0.45);
+                    border: 1px solid #b89758;
+                    border-radius: 3px;
+                    padding: 8px 10px;
                   ">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                      <div style="width: 12px; height: 12px; border-radius: 50%; background: ${p.color};"></div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <div style="width: 14px; height: 14px; border-radius: 2px; background: ${p.color}; border: 1px solid #000;"></div>
                       <div>
-                        <div style="font-weight: 600; font-size: 13px;">${escapeHtml(p.name)} ${p.isHost ? '<span style="color: #fbbf24; font-size: 11px;">[HOST]</span>' : ''}</div>
-                        <div style="font-size: 11px; color: #94a3b8;">${escapeHtml(p.civ)} • Team ${p.team}</div>
+                        <div class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03;">
+                          ${escapeHtml(p.name)} ${p.isHost ? '<span style="color: #991b1b; font-size: 10px;">[HOST]</span>' : ''}
+                        </div>
+                        <div style="font-size: 11px; color: #5c3a1e;">${escapeHtml(p.civ)} • Team ${p.team}</div>
                       </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 11px; font-weight: 700; color: ${p.isReady ? '#4ade80' : '#f87171'};">
-                        ${p.isReady ? 'READY' : 'NOT READY'}
+                      <span class="cinzel" style="font-size: 11px; font-weight: 800; color: ${p.isReady ? '#15803d' : '#991b1b'};">
+                        ${p.isReady ? 'READY ✓' : 'NOT READY'}
                       </span>
-                      ${isHost && p.isAi ? `<button class="btn-remove-ai" data-id="${p.id}" style="background: #dc2626; border: none; color: white; border-radius: 4px; padding: 2px 6px; font-size: 11px; cursor: pointer;">Remove</button>` : ''}
+                      ${isHost && p.isAi ? `<button class="btn-remove-ai" data-id="${p.id}" style="background: transparent; border: none; color: #991b1b; font-weight: 900; font-size: 13px; cursor: pointer;">✕</button>` : ''}
                     </div>
                   </div>
                 `).join('')}
@@ -155,11 +162,11 @@ export class LobbyView {
 
             <!-- Add AI button (Host only) -->
             ${isHost && state.players.length < 8 ? `
-              <div style="margin-top: 14px; display: flex; gap: 8px;">
-                <button id="btn-add-ai-enemy" style="flex: 1; background: #334155; border: 1px solid #475569; color: #f8fafc; border-radius: 6px; padding: 8px; font-size: 12px; cursor: pointer; font-weight: 600;">
+              <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button id="btn-add-ai-enemy" class="aoe-btn-crimson" style="flex: 1; padding: 6px; font-size: 11px;">
                   + Add AI Enemy (Team 2)
                 </button>
-                <button id="btn-add-ai-ally" style="flex: 1; background: #334155; border: 1px solid #475569; color: #f8fafc; border-radius: 6px; padding: 8px; font-size: 12px; cursor: pointer; font-weight: 600;">
+                <button id="btn-add-ai-ally" class="aoe-btn-crimson" style="flex: 1; padding: 6px; font-size: 11px;">
                   + Add AI Ally (Team 1)
                 </button>
               </div>
@@ -167,12 +174,14 @@ export class LobbyView {
           </div>
 
           <!-- Right: Game Settings -->
-          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
-            <div style="font-weight: 700; font-size: 14px; color: #cbd5e1;">MATCH CONFIGURATION</div>
+          <div class="aoe-parchment-inner" style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div class="cinzel" style="font-weight: 800; font-size: 13px; color: #451a03; border-bottom: 2px solid #8c6a34; padding-bottom: 4px; text-align: center;">
+              MATCH CONFIGURATION
+            </div>
 
             <div>
-              <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">My Civilization</label>
-              <select id="select-my-civ" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 6px 10px; font-size: 13px;">
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">My Civilization</label>
+              <select id="select-my-civ" class="aoe-select" style="width: 100%;">
                 ${Object.keys(CIVILIZATIONS).map(civ => `
                   <option value="${civ}" ${me && me.civ === civ ? 'selected' : ''}>${civ}</option>
                 `).join('')}
@@ -180,8 +189,8 @@ export class LobbyView {
             </div>
 
             <div>
-              <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">My Team</label>
-              <select id="select-my-team" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 6px 10px; font-size: 13px;">
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">My Team</label>
+              <select id="select-my-team" class="aoe-select" style="width: 100%;">
                 <option value="1" ${me && me.team === 1 ? 'selected' : ''}>Team 1 (Human Co-op / Allies)</option>
                 <option value="2" ${me && me.team === 2 ? 'selected' : ''}>Team 2 (Opponents)</option>
                 <option value="3" ${me && me.team === 3 ? 'selected' : ''}>Team 3 (Opponents)</option>
@@ -190,86 +199,69 @@ export class LobbyView {
             </div>
 
             <div>
-              <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Map Size & Scale</label>
-              <select id="select-map-size" ${!isHost ? 'disabled' : ''} style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #38bdf8; border-radius: 6px; padding: 6px 10px; font-size: 13px; font-weight: 700;">
-                <option value="200" ${state.settings.mapSize === 200 ? 'selected' : ''}>Arena (200×200) — RoN Close Quarters Duel</option>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">Map Size</label>
+              <select id="select-map-size" class="aoe-select" ${!isHost ? 'disabled' : ''} style="width: 100%;">
+                <option value="200" ${state.settings.mapSize === 200 ? 'selected' : ''}>Arena (200×200) — RoN Duel</option>
                 <option value="240" ${state.settings.mapSize === 240 ? 'selected' : ''}>Small (240×240) — RoN 2–3 Players</option>
                 <option value="280" ${state.settings.mapSize === 280 || !state.settings.mapSize ? 'selected' : ''}>Standard (280×280) — RoN 4 Players</option>
                 <option value="320" ${state.settings.mapSize === 320 ? 'selected' : ''}>Large (320×320) — RoN 5–6 Players</option>
                 <option value="360" ${state.settings.mapSize === 360 ? 'selected' : ''}>Huge (360×360) — RoN 7–8 Players</option>
-                <option value="400" ${state.settings.mapSize === 400 ? 'selected' : ''}>Big Huge (400×400) — RoN Epic World War</option>
+                <option value="400" ${state.settings.mapSize === 400 ? 'selected' : ''}>Big Huge (400×400) — RoN World War</option>
               </select>
             </div>
 
             <div>
-              <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Battlefield Map</label>
-              <select id="select-map-type" ${!isHost ? 'disabled' : ''} style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 6px 10px; font-size: 13px;">
-                <option value="green_frontier" ${state.settings.mapType === 'green_frontier' ? 'selected' : ''}>Green Frontier (Temperate Hills & Rivers)</option>
-                <option value="highland_kingdom" ${state.settings.mapType === 'highland_kingdom' ? 'selected' : ''}>Highland Kingdom (Rugged Mountains & Minerals)</option>
-                <option value="riverlands" ${state.settings.mapType === 'riverlands' ? 'selected' : ''}>Riverlands (Lush Valley & Crossing Fords)</option>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">Battlefield Terrain</label>
+              <select id="select-map-type" class="aoe-select" ${!isHost ? 'disabled' : ''} style="width: 100%;">
+                <option value="green_frontier" ${state.settings.mapType === 'green_frontier' ? 'selected' : ''}>Green Frontier (Lush Forests)</option>
+                <option value="highland_kingdom" ${state.settings.mapType === 'highland_kingdom' ? 'selected' : ''}>Highland Kingdom (Mountains)</option>
+                <option value="riverlands" ${state.settings.mapType === 'riverlands' ? 'selected' : ''}>Riverlands (Rivers & Valleys)</option>
               </select>
             </div>
 
             <div>
-              <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">AI Difficulty</label>
-              <select id="select-ai-diff" ${!isHost ? 'disabled' : ''} style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 6px 10px; font-size: 13px;">
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">AI Difficulty</label>
+              <select id="select-ai-diff" class="aoe-select" ${!isHost ? 'disabled' : ''} style="width: 100%;">
                 <option value="easy" ${state.settings.aiDifficulty === 'easy' ? 'selected' : ''}>Easy (Relaxed Expansion)</option>
-                <option value="medium" ${state.settings.aiDifficulty === 'medium' ? 'selected' : ''}>Medium (Standard Tactical Challenge)</option>
-                <option value="hard" ${state.settings.aiDifficulty === 'hard' ? 'selected' : ''}>Hard (Aggressive Counters & Expansion)</option>
+                <option value="medium" ${state.settings.aiDifficulty === 'medium' ? 'selected' : ''}>Medium (Standard Tactical)</option>
+                <option value="hard" ${state.settings.aiDifficulty === 'hard' ? 'selected' : ''}>Hard (Aggressive Tactical)</option>
               </select>
             </div>
 
             <div>
-              <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 4px;">Victory Condition</label>
-              <select id="select-victory" ${!isHost ? 'disabled' : ''} style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 6px 10px; font-size: 13px;">
-                <option value="conquest" ${state.settings.victoryCondition === 'conquest' ? 'selected' : ''}>Conquest (Destroy Enemy Town Centres)</option>
-                <option value="territorial" ${state.settings.victoryCondition === 'territorial' ? 'selected' : ''}>Territorial Control (Control > 60% Map)</option>
-                <option value="technology" ${state.settings.victoryCondition === 'technology' ? 'selected' : ''}>Technology Victory (Industrial Age Mastery)</option>
-                <option value="elimination" ${state.settings.victoryCondition === 'elimination' ? 'selected' : ''}>Total Elimination (Wipe Out All Units)</option>
+              <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">Victory Condition</label>
+              <select id="select-victory" class="aoe-select" ${!isHost ? 'disabled' : ''} style="width: 100%;">
+                <option value="conquest" ${state.settings.victoryCondition === 'conquest' ? 'selected' : ''}>Conquest</option>
+                <option value="territorial" ${state.settings.victoryCondition === 'territorial' ? 'selected' : ''}>Territorial Control</option>
+                <option value="technology" ${state.settings.victoryCondition === 'technology' ? 'selected' : ''}>Technology Victory</option>
+                <option value="elimination" ${state.settings.victoryCondition === 'elimination' ? 'selected' : ''}>Total Elimination</option>
               </select>
             </div>
 
             ${isHost ? `
-              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; background: #0f172a; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155;">
-                  <div>
-                    <div style="font-size: 12px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
-                      <span>🔒</span> Require Host Approval
-                    </div>
-                    <div style="font-size: 11px; color: #94a3b8;">Friends must ask permission to join your match</div>
-                  </div>
-                  <input type="checkbox" id="check-require-approval" ${state.requireApproval !== false ? 'checked' : ''} style="cursor: pointer; width: 18px; height: 18px; accent-color: #38bdf8;" />
-                </div>
-
-                <div style="display: flex; align-items: center; justify-content: space-between; background: #0f172a; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155;">
-                  <div>
-                    <div style="font-size: 12px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
-                      <span>👁️</span> Private Match (Stealth Mode)
-                    </div>
-                    <div style="font-size: 11px; color: #94a3b8;">Hide room from LAN match browser (direct IP only)</div>
-                  </div>
-                  <input type="checkbox" id="check-room-private" ${state.isPrivate ? 'checked' : ''} style="cursor: pointer; width: 18px; height: 18px; accent-color: #f59e0b;" />
-                </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px; font-size: 11px; color: #451a03;">
+                <label><input type="checkbox" id="check-require-approval" ${state.requireApproval !== false ? 'checked' : ''} /> Require Host Approval to Join</label>
+                <label><input type="checkbox" id="check-room-private" ${state.isPrivate ? 'checked' : ''} /> Private Room (Direct IP Only)</label>
               </div>
             ` : ''}
           </div>
         </div>
 
         <!-- Footer Buttons -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 16px;">
-          <button id="btn-leave-lobby" style="background: transparent; border: 1px solid #475569; color: #94a3b8; border-radius: 6px; padding: 10px 20px; font-size: 13px; cursor: pointer; font-weight: 600;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 2px solid #8c6a34; padding-top: 14px;">
+          <button id="btn-leave-lobby" class="aoe-btn-crimson" style="padding: 10px 22px; font-size: 13px;">
             Leave Lobby
           </button>
 
           <div style="display: flex; gap: 12px;">
             ${!isHost ? `
-              <button id="btn-toggle-ready" style="background: ${me && me.isReady ? '#15803d' : '#2563eb'}; border: none; color: white; border-radius: 8px; padding: 10px 24px; font-size: 14px; font-weight: 700; cursor: pointer;">
+              <button id="btn-toggle-ready" class="aoe-btn-crimson" style="padding: 10px 26px; font-size: 14px;">
                 ${me && me.isReady ? 'READY ✓' : 'READY UP'}
               </button>
             ` : ''}
 
             ${isHost ? `
-              <button id="btn-start-match" style="background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); border: none; color: white; border-radius: 8px; padding: 12px 32px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);">
+              <button id="btn-start-match" class="aoe-btn-crimson" style="padding: 12px 36px; font-size: 15px;">
                 START MATCH ⚔️
               </button>
             ` : ''}

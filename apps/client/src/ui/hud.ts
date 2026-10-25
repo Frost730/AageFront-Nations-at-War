@@ -84,40 +84,40 @@ export class HudView {
     this.topBarElem = document.createElement('div');
     this.topBarElem.style.cssText = `
       width: 100%;
-      height: 52px;
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.85) 100%);
-      border-bottom: 2px solid #334155;
+      height: 48px;
+      background: radial-gradient(ellipse at 50% 50%, #2f190e 0%, #150b05 100%);
+      border-bottom: 2.5px solid #d4af37;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.75);
       pointer-events: auto;
     `;
 
     this.topBarElem.innerHTML = `
-      <div id="hud-resources" style="display: flex; align-items: center; gap: 20px; font-weight: 600; font-size: 14px;">
-        <div style="display: flex; align-items: center; gap: 6px;" title="Food: Essential for workers and military training"><span style="color: #ef4444; font-size: 16px;">🌾</span> <span id="res-food">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Timber: Essential for building construction and archery"><span style="color: #10b981; font-size: 16px;">🪵</span> <span id="res-wood">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Stone: Essential for fortresses, walls, and town centres"><span style="color: #94a3b8; font-size: 16px;">🪨</span> <span id="res-stone">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Gold (Treasury): Essential for knights, dragons, siege weapons, and age advancement"><span style="color: #fbbf24; font-size: 16px;">🪙</span> <span id="res-metal" style="color: #fbbf24; font-weight: 700;">0</span></div>
-        <div style="display: flex; align-items: center; gap: 6px;" title="Knowledge: Essential for technologies and research"><span style="color: #38bdf8; font-size: 16px;">📜</span> <span id="res-knowledge">0</span></div>
+      <div id="hud-resources" class="cinzel" style="display: flex; align-items: center; gap: 20px; font-weight: 700; font-size: 13px; color: #fef08a; text-shadow: 0 1px 2px #000;">
+        <div style="display: flex; align-items: center; gap: 6px;" title="Food: Essential for workers and military training"><span style="font-size: 16px;">🌾</span> <span id="res-food">0</span></div>
+        <div style="display: flex; align-items: center; gap: 6px;" title="Timber: Essential for building construction and archery"><span style="font-size: 16px;">🪵</span> <span id="res-wood">0</span></div>
+        <div style="display: flex; align-items: center; gap: 6px;" title="Stone: Essential for fortresses, walls, and town centres"><span style="font-size: 16px;">🪨</span> <span id="res-stone">0</span></div>
+        <div style="display: flex; align-items: center; gap: 6px;" title="Gold (Treasury): Essential for knights, dragons, siege weapons, and age advancement"><span style="font-size: 16px;">🪙</span> <span id="res-metal">0</span></div>
+        <div style="display: flex; align-items: center; gap: 6px;" title="Knowledge: Essential for technologies and research"><span style="font-size: 16px;">📜</span> <span id="res-knowledge">0</span></div>
       </div>
 
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <button id="hud-age-badge" class="cinzel" style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 1.5px solid #d97706; color: #fbbf24; padding: 5px 16px; border-radius: 20px; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.2s ease;" title="Click to view Age Advancement requirements or advance age!">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <button id="hud-age-badge" class="aoe-btn-crimson" style="padding: 4px 14px; font-size: 12px; text-transform: uppercase;" title="Click to view Age Advancement requirements or advance age!">
           👑 Founding Age
         </button>
-        <div style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600;">
-          <span style="color: #60a5fa;">👥</span> <span id="res-pop">0/15</span>
+        <div class="cinzel" style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #fef08a; text-shadow: 0 1px 2px #000;">
+          <span>👥</span> <span id="res-pop">0/15</span>
         </div>
-        <button id="btn-idle-worker" style="display: none; background: #334155; border: 1px solid #475569; color: #f8fafc; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-weight: 600;">
+        <button id="btn-idle-worker" class="aoe-btn-crimson" style="display: none; padding: 4px 10px; font-size: 11px;">
           Idle: <span id="idle-count">0</span>
         </button>
-        <button id="btn-hud-coop" style="display: none; background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%); border: 1.5px solid #38bdf8; color: #f8fafc; border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-weight: 700; align-items: center; gap: 6px;" title="Transfer resources or send tribute to co-op teammates">
+        <button id="btn-hud-coop" class="aoe-btn-crimson" style="display: none; padding: 4px 12px; font-size: 11px;" title="Transfer resources or send tribute to co-op teammates">
           <span>🤝</span> <span>Co-op Tribute</span>
         </button>
-        <button id="btn-hud-menu" style="background: #1e293b; border: 1px solid #475569; color: #f8fafc; border-radius: 6px; padding: 5px 14px; font-size: 12px; cursor: pointer; font-weight: 600;">
+        <button id="btn-hud-menu" class="aoe-btn-crimson" style="padding: 4px 14px; font-size: 12px;">
           Menu
         </button>
       </div>
@@ -148,20 +148,23 @@ export class HudView {
 
   private createNotificationBanner(): void {
     this.notificationBannerElem = document.createElement('div');
+    this.notificationBannerElem.className = 'cinzel';
     this.notificationBannerElem.style.cssText = `
       align-self: center;
-      margin-top: 16px;
-      padding: 8px 24px;
-      background: rgba(15, 23, 42, 0.95);
-      border: 1px solid #38bdf8;
-      border-radius: 30px;
-      color: #38bdf8;
-      font-weight: 700;
-      font-size: 14px;
+      margin-top: 14px;
+      padding: 6px 24px;
+      background: linear-gradient(180deg, #991b1b 0%, #600808 100%);
+      border: 2px solid #d4af37;
+      border-radius: 4px;
+      color: #fef08a;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 1px;
       display: none;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.75);
       animation: fadeIn 0.3s ease;
       pointer-events: none;
+      text-shadow: 0 1px 2px #000;
     `;
     this.rootElem.appendChild(this.notificationBannerElem);
   }
@@ -186,53 +189,47 @@ export class HudView {
       pointer-events: none;
     `;
 
-    // 1. Bottom-Left: Minimap
+    // 1. Bottom-Left: Minimap (Age of Empires Stone/Brass Frame)
     this.minimapContainer = document.createElement('div');
     this.minimapContainer.style.cssText = `
       width: 180px;
       height: 180px;
       pointer-events: auto;
-      border-radius: 8px;
+      border: 2.5px solid #d4af37;
+      border-radius: 4px;
       overflow: hidden;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.85);
+      background: #1a0f07;
     `;
     bottomBar.appendChild(this.minimapContainer);
 
-    // 2. Bottom-Center: Selected Entity Card
+    // 2. Bottom-Center: Selected Entity Card (Aged Parchment)
     this.selectionDetailsElem = document.createElement('div');
+    this.selectionDetailsElem.className = 'aoe-parchment-card';
     this.selectionDetailsElem.style.cssText = `
       width: 380px;
       height: 180px;
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(8px);
-      border: 2px solid #334155;
-      border-radius: 10px;
-      padding: 14px;
+      padding: 12px 14px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       pointer-events: auto;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
     `;
-    this.selectionDetailsElem.innerHTML = `<div style="color: #64748b; font-size: 13px; text-align: center; margin-top: 60px;">Click any unit or building to command</div>`;
+    this.selectionDetailsElem.innerHTML = `<div class="cinzel" style="color: #5c3a1e; font-size: 13px; font-weight: 700; text-align: center; margin-top: 60px;">Click any unit or building to command</div>`;
     bottomBar.appendChild(this.selectionDetailsElem);
 
-    // 3. Bottom-Right: Context-sensitive Action Matrix
+    // 3. Bottom-Right: Context-sensitive Action Matrix (Aged Parchment)
     this.actionMatrixElem = document.createElement('div');
+    this.actionMatrixElem.className = 'aoe-parchment-card';
     this.actionMatrixElem.style.cssText = `
       width: 380px;
       height: 180px;
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(8px);
-      border: 2px solid #334155;
-      border-radius: 10px;
       padding: 10px;
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       grid-template-rows: repeat(3, 1fr);
       gap: 6px;
       pointer-events: auto;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
     `;
     bottomBar.appendChild(this.actionMatrixElem);
 
@@ -1143,7 +1140,8 @@ export class HudView {
     const ageReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
 
     this.ageModalElem = document.createElement('div');
-    this.ageModalElem.className = 'modal-backdrop interactive';
+    this.ageModalElem.className = 'modal-backdrop interactive aoe-wood-backdrop';
+    this.ageModalElem.style.cssText = 'position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2000; background: rgba(10, 6, 3, 0.78); backdrop-filter: blur(4px);';
 
     const nextAge = ageReq ? ageReq.nextAge : null;
     const canAfford = nextAge ? (
@@ -1155,59 +1153,56 @@ export class HudView {
     ) : false;
 
     this.ageModalElem.innerHTML = `
-      <div style="
-        width: 520px;
-        background: #0f172a;
-        border: 2px solid #d97706;
-        border-radius: 14px;
-        padding: 24px;
-        color: #f8fafc;
+      <div class="aoe-parchment-card" style="
+        width: 540px;
+        padding: 26px;
+        color: #2b1809;
         display: flex;
         flex-direction: column;
         gap: 16px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+        position: relative;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85);
       ">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 10px;">
-          <h2 class="cinzel" style="font-size: 20px; color: #fbbf24;">CIVILIZATION ADVANCEMENT</h2>
-          <span style="font-size: 12px; color: #94a3b8;">Current: <strong>${player.age}</strong></span>
+        <div class="aoe-corner-rivet aoe-corner-rivet-tl"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-tr"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-bl"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-br"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 10px;">
+          <h2 class="cinzel" style="font-size: 20px; color: #451a03; margin: 0; font-weight: 800; letter-spacing: 1px;">CIVILIZATION ADVANCEMENT</h2>
+          <span style="font-size: 12px; color: #78350f; font-weight: 600;">Current: <strong>${player.age}</strong></span>
         </div>
 
         ${nextAge ? `
-          <div style="font-size: 13px; color: #cbd5e1;">
-            Advancing to <strong style="color: #fbbf24;">${nextAge}</strong> unlocks advanced military buildings, stronger defensive structures, and powerful technologies.
+          <div style="font-size: 13px; color: #451a03; line-height: 1.5;">
+            Advancing to <strong style="color: #991b1b;">${nextAge}</strong> unlocks historical military units, upgraded fortifications, stronger economic structures, and era-defining technologies.
           </div>
 
-          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase;">Required Resources</div>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 13px;">
-              <div style="color: ${player.resources.food >= ageReq.cost.food ? '#4ade80' : '#f87171'};">🌾 Food: ${player.resources.food}/${ageReq.cost.food}</div>
-              <div style="color: ${player.resources.wood >= ageReq.cost.wood ? '#4ade80' : '#f87171'};">🪵 Wood: ${player.resources.wood}/${ageReq.cost.wood}</div>
-              <div style="color: ${player.resources.knowledge >= ageReq.cost.knowledge ? '#4ade80' : '#f87171'};">📜 Knowledge: ${player.resources.knowledge}/${ageReq.cost.knowledge}</div>
-              ${ageReq.cost.stone > 0 ? `<div style="color: ${player.resources.stone >= ageReq.cost.stone ? '#4ade80' : '#f87171'};">🪨 Stone: ${player.resources.stone}/${ageReq.cost.stone}</div>` : ''}
-              ${ageReq.cost.metal > 0 ? `<div style="color: ${player.resources.metal >= ageReq.cost.metal ? '#4ade80' : '#f87171'};">🪙 Metal: ${player.resources.metal}/${ageReq.cost.metal}</div>` : ''}
+          <div class="aoe-parchment-inner" style="padding: 14px;">
+            <div style="font-size: 11px; font-weight: 800; color: #78350f; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Required Tributes & Resources</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 13px; font-weight: 700;">
+              <div style="color: ${player.resources.food >= ageReq.cost.food ? '#166534' : '#991b1b'};">🌾 Food: ${player.resources.food}/${ageReq.cost.food}</div>
+              <div style="color: ${player.resources.wood >= ageReq.cost.wood ? '#166534' : '#991b1b'};">🪵 Wood: ${player.resources.wood}/${ageReq.cost.wood}</div>
+              <div style="color: ${player.resources.knowledge >= ageReq.cost.knowledge ? '#166534' : '#991b1b'};">📜 Knowledge: ${player.resources.knowledge}/${ageReq.cost.knowledge}</div>
+              ${ageReq.cost.stone > 0 ? `<div style="color: ${player.resources.stone >= ageReq.cost.stone ? '#166534' : '#991b1b'};">🪨 Stone: ${player.resources.stone}/${ageReq.cost.stone}</div>` : ''}
+              ${ageReq.cost.metal > 0 ? `<div style="color: ${player.resources.metal >= ageReq.cost.metal ? '#166534' : '#991b1b'};">🪙 Metal: ${player.resources.metal}/${ageReq.cost.metal}</div>` : ''}
             </div>
           </div>
         ` : `
-          <div style="font-size: 14px; color: #4ade80; text-align: center; padding: 20px;">
-            Your civilization has achieved the maximum apex era (Industrial Age)!
+          <div style="font-size: 14px; color: #166534; font-weight: 700; text-align: center; padding: 24px; background: rgba(34, 197, 94, 0.1); border: 1px dashed #166534; border-radius: 6px;">
+            👑 Your nation has achieved the glorious Industrial Age apex!
           </div>
         `}
 
-        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 12px;">
-          <button id="btn-close-age-modal" style="background: transparent; border: 1px solid #475569; color: #94a3b8; border-radius: 6px; padding: 8px 16px; font-size: 12px; cursor: pointer;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 2px solid #8c6a34; padding-top: 14px;">
+          <button id="btn-close-age-modal" class="aoe-btn-crimson" style="padding: 8px 18px; font-size: 12px; background: linear-gradient(180deg, #5c4033 0%, #3a2618 100%); border-color: #8c6a34; color: #fbf1dc;">
             Close
           </button>
           ${nextAge ? `
-            <button id="btn-modal-advance-age" style="
-              background: ${canAfford ? 'linear-gradient(180deg, #d97706 0%, #b45309 100%)' : '#334155'};
-              border: none;
-              color: white;
-              border-radius: 8px;
-              padding: 10px 24px;
+            <button id="btn-modal-advance-age" class="aoe-btn-crimson" style="
+              padding: 9px 24px;
               font-size: 13px;
-              font-weight: 700;
-              cursor: pointer;
-              box-shadow: ${canAfford ? '0 4px 12px rgba(217, 119, 6, 0.4)' : 'none'};
+              ${!canAfford ? 'opacity: 0.6; cursor: not-allowed;' : ''}
             ">
               Advance to ${nextAge} 👑
             </button>
@@ -1257,7 +1252,8 @@ export class HudView {
     }
 
     this.coopModalElem = document.createElement('div');
-    this.coopModalElem.className = 'modal-backdrop interactive';
+    this.coopModalElem.className = 'modal-backdrop interactive aoe-wood-backdrop';
+    this.coopModalElem.style.cssText = 'position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2000; background: rgba(10, 6, 3, 0.78); backdrop-filter: blur(4px);';
 
     this.renderCoopModalContent();
     this.rootElem.appendChild(this.coopModalElem);
@@ -1269,55 +1265,58 @@ export class HudView {
     const teammates = this.allPlayers.filter(p => p.team === player.team && p.id !== player.id && !p.isDefeated);
 
     this.coopModalElem.innerHTML = `
-      <div style="
-        width: 580px;
-        background: #0f172a;
-        border: 2px solid #38bdf8;
-        border-radius: 14px;
-        padding: 24px;
-        color: #f8fafc;
+      <div class="aoe-parchment-card" style="
+        width: 600px;
+        padding: 26px;
+        color: #2b1809;
         display: flex;
         flex-direction: column;
         gap: 16px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
+        position: relative;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85);
       ">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 10px;">
-          <h2 class="cinzel" style="font-size: 20px; color: #38bdf8;">🤝 CO-OP ALLY TRIBUTE</h2>
-          <span style="font-size: 12px; color: #94a3b8;">Team ${player.team} Allies</span>
+        <div class="aoe-corner-rivet aoe-corner-rivet-tl"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-tr"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-bl"></div>
+        <div class="aoe-corner-rivet aoe-corner-rivet-br"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 10px;">
+          <h2 class="cinzel" style="font-size: 20px; color: #451a03; margin: 0; font-weight: 800; letter-spacing: 1px;">🤝 CO-OP ALLY TRIBUTE</h2>
+          <span style="font-size: 12px; color: #78350f; font-weight: 600;">Team ${player.team} Allies</span>
         </div>
 
-        <div style="font-size: 13px; color: #94a3b8;">
-          Transfer resources to support your teammates' economy, building production, or age advancement.
+        <div style="font-size: 13px; color: #451a03; line-height: 1.4;">
+          Transfer stockpiled resources to your allied commanders to reinforce their war efforts, army recruitment, or research.
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px; max-height: 380px; overflow-y: auto;">
           ${teammates.map(tm => `
-            <div style="background: #1e293b; border: 1px solid ${tm.color}; border-radius: 10px; padding: 12px;">
+            <div class="aoe-parchment-inner" style="padding: 12px; border: 1.5px solid ${tm.color};">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <div style="width: 10px; height: 10px; border-radius: 50%; background: ${tm.color};"></div>
-                  <strong style="font-size: 14px;">${tm.name}</strong>
-                  <span style="font-size: 11px; color: #94a3b8;">(${tm.civ} • ${tm.age})</span>
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background: ${tm.color}; border: 1px solid #000;"></div>
+                  <strong style="font-size: 14px; color: #3b1d08;">${tm.name}</strong>
+                  <span style="font-size: 11px; color: #78350f;">(${tm.civ} • ${tm.age})</span>
                 </div>
-                <div style="font-size: 11px; color: #38bdf8; font-weight: 600;">
+                <div style="font-size: 12px; color: #991b1b; font-weight: 800;">
                   Pop: ${tm.population}/${tm.maxPopulation}
                 </div>
               </div>
 
               <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
-                <button class="btn-tribute" data-to="${tm.id}" data-res="food" data-amt="100" ${player.resources.food < 100 ? 'disabled' : ''} style="background: #15803d; border: 1px solid #22c55e; color: white; border-radius: 6px; padding: 6px 4px; font-size: 11px; cursor: pointer; font-weight: 700;">
+                <button class="btn-tribute aoe-btn-crimson" data-to="${tm.id}" data-res="food" data-amt="100" ${player.resources.food < 100 ? 'disabled' : ''} style="padding: 6px 2px; font-size: 11px; ${player.resources.food < 100 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                   +100 🌾
                 </button>
-                <button class="btn-tribute" data-to="${tm.id}" data-res="wood" data-amt="100" ${player.resources.wood < 100 ? 'disabled' : ''} style="background: #047857; border: 1px solid #10b981; color: white; border-radius: 6px; padding: 6px 4px; font-size: 11px; cursor: pointer; font-weight: 700;">
+                <button class="btn-tribute aoe-btn-crimson" data-to="${tm.id}" data-res="wood" data-amt="100" ${player.resources.wood < 100 ? 'disabled' : ''} style="padding: 6px 2px; font-size: 11px; ${player.resources.wood < 100 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                   +100 🪵
                 </button>
-                <button class="btn-tribute" data-to="${tm.id}" data-res="stone" data-amt="100" ${player.resources.stone < 100 ? 'disabled' : ''} style="background: #475569; border: 1px solid #64748b; color: white; border-radius: 6px; padding: 6px 4px; font-size: 11px; cursor: pointer; font-weight: 700;">
+                <button class="btn-tribute aoe-btn-crimson" data-to="${tm.id}" data-res="stone" data-amt="100" ${player.resources.stone < 100 ? 'disabled' : ''} style="padding: 6px 2px; font-size: 11px; ${player.resources.stone < 100 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                   +100 🪨
                 </button>
-                <button class="btn-tribute" data-to="${tm.id}" data-res="metal" data-amt="100" ${player.resources.metal < 100 ? 'disabled' : ''} style="background: #b45309; border: 1px solid #f59e0b; color: white; border-radius: 6px; padding: 6px 4px; font-size: 11px; cursor: pointer; font-weight: 700;">
+                <button class="btn-tribute aoe-btn-crimson" data-to="${tm.id}" data-res="metal" data-amt="100" ${player.resources.metal < 100 ? 'disabled' : ''} style="padding: 6px 2px; font-size: 11px; ${player.resources.metal < 100 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                   +100 🪙
                 </button>
-                <button class="btn-tribute" data-to="${tm.id}" data-res="knowledge" data-amt="50" ${player.resources.knowledge < 50 ? 'disabled' : ''} style="background: #6d28d9; border: 1px solid #8b5cf6; color: white; border-radius: 6px; padding: 6px 4px; font-size: 11px; cursor: pointer; font-weight: 700;">
+                <button class="btn-tribute aoe-btn-crimson" data-to="${tm.id}" data-res="knowledge" data-amt="50" ${player.resources.knowledge < 50 ? 'disabled' : ''} style="padding: 6px 2px; font-size: 11px; ${player.resources.knowledge < 50 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                   +50 📜
                 </button>
               </div>
@@ -1325,8 +1324,8 @@ export class HudView {
           `).join('')}
         </div>
 
-        <div style="display: flex; justify-content: flex-end; border-top: 1px solid #1e293b; padding-top: 12px;">
-          <button id="btn-close-coop-modal" style="background: #334155; border: none; color: white; border-radius: 6px; padding: 8px 20px; font-size: 12px; cursor: pointer; font-weight: 600;">
+        <div style="display: flex; justify-content: flex-end; border-top: 2px solid #8c6a34; padding-top: 14px;">
+          <button id="btn-close-coop-modal" class="aoe-btn-crimson" style="padding: 8px 24px; font-size: 12px; background: linear-gradient(180deg, #5c4033 0%, #3a2618 100%); border-color: #8c6a34; color: #fbf1dc;">
             Close
           </button>
         </div>
