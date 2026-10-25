@@ -15,7 +15,9 @@ import {
   getWaterRippleTexture,
   getWaterCausticsTexture,
   getShorelineFoamTexture,
-  getWoodPlankTexture
+  getWoodPlankTexture,
+  getFoliageTexture,
+  getPineNeedleTexture
 } from './proceduralTextures.js';
 
 export class TerrainMesh {
@@ -464,151 +466,18 @@ export class TerrainMesh {
   }
 
   // -------------------------------------------------------------
-  // 3D MOUNTAIN MASSIFS & ORGANIC ROCKY CRAGS (Rise of Nations / AoE style)
-  // Continuous majestic alpine ridges sculpted in terrain; natural scattered crags
+  // MOUNTAIN MASSIFS (Clean Natural AoE Cliff Ridges - no scattered balls)
   // -------------------------------------------------------------
   private buildMountainMassifs(width: number, height: number, tiles: MapTile[]): void {
-    const cragSpots: { pos: THREE.Vector3; elev: number; isHighPeak: boolean; hash: number }[] = [];
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const t = tiles[y * width + x];
-        if (t && t.terrain === 'mountain') {
-          const elev = t.elevation || 2;
-          const hash = (x * 19 + y * 37) % 100;
-          // Organic distribution: Place rocky crags only on prominent ridges and summits (avoiding uniform grids)
-          if (elev >= 2 && hash < 45) {
-            const baseY = elev >= 3 ? 2.8 : 1.9;
-            cragSpots.push({
-              pos: new THREE.Vector3(x + 0.5, baseY, y + 0.5),
-              elev,
-              isHighPeak: elev >= 3,
-              hash
-            });
-          }
-        }
-      }
-    }
-
-    if (cragSpots.length === 0) return;
-
-    const mountainGroup = new THREE.Group();
-
-    // 1. Weathered Granite Rock Outcropping
-    const cragGeom = new THREE.DodecahedronGeometry(0.72, 1);
-    const cragMat = new THREE.MeshStandardMaterial({
-      color: 0x475569, // Weathered slate granite
-      roughness: 0.88,
-      metalness: 0.08,
-      flatShading: false
-    });
-
-    // 2. Jagged Summit Crags & Boulders
-    const boulderGeom = new THREE.DodecahedronGeometry(0.55, 0);
-    const boulderMat = new THREE.MeshStandardMaterial({
-      color: 0x334155, // Dark basalt crevice rock
-      roughness: 0.92,
-      metalness: 0.05,
-      flatShading: false
-    });
-
-    const instCrags = new THREE.InstancedMesh(cragGeom, cragMat, cragSpots.length);
-    const instBoulders = new THREE.InstancedMesh(boulderGeom, boulderMat, cragSpots.length);
-
-    instCrags.castShadow = true;
-    instCrags.receiveShadow = true;
-    instBoulders.castShadow = true;
-    instBoulders.receiveShadow = true;
-
-    const dummy = new THREE.Object3D();
-
-    cragSpots.forEach((spot, idx) => {
-      const rotY = (spot.hash * 0.17) % (Math.PI * 2);
-      const rotX = (((spot.hash * 13) % 9) - 4) * 0.03;
-      const rotZ = (((spot.hash * 23) % 9) - 4) * 0.03;
-
-      // Natural organic placement jitter
-      const jx = (((spot.hash * 7) % 11) - 5) * 0.04;
-      const jz = (((spot.hash * 11) % 11) - 5) * 0.04;
-
-      const scaleX = 0.9 + ((spot.hash * 3) % 4) * 0.15;
-      const scaleY = spot.elev >= 3 ? 1.35 + ((spot.hash * 5) % 4) * 0.18 : 0.95 + ((spot.hash * 5) % 3) * 0.15;
-      const scaleZ = 0.85 + ((spot.hash * 7) % 4) * 0.15;
-
-      // Primary Granite Outcropping
-      dummy.position.set(spot.pos.x + jx, spot.pos.y + 0.1, spot.pos.z + jz);
-      dummy.scale.set(scaleX, scaleY, scaleZ);
-      dummy.rotation.set(rotX, rotY, rotZ);
-      dummy.updateMatrix();
-      instCrags.setMatrixAt(idx, dummy.matrix);
-
-      // Flanking Jagged Boulder
-      const bx = spot.pos.x - jx * 1.5 + 0.25;
-      const bz = spot.pos.z - jz * 1.5 - 0.22;
-      dummy.position.set(bx, spot.pos.y - 0.15, bz);
-      dummy.scale.set(scaleX * 0.75, scaleY * 0.6, scaleZ * 0.75);
-      dummy.rotation.set(-rotX, rotY + 1.2, rotZ + 0.4);
-      dummy.updateMatrix();
-      instBoulders.setMatrixAt(idx, dummy.matrix);
-    });
-
-    mountainGroup.add(instCrags);
-    mountainGroup.add(instBoulders);
-    this.group.add(mountainGroup);
+    // The high-relief terrain mesh and sedimentary cliff strata shader already render
+    // authentic Age of Empires granite and alpine mountain peaks directly on the terrain geometry.
   }
 
   // -------------------------------------------------------------
-  // RESTRICTED AREA BOUNDARY MARKERS (Natural scree talus along mountain base)
+  // RESTRICTED AREA BOUNDARY MARKERS
   // -------------------------------------------------------------
   private buildRestrictedAreaBoundaryMarkers(width: number, height: number, tiles: MapTile[]): void {
-    const cairnSpots: THREE.Vector3[] = [];
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const t = tiles[y * width + x];
-        if (t && t.terrain === 'mountain') {
-          // Check 4 cardinal neighbors
-          const checkEdge = (nx: number, ny: number) => {
-            if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
-            const neighbor = tiles[ny * width + nx];
-            if (neighbor && neighbor.terrain !== 'mountain') {
-              if (((x * 13 + y * 29) % 10) < 3) {
-                cairnSpots.push(new THREE.Vector3((x + nx) * 0.5 + 0.5, 0.15, (y + ny) * 0.5 + 0.5));
-              }
-            }
-          };
-
-          checkEdge(x, y - 1);
-          checkEdge(x, y + 1);
-          checkEdge(x - 1, y);
-          checkEdge(x + 1, y);
-        }
-      }
-    }
-
-    // Natural scree stones & talus boulders along mountain foot (AoE / RoN style)
-    if (cairnSpots.length > 0) {
-      const boulderGeom = new THREE.DodecahedronGeometry(0.24, 0);
-      const boulderMat = new THREE.MeshStandardMaterial({
-        color: 0x526071,
-        roughness: 0.92,
-        flatShading: false
-      });
-      const instCairn = new THREE.InstancedMesh(boulderGeom, boulderMat, cairnSpots.length);
-      const dummy = new THREE.Object3D();
-      cairnSpots.forEach((pos, idx) => {
-        const jx = (((idx * 17) % 7) - 3) * 0.04;
-        const jz = (((idx * 23) % 7) - 3) * 0.04;
-        dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
-        const s = 0.5 + (idx % 4) * 0.15;
-        dummy.scale.set(s, s * 0.65, s);
-        dummy.rotation.set((idx * 0.4) % 1, (idx * 0.7) % 2, 0);
-        dummy.updateMatrix();
-        instCairn.setMatrixAt(idx, dummy.matrix);
-      });
-      instCairn.castShadow = true;
-      this.restrictedBorderGroup.add(instCairn);
-    }
+    // Left clean to avoid cluttering hills and terrain with loose spheres
   }
 
   // -------------------------------------------------------------
@@ -627,13 +496,16 @@ export class TerrainMesh {
       }
     });
 
-    // 1. Diverse Forest Trees: Conifer Pines & Noble Broadleaf Oaks (AoE style)
+    // Diverse Forest Trees: Conifer Pines & Noble Broadleaf Oaks (Authentic AoE II/III DE style)
     if (forestSpots.length > 0) {
       const woodTex = getWoodPlankTexture();
+      const foliageTex = getFoliageTexture();
+      const pineNeedleTex = getPineNeedleTexture();
+
       const trunkMat = new THREE.MeshStandardMaterial({
         map: woodTex,
-        color: 0x5a3419,
-        roughness: 0.9,
+        color: 0x4a2a14, // Dark European timber bark
+        roughness: 0.92,
         flatShading: false
       });
 
@@ -658,39 +530,56 @@ export class TerrainMesh {
             '#include <begin_vertex>',
             `
             #include <begin_vertex>
-            // Wind physics: sway branches and crowns naturally based on height and local phase
+            // Wind physics: sway branches naturally
             float branchHeight = max(0.0, position.y);
             float windGust = sin(uTime * 2.2 + position.x * 2.0 + position.z * 1.5);
-            float swayAmt = branchHeight * 0.055 * windGust;
+            float swayAmt = branchHeight * 0.045 * windGust;
             transformed.x += swayAmt;
-            transformed.z += swayAmt * 0.7;
+            transformed.z += swayAmt * 0.6;
             `
           );
         };
       };
 
-      // Conifer Meshes
+      // Conifer Meshes (Realistic tiered pine skirts with pine needle texture)
       if (coniferSpots.length > 0) {
-        const cTrunkGeom = new THREE.CylinderGeometry(0.12, 0.18, 1.05, 8);
-        const cCone1Geom = new THREE.ConeGeometry(0.95, 1.1, 10);
-        cCone1Geom.translate(0, 0.9, 0);
-        const cCone2Geom = new THREE.ConeGeometry(0.75, 0.95, 10);
-        cCone2Geom.translate(0, 1.45, 0);
-        const cCone3Geom = new THREE.ConeGeometry(0.52, 0.8, 10);
-        cCone3Geom.translate(0, 1.92, 0);
+        const cTrunkGeom = new THREE.CylinderGeometry(0.1, 0.18, 1.4, 8);
+        cTrunkGeom.translate(0, 0.6, 0);
 
-        const coniferMat1 = new THREE.MeshStandardMaterial({ color: 0x183b15, roughness: 0.76, flatShading: false });
-        const coniferMat2 = new THREE.MeshStandardMaterial({ color: 0x224c1f, roughness: 0.72, flatShading: false });
-        const coniferMat3 = new THREE.MeshStandardMaterial({ color: 0x2d6129, roughness: 0.68, flatShading: false });
+        const cTier1 = new THREE.ConeGeometry(0.98, 0.9, 8);
+        cTier1.translate(0, 1.1, 0);
+        const cTier2 = new THREE.ConeGeometry(0.78, 0.85, 8);
+        cTier2.translate(0, 1.6, 0);
+        const cTier3 = new THREE.ConeGeometry(0.55, 0.8, 8);
+        cTier3.translate(0, 2.05, 0);
+
+        const coniferMat1 = new THREE.MeshStandardMaterial({
+          map: pineNeedleTex,
+          color: 0x183b15,
+          roughness: 0.85,
+          flatShading: false
+        });
+        const coniferMat2 = new THREE.MeshStandardMaterial({
+          map: pineNeedleTex,
+          color: 0x214a1e,
+          roughness: 0.82,
+          flatShading: false
+        });
+        const coniferMat3 = new THREE.MeshStandardMaterial({
+          map: pineNeedleTex,
+          color: 0x2b5926,
+          roughness: 0.8,
+          flatShading: false
+        });
 
         applyWindHook(coniferMat1);
         applyWindHook(coniferMat2);
         applyWindHook(coniferMat3);
 
         const instCTrunk = new THREE.InstancedMesh(cTrunkGeom, trunkMat, coniferSpots.length);
-        const instCCone1 = new THREE.InstancedMesh(cCone1Geom, coniferMat1, coniferSpots.length);
-        const instCCone2 = new THREE.InstancedMesh(cCone2Geom, coniferMat2, coniferSpots.length);
-        const instCCone3 = new THREE.InstancedMesh(cCone3Geom, coniferMat3, coniferSpots.length);
+        const instCTier1 = new THREE.InstancedMesh(cTier1, coniferMat1, coniferSpots.length);
+        const instCTier2 = new THREE.InstancedMesh(cTier2, coniferMat2, coniferSpots.length);
+        const instCTier3 = new THREE.InstancedMesh(cTier3, coniferMat3, coniferSpots.length);
 
         const dummy = new THREE.Object3D();
         coniferSpots.forEach((pos, idx) => {
@@ -706,35 +595,52 @@ export class TerrainMesh {
           dummy.updateMatrix();
 
           instCTrunk.setMatrixAt(idx, dummy.matrix);
-          instCCone1.setMatrixAt(idx, dummy.matrix);
-          instCCone2.setMatrixAt(idx, dummy.matrix);
-          instCCone3.setMatrixAt(idx, dummy.matrix);
+          instCTier1.setMatrixAt(idx, dummy.matrix);
+          instCTier2.setMatrixAt(idx, dummy.matrix);
+          instCTier3.setMatrixAt(idx, dummy.matrix);
         });
 
         instCTrunk.castShadow = true;
-        instCCone1.castShadow = true;
-        instCCone2.castShadow = true;
-        instCCone3.castShadow = true;
+        instCTier1.castShadow = true;
+        instCTier2.castShadow = true;
+        instCTier3.castShadow = true;
 
         this.treesGroup.add(instCTrunk);
-        this.treesGroup.add(instCCone1);
-        this.treesGroup.add(instCCone2);
-        this.treesGroup.add(instCCone3);
+        this.treesGroup.add(instCTier1);
+        this.treesGroup.add(instCTier2);
+        this.treesGroup.add(instCTier3);
       }
 
-      // Broadleaf Oaks (50% of trees - lush multi-spherical organic canopies)
+      // Broadleaf Oaks (Layered organic canopies with leaf foliage texture)
       if (oakSpots.length > 0) {
-        const oTrunkGeom = new THREE.CylinderGeometry(0.15, 0.24, 1.15, 8);
-        const oCrown1Geom = new THREE.DodecahedronGeometry(0.85, 2);
-        oCrown1Geom.translate(0, 1.45, 0);
-        const oCrown2Geom = new THREE.DodecahedronGeometry(0.68, 2);
-        oCrown2Geom.translate(-0.35, 1.25, 0.22);
-        const oCrown3Geom = new THREE.DodecahedronGeometry(0.72, 2);
-        oCrown3Geom.translate(0.36, 1.32, -0.18);
+        const oTrunkGeom = new THREE.CylinderGeometry(0.14, 0.22, 1.25, 8);
+        oTrunkGeom.translate(0, 0.6, 0);
 
-        const oakMat1 = new THREE.MeshStandardMaterial({ color: 0x2e5b1f, roughness: 0.75, flatShading: false });
-        const oakMat2 = new THREE.MeshStandardMaterial({ color: 0x3d7329, roughness: 0.72, flatShading: false });
-        const oakMat3 = new THREE.MeshStandardMaterial({ color: 0x4d8a34, roughness: 0.68, flatShading: false });
+        const oCrown1Geom = new THREE.DodecahedronGeometry(0.85, 1);
+        oCrown1Geom.translate(0, 1.5, 0);
+        const oCrown2Geom = new THREE.DodecahedronGeometry(0.68, 1);
+        oCrown2Geom.translate(-0.35, 1.35, 0.2);
+        const oCrown3Geom = new THREE.DodecahedronGeometry(0.72, 1);
+        oCrown3Geom.translate(0.35, 1.38, -0.18);
+
+        const oakMat1 = new THREE.MeshStandardMaterial({
+          map: foliageTex,
+          color: 0x2a521a,
+          roughness: 0.85,
+          flatShading: false
+        });
+        const oakMat2 = new THREE.MeshStandardMaterial({
+          map: foliageTex,
+          color: 0x366622,
+          roughness: 0.82,
+          flatShading: false
+        });
+        const oakMat3 = new THREE.MeshStandardMaterial({
+          map: foliageTex,
+          color: 0x447a2c,
+          roughness: 0.8,
+          flatShading: false
+        });
 
         applyWindHook(oakMat1);
         applyWindHook(oakMat2);
@@ -776,7 +682,7 @@ export class TerrainMesh {
   }
 
   // -------------------------------------------------------------
-  // RESOURCE DEPOSITS (Gold Yellow nuggets, timber, stone, berries)
+  // RESOURCE DEPOSITS (Gold crystal nuggets, timber, stone, forage berries)
   // -------------------------------------------------------------
   private buildResourceDecorations(nodes: ResourceNodeData[]): void {
     const stoneGeom = new THREE.DodecahedronGeometry(0.68, 1);
@@ -796,9 +702,20 @@ export class TerrainMesh {
       flatShading: false
     });
 
-    const foodGeom = new THREE.SphereGeometry(0.48, 10, 8);
-    const foodMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7, flatShading: false });
-    const berryMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4, flatShading: false });
+    const foliageTex = getFoliageTexture();
+    const foodGeom = new THREE.DodecahedronGeometry(0.55, 1);
+    const foodMat = new THREE.MeshStandardMaterial({
+      map: foliageTex,
+      color: 0x1f541b,
+      roughness: 0.82,
+      flatShading: false
+    });
+    const berryMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444, // Bright ruby red
+      roughness: 0.35,
+      metalness: 0.15,
+      flatShading: false
+    });
 
     // Tree geometries for wood nodes
     const trunkGeom = new THREE.CylinderGeometry(0.14, 0.18, 0.95, 5);

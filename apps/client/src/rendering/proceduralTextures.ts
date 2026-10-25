@@ -658,3 +658,103 @@ export function getWaterCausticsTexture(): THREE.CanvasTexture {
   textureCache.set(key, texture);
   return texture;
 }
+
+/**
+ * Creates high-detail procedural deciduous leaf canopy texture (Age of Empires II: DE style).
+ * Features dense stippled leaf clusters, organic chlorophyll gradients, and dappled sun highlights.
+ */
+export function getFoliageTexture(): THREE.CanvasTexture {
+  const key = 'foliage_leaves';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  // Deep forest shadow base
+  ctx.fillStyle = '#1c3813';
+  ctx.fillRect(0, 0, size, size);
+
+  // Dense leaf speckles in natural organic layers
+  const leafColors = [
+    '#254d19', '#2e5e1f', '#397026', '#45852e', '#539e37', '#62b542', '#1f4214', '#2d541c'
+  ];
+
+  for (let i = 0; i < 9000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const rx = Math.random() * 5 + 3;
+    const ry = Math.random() * 3 + 2;
+    const angle = Math.random() * Math.PI;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = leafColors[Math.floor(Math.random() * leafColors.length)];
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Sunlight dappling highlights
+  for (let i = 0; i < 800; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    ctx.fillStyle = 'rgba(163, 230, 53, 0.28)';
+    ctx.beginPath();
+    ctx.arc(x, y, Math.random() * 3 + 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
+  textureCache.set(key, texture);
+  return texture;
+}
+
+/**
+ * Creates high-detail procedural pine needle branch texture.
+ */
+export function getPineNeedleTexture(): THREE.CanvasTexture {
+  const key = 'pine_needles';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#0f260d';
+  ctx.fillRect(0, 0, size, size);
+
+  const needleColors = [
+    '#163813', '#1e481a', '#275922', '#316b2b', '#1a3d16', '#3b7d34'
+  ];
+
+  ctx.lineWidth = 1.4;
+  for (let i = 0; i < 12000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const len = Math.random() * 7 + 4;
+    const angle = (Math.random() - 0.5) * 1.8 + Math.PI / 2; // downward sloping needles
+
+    ctx.strokeStyle = needleColors[Math.floor(Math.random() * needleColors.length)];
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
+  textureCache.set(key, texture);
+  return texture;
+}
