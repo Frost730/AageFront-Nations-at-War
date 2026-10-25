@@ -538,7 +538,12 @@ export class GameRenderer {
         }
         const teamColor = playerColorMap.get(bldg.ownerId) || '#3b82f6';
         group = createBuildingModel(bldg, teamColor);
-        group.userData = { isConstructed: bldg.isConstructed };
+        group.userData = {
+          isConstructed: bldg.isConstructed,
+          width: bldg.width,
+          height: bldg.height,
+          buildingType: bldg.type
+        };
         this.buildingMeshes.set(bldg.id, group);
         this.scene.add(group);
 
@@ -607,9 +612,18 @@ export class GameRenderer {
       }
     }
 
-    // Remove destroyed buildings
+    // Remove destroyed buildings & simulate structural collapse debris
     for (const [id, mesh] of this.buildingMeshes.entries()) {
       if (!currentBldgIds.has(id)) {
+        if (mesh.userData?.isConstructed) {
+          this.spawnBuildingDestruction(
+            mesh.position.x,
+            mesh.position.z,
+            mesh.userData?.width || 2,
+            mesh.userData?.height || 2,
+            mesh.userData?.buildingType || 'house'
+          );
+        }
         this.scene.remove(mesh);
         this.buildingMeshes.delete(id);
         this.removeSelectionRing(id);
@@ -1004,6 +1018,174 @@ export class GameRenderer {
       group,
       createdAt: performance.now(),
       maxLifetime: 60000,
+      baseElevation: groundElev
+    });
+
+    if (this.battlefieldRemains.length > 80) {
+      const oldest = this.battlefieldRemains.shift();
+      if (oldest) this.scene.remove(oldest.group);
+    }
+  }
+
+  // Structural collapse simulation: tumbling masonry blocks, shattered beams, and billowing dust clouds
+  public spawnBuildingDestruction(
+    x: number,
+    z: number,
+    width: number,
+    height: number,
+    buildingType: string
+  ): void {
+    const groundElev = this.terrainMesh?.getElevationAt(x, z) || 0;
+    const size = Math.max(width, height);
+
+    // 1. Blackened scorch foundation crater
+    this.spawnGroundScorch(x, z, size * 0.85);
+
+    // 2. Shockwave blast & fiery collapse explosion
+    this.spawnExplosion(new THREE.Vector3(x, groundElev + 1.2, z), 0xf97316, size * 1.15);
+
+    // 3. Volumetric Billowing Mortar & Masonry Dust Clouds
+    const dustCount = Math.min(18, Math.max(8, Math.round(size * 4)));
+    const dustGeom = new THREE.DodecahedronGeometry(0.55, 0);
+    const dustColors = [0xa8a29e, 0x78716c, 0xd6d3d1, 0x57534e];
+
+    for (let i = 0; i < dustCount; i++) {
+      const dustMat = new THREE.MeshBasicMaterial({
+        color: dustColors[i % dustColors.length],
+        transparent: true,
+        opacity: 0.82,
+        depthWrite: false
+      });
+      const dust = new THREE.Mesh(dustGeom, dustMat);
+      const angle = (i / dustCount) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = Math.random() * size * 0.45;
+      const startX = x + Math.cos(angle) * dist;
+      const startZ = z + Math.sin(angle) * dist;
+      const startY = groundElev + Math.random() * 0.8 + 0.3;
+      dust.position.set(startX, startY, startZ);
+      this.scene.add(dust);
+
+      const expandRate = 1.4 + Math.random() * 1.2;
+      const riseSpeed = 0.6 + Math.random() * 0.7;
+      const duration = 1600 + Math.random() * 600;
+
+      this.visualEffects.push({
+        mesh: dust,
+        createdAt: performance.now(),
+        duration,
+        update: (t) => {
+          const s = 0.6 + t * expandRate * size * 0.7;
+          dust.scale.set(s, s, s);
+          dust.position.y = startY + t * riseSpeed;
+          dustMat.opacity = Math.max(0, 0.82 * (1.0 - t * t));
+        }
+      });
+    }
+
+    // 4. Structural Collapse Masonry Blocks & Timber Debris Group
+    const debrisGroup = new THREE.Group();
+    debrisGroup.position.set(x, groundElev, z);
+
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 });
+    const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.95 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.85 });
+    const tileMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.8 });
+
+    const debrisPieces: {
+      mesh: THREE.Mesh;
+      vel: THREE.Vector3;
+      rotVel: THREE.Vector3;
+      groundY: number;
+      settled: boolean;
+    }[] = [];
+
+    const pieceCount = Math.min(24, Math.max(12, Math.round(size * 5)));
+    for (let i = 0; i < pieceCount; i++) {
+      let geom: THREE.BufferGeometry;
+      let mat: THREE.Material;
+      const pieceKind = i % 3;
+
+      if (pieceKind === 0) {
+        // Ashlar masonry stone block
+        const bw = 0.3 + Math.random() * 0.25;
+        const bh = 0.2 + Math.random() * 0.2;
+        const bd = 0.3 + Math.random() * 0.3;
+        geom = new THREE.BoxGeometry(bw, bh, bd);
+        mat = i % 2 === 0 ? stoneMat : darkStoneMat;
+      } else if (pieceKind === 1) {
+        // Shattered timber rafter / beam
+        const bw = 0.12 + Math.random() * 0.08;
+        const bl = 0.7 + Math.random() * 0.8;
+        geom = new THREE.BoxGeometry(bw, bw, bl);
+        mat = woodMat;
+      } else {
+        // Slate or terracotta roof tile chunk
+        geom = new THREE.BoxGeometry(0.32, 0.08, 0.32);
+        mat = tileMat;
+      }
+
+      const mesh = new THREE.Mesh(geom, mat);
+      const px = (Math.random() - 0.5) * (width * 0.8);
+      const pz = (Math.random() - 0.5) * (height * 0.8);
+      const py = Math.random() * 1.8 + 0.6;
+      mesh.position.set(px, py, pz);
+
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      debrisGroup.add(mesh);
+
+      debrisPieces.push({
+        mesh,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 4.2,
+          Math.random() * 3.5 + 1.8,
+          (Math.random() - 0.5) * 4.2
+        ),
+        rotVel: new THREE.Vector3(
+          (Math.random() - 0.5) * 12,
+          (Math.random() - 0.5) * 12,
+          (Math.random() - 0.5) * 12
+        ),
+        groundY: 0.08 + Math.random() * 0.08,
+        settled: false
+      });
+    }
+
+    this.scene.add(debrisGroup);
+
+    // Debris tumbling physics update
+    const physicsDuration = 1400;
+    this.visualEffects.push({
+      mesh: debrisGroup,
+      createdAt: performance.now(),
+      duration: physicsDuration,
+      update: (t) => {
+        const dtStep = 0.016;
+        for (let j = 0; j < debrisPieces.length; j++) {
+          const p = debrisPieces[j];
+          if (p.settled) continue;
+
+          p.vel.y -= 16.0 * dtStep; // gravity
+          p.mesh.position.addScaledVector(p.vel, dtStep);
+          p.mesh.rotation.x += p.rotVel.x * dtStep;
+          p.mesh.rotation.y += p.rotVel.y * dtStep;
+          p.mesh.rotation.z += p.rotVel.z * dtStep;
+
+          if (p.mesh.position.y <= p.groundY) {
+            p.mesh.position.y = p.groundY;
+            p.vel.set(0, 0, 0);
+            p.rotVel.set(0, 0, 0);
+            p.settled = true;
+          }
+        }
+      }
+    });
+
+    // Register settled ruins as persistent battlefield remains (sink & fade over 45s)
+    this.battlefieldRemains.push({
+      group: debrisGroup,
+      createdAt: performance.now(),
+      maxLifetime: 45000,
       baseElevation: groundElev
     });
 
