@@ -506,3 +506,155 @@ export function getCloudShadowTexture(): THREE.CanvasTexture {
   textureCache.set(key, texture);
   return texture;
 }
+
+/**
+ * Creates dynamic shoreline water foam with lacy sea foam rings and frothy crests.
+ * When applied to shoreline ribbon quads, it creates animated lapping foam where water meets land.
+ */
+export function getShorelineFoamTexture(): THREE.CanvasTexture {
+  const key = 'shoreline_foam_tex';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  // Transparent base
+  ctx.clearRect(0, 0, size, size);
+
+  // Gradient froth density from water (V=0) to shoreline crest (V=1)
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
+  grad.addColorStop(0.35, 'rgba(230, 248, 255, 0.25)');
+  grad.addColorStop(0.75, 'rgba(245, 252, 255, 0.82)');
+  grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.95)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Lacy foam bubble cells and voronoi-like frothy web
+  ctx.lineWidth = 1.8;
+  for (let i = 0; i < 400; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = Math.random() * 12 + 3;
+    const alpha = (y / size) * (Math.random() * 0.6 + 0.3);
+
+    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Subtle bright bubble core
+    if (Math.random() > 0.4) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.75})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Wrap horizontally for seamless scrolling
+    if (x - r < 0) {
+      ctx.beginPath(); ctx.arc(x + size, y, r, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (x + r > size) {
+      ctx.beginPath(); ctx.arc(x - size, y, r, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  // Wavy surf crest lines
+  for (let c = 0; c < 5; c++) {
+    const yBase = size * (0.6 + c * 0.08);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 + c * 0.1})`;
+    ctx.lineWidth = 2.2 + c * 0.4;
+    ctx.beginPath();
+    for (let x = 0; x <= size; x += 10) {
+      const yWave = yBase + Math.sin(x * 0.04 + c * 1.5) * 6 + Math.cos(x * 0.08) * 3;
+      if (x === 0) ctx.moveTo(x, yWave);
+      else ctx.lineTo(x, yWave);
+    }
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  textureCache.set(key, texture);
+  return texture;
+}
+
+/**
+ * Creates dynamic river caustics: undulating sunlight refractions dancing across riverbeds.
+ */
+export function getWaterCausticsTexture(): THREE.CanvasTexture {
+  const key = 'water_caustics_tex';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, size, size);
+
+  // Intersecting undulating bright caustic light webs
+  ctx.strokeStyle = 'rgba(165, 243, 252, 0.45)';
+  ctx.lineWidth = 3.5;
+
+  for (let i = 0; i < 35; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const r = Math.random() * 45 + 20;
+
+    ctx.beginPath();
+    for (let a = 0; a <= Math.PI * 2; a += 0.25) {
+      const rad = r + Math.sin(a * 5 + i) * (r * 0.25);
+      const px = cx + Math.cos(a) * rad;
+      const py = cy + Math.sin(a) * rad;
+      if (a === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Wrap around for seamless tiling
+    const offsets = [
+      { x: size, y: 0 }, { x: -size, y: 0 },
+      { x: 0, y: size }, { x: 0, y: -size }
+    ];
+    for (const off of offsets) {
+      ctx.beginPath();
+      for (let a = 0; a <= Math.PI * 2; a += 0.25) {
+        const rad = r + Math.sin(a * 5 + i) * (r * 0.25);
+        const px = cx + off.x + Math.cos(a) * rad;
+        const py = cy + off.y + Math.sin(a) * rad;
+        if (a === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+
+  // Soft blur over caustics for fluid dispersion
+  ctx.fillStyle = 'rgba(125, 211, 252, 0.15)';
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = Math.random() * 25 + 10;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 8);
+  textureCache.set(key, texture);
+  return texture;
+}

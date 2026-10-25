@@ -13,6 +13,8 @@ import {
   getTerrainGrassTexture,
   getTerrainBumpTexture,
   getWaterRippleTexture,
+  getWaterCausticsTexture,
+  getShorelineFoamTexture,
   getWoodPlankTexture
 } from './proceduralTextures.js';
 
@@ -22,6 +24,12 @@ export class TerrainMesh {
   private height: number;
   private groundMesh: THREE.Mesh;
   private waterMesh: THREE.Mesh | null = null;
+  private waterRippleTex: THREE.CanvasTexture | null = null;
+  private waterCausticsTex: THREE.CanvasTexture | null = null;
+  private waterCausticsMesh: THREE.Mesh | null = null;
+  private shorelineFoamMesh: THREE.Mesh | null = null;
+  private shorelineFoamMat: THREE.MeshBasicMaterial | null = null;
+  private shorelineFoamTex: THREE.CanvasTexture | null = null;
   public resourceMeshes: Map<string, THREE.Object3D> = new Map();
   private borderLinesGroup: THREE.Group;
   private restrictedBorderGroup: THREE.Group;
@@ -304,15 +312,15 @@ export class TerrainMesh {
       waterGeom.setIndex(indices);
       waterGeom.computeVertexNormals();
 
-      const waterRipple = getWaterRippleTexture();
-      waterRipple.repeat.set(width / 4, height / 4);
+      this.waterRippleTex = getWaterRippleTexture();
+      this.waterRippleTex.repeat.set(width / 4, height / 4);
 
       const waterMat = new THREE.MeshStandardMaterial({
         color: 0x1873aa, // Vibrant aquatic river blue (Age of Empires II style)
         emissive: 0x0c3e5e, // Clear aquatic luminescence
         emissiveIntensity: 0.22,
-        bumpMap: waterRipple,
-        bumpScale: 0.04,
+        bumpMap: this.waterRippleTex,
+        bumpScale: 0.045,
         roughness: 0.12,
         metalness: 0.22,
         transparent: true,
@@ -323,6 +331,105 @@ export class TerrainMesh {
       this.waterMesh = new THREE.Mesh(waterGeom, waterMat);
       this.waterMesh.receiveShadow = true;
       this.group.add(this.waterMesh);
+
+      // 3b. Dynamic River Caustics Overlay (Sunlight refractions dancing across riverbeds)
+      this.waterCausticsTex = getWaterCausticsTexture();
+      this.waterCausticsTex.repeat.set(width / 4.5, height / 4.5);
+      const causticsMat = new THREE.MeshBasicMaterial({
+        map: this.waterCausticsTex,
+        transparent: true,
+        opacity: 0.32,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      this.waterCausticsMesh = new THREE.Mesh(waterGeom.clone(), causticsMat);
+      this.waterCausticsMesh.position.y = 0.003; // Layered just above base water
+      this.group.add(this.waterCausticsMesh);
+
+      // 3c. Dynamic Shoreline Water Foam Ribbons (Frothy surf where water meets land)
+      const isWater = (gx: number, gz: number): boolean => {
+        if (gx < 0 || gx >= width || gz < 0 || gz >= height) return false;
+        return tiles[gz * width + gx].terrain === 'water';
+      };
+
+      const foamPositions: number[] = [];
+      const foamUvs: number[] = [];
+      const foamIndices: number[] = [];
+      const foamY = waterSurfaceY + 0.007;
+
+      const addFoamRibbon = (
+        p0x: number, p0z: number, p1x: number, p1z: number,
+        in0x: number, in0z: number, in1x: number, in1z: number
+      ) => {
+        const baseIdx = foamPositions.length / 3;
+        // Inner water side (v = 0.0)
+        foamPositions.push(in0x, foamY, in0z);
+        foamUvs.push(0.0, 0.0);
+
+        foamPositions.push(in1x, foamY, in1z);
+        foamUvs.push(1.0, 0.0);
+
+        // Shore crest side (v = 1.0)
+        foamPositions.push(p0x, foamY, p0z);
+        foamUvs.push(0.0, 1.0);
+
+        foamPositions.push(p1x, foamY, p1z);
+        foamUvs.push(1.0, 1.0);
+
+        foamIndices.push(baseIdx, baseIdx + 2, baseIdx + 1);
+        foamIndices.push(baseIdx + 1, baseIdx + 2, baseIdx + 3);
+      };
+
+      for (const { tx, tz } of waterTiles) {
+        // North border
+        if (!isWater(tx, tz - 1)) {
+          addFoamRibbon(
+            tx, tz - 0.06, tx + 1, tz - 0.06,
+            tx, tz + 0.38, tx + 1, tz + 0.38
+          );
+        }
+        // South border
+        if (!isWater(tx, tz + 1)) {
+          addFoamRibbon(
+            tx, tz + 1.06, tx + 1, tz + 1.06,
+            tx, tz + 0.62, tx + 1, tz + 0.62
+          );
+        }
+        // West border
+        if (!isWater(tx - 1, tz)) {
+          addFoamRibbon(
+            tx - 0.06, tz, tx - 0.06, tz + 1,
+            tx + 0.38, tz, tx + 0.38, tz + 1
+          );
+        }
+        // East border
+        if (!isWater(tx + 1, tz)) {
+          addFoamRibbon(
+            tx + 1.06, tz, tx + 1.06, tz + 1,
+            tx + 0.62, tz, tx + 0.62, tz + 1
+          );
+        }
+      }
+
+      if (foamPositions.length > 0) {
+        const foamGeom = new THREE.BufferGeometry();
+        foamGeom.setAttribute('position', new THREE.Float32BufferAttribute(foamPositions, 3));
+        foamGeom.setAttribute('uv', new THREE.Float32BufferAttribute(foamUvs, 2));
+        foamGeom.setIndex(foamIndices);
+        foamGeom.computeVertexNormals();
+
+        this.shorelineFoamTex = getShorelineFoamTexture();
+        this.shorelineFoamMat = new THREE.MeshBasicMaterial({
+          map: this.shorelineFoamTex,
+          transparent: true,
+          opacity: 0.76,
+          blending: THREE.NormalBlending,
+          depthWrite: false
+        });
+
+        this.shorelineFoamMesh = new THREE.Mesh(foamGeom, this.shorelineFoamMat);
+        this.group.add(this.shorelineFoamMesh);
+      }
     }
 
     // 4. 3D Mountain Massifs & Jagged Peak Crags (Towering Restricted Alpine Mountains)
@@ -764,9 +871,26 @@ export class TerrainMesh {
   // ANIMATED LIVING WATER & WIND IN RENDER LOOP
   // -------------------------------------------------------------
   public update(time: number, dt: number): void {
-    // Subtle shimmering aquatic opacity wave (strictly NO vertical movement in Y to prevent clipping/bobbing)
+    // 1. Water surface wave opacity and flowing current ripple animation
     if (this.waterMesh && (this.waterMesh.material as THREE.MeshStandardMaterial)) {
-      (this.waterMesh.material as THREE.MeshStandardMaterial).opacity = 0.80 + Math.sin(time * 2.0) * 0.04;
+      (this.waterMesh.material as THREE.MeshStandardMaterial).opacity = 0.82 + Math.sin(time * 2.0) * 0.04;
+    }
+    if (this.waterRippleTex) {
+      this.waterRippleTex.offset.x = (time * 0.015) % 1.0;
+      this.waterRippleTex.offset.y = (time * 0.009) % 1.0;
+    }
+
+    // 2. Dynamic River Caustics (Opposing fluid current drift and solar shimmer pulse)
+    if (this.waterCausticsTex && this.waterCausticsMesh) {
+      this.waterCausticsTex.offset.x = (-time * 0.012) % 1.0;
+      this.waterCausticsTex.offset.y = (time * 0.016) % 1.0;
+      (this.waterCausticsMesh.material as THREE.MeshBasicMaterial).opacity = 0.28 + Math.sin(time * 2.4) * 0.08;
+    }
+
+    // 3. Dynamic Shoreline Water Foam (Lapping surf and frothy lateral drift)
+    if (this.shorelineFoamMat && this.shorelineFoamTex) {
+      this.shorelineFoamMat.opacity = 0.64 + Math.sin(time * 3.2) * 0.20;
+      this.shorelineFoamTex.offset.x = (time * 0.032) % 1.0;
     }
   }
 
