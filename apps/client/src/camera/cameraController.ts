@@ -115,20 +115,28 @@ export class CameraController {
     if (moveX !== 0 || moveZ !== 0) {
       const len = Math.hypot(moveX, moveZ);
       const step = (this.panSpeed * (this.zoomDistance / 35)) * dt;
-      this.target.x += (moveX / len) * step;
-      this.target.z += (moveZ / len) * step;
+      // Screen space movement mapped to 45-degree isometric world axes
+      const invSqrt2 = 0.70710678;
+      const worldDx = (moveX + moveZ) * invSqrt2 * (step / len);
+      const worldDz = (-moveX + moveZ) * invSqrt2 * (step / len);
+
+      this.target.x += worldDx;
+      this.target.z += worldDz;
 
       this.clampCameraToMap();
     }
   }
 
   private updateCameraTransform(): void {
-    // RTS classic isometric angle (~55 degrees pitch)
-    const pitchRad = (55 * Math.PI) / 180;
+    // Age of Empires authentic 2:1 isometric projection (~42 degrees pitch, 45 degrees azimuth)
+    const pitchRad = (42 * Math.PI) / 180;
+    const azimuthRad = (45 * Math.PI) / 180;
+    const dXZ = Math.cos(pitchRad) * this.zoomDistance;
     const offsetY = Math.sin(pitchRad) * this.zoomDistance;
-    const offsetZ = Math.cos(pitchRad) * this.zoomDistance;
+    const offsetX = Math.sin(azimuthRad) * dXZ;
+    const offsetZ = Math.cos(azimuthRad) * dXZ;
 
-    this.camera.position.set(this.target.x, this.target.y + offsetY, this.target.z + offsetZ);
+    this.camera.position.set(this.target.x + offsetX, this.target.y + offsetY, this.target.z + offsetZ);
     this.camera.lookAt(this.target);
   }
 }

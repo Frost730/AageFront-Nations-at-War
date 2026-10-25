@@ -80,7 +80,8 @@ export class GameRenderer {
     this.scene.fog = new THREE.FogExp2(0x6b8ea8, 0.0016); // Gentle atmospheric distance haze
 
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.5, 500);
+    // Age of Empires isometric telephoto FOV (32 degrees compresses perspective into crisp isometric orthographic look)
+    this.camera = new THREE.PerspectiveCamera(32, aspect, 0.5, 500);
     this.cameraController = new CameraController(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -92,22 +93,23 @@ export class GameRenderer {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
 
-    // Atmospheric Warm Natural Lighting (Rise of Nations / AoE style)
-    const hemiLight = new THREE.HemisphereLight(0xd8e8f6, 0x3d4d2d, 0.95);
+    // Atmospheric Warm Natural Lighting (Age of Empires II style)
+    const hemiLight = new THREE.HemisphereLight(0xdceaf8, 0x485836, 0.95);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffaed, 1.6);
-    sunLight.position.set(65, 95, 55);
+    // North-West Sun casting crisp high-contrast shadows towards South-East (AoE style)
+    const sunLight = new THREE.DirectionalLight(0xfff8e8, 1.65);
+    sunLight.position.set(-70, 110, -50);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 10;
-    sunLight.shadow.camera.far = 300;
-    sunLight.shadow.camera.left = -120;
-    sunLight.shadow.camera.right = 120;
-    sunLight.shadow.camera.top = 120;
-    sunLight.shadow.camera.bottom = -120;
-    sunLight.shadow.bias = -0.0004;
+    sunLight.shadow.camera.far = 350;
+    sunLight.shadow.camera.left = -140;
+    sunLight.shadow.camera.right = 140;
+    sunLight.shadow.camera.top = 140;
+    sunLight.shadow.camera.bottom = -140;
+    sunLight.shadow.bias = -0.0003;
     this.scene.add(sunLight);
 
     window.addEventListener('resize', () => {

@@ -190,6 +190,50 @@ export function createBuildingModel(bldg: BuildingData, teamColor: string): THRE
   // -------------------------------------------------------------
   // DETAILED COMPLETED BUILDINGS
   // -------------------------------------------------------------
+  // Age of Empires Ground Foundation Apron (Cobblestone / Beaten Earth Lot)
+  // Grounds every building seamlessly into the terrain landscape
+  if (bldg.type !== 'farm' && bldg.type !== 'wall') {
+    const apronW = bldg.width + 0.35;
+    const apronH = bldg.height + 0.35;
+    const apronGeom = new THREE.BoxGeometry(apronW, 0.06, apronH);
+    const apronMat = new THREE.MeshStandardMaterial({
+      color: 0x8a7657, // Warm historical earth & weathered cobblestone
+      roughness: 0.94,
+      metalness: 0.04,
+      flatShading: false
+    });
+    const apron = new THREE.Mesh(apronGeom, apronMat);
+    apron.position.y = 0.03;
+    apron.receiveShadow = true;
+    root.add(apron);
+
+    // Dressed stone curb edging along foundation perimeter
+    const curbMat = new THREE.MeshStandardMaterial({
+      color: 0x5a5247, // Dark dressed stone trim
+      roughness: 0.88,
+      flatShading: false
+    });
+    const curbN = new THREE.Mesh(new THREE.BoxGeometry(apronW + 0.08, 0.08, 0.08), curbMat);
+    curbN.position.set(0, 0.04, -apronH / 2);
+    curbN.receiveShadow = true;
+    root.add(curbN);
+
+    const curbS = new THREE.Mesh(new THREE.BoxGeometry(apronW + 0.08, 0.08, 0.08), curbMat);
+    curbS.position.set(0, 0.04, apronH / 2);
+    curbS.receiveShadow = true;
+    root.add(curbS);
+
+    const curbW = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, apronH), curbMat);
+    curbW.position.set(-apronW / 2, 0.04, 0);
+    curbW.receiveShadow = true;
+    root.add(curbW);
+
+    const curbE = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, apronH), curbMat);
+    curbE.position.set(apronW / 2, 0.04, 0);
+    curbE.receiveShadow = true;
+    root.add(curbE);
+  }
+
   switch (bldg.type) {
     case 'town_centre': {
       // 1. Massive Stepped Stone Foundation & Plinth

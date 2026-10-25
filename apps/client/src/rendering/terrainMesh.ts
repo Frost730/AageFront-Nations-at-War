@@ -205,13 +205,13 @@ export class TerrainMesh {
       waterGeom.computeVertexNormals();
 
       const waterMat = new THREE.MeshStandardMaterial({
-        color: 0x16537e, // Deep sapphire aquatic blue (AoE / RoN style)
-        emissive: 0x092e42, // Natural subtle oceanic luminescence
-        emissiveIntensity: 0.16,
-        roughness: 0.14,
-        metalness: 0.22,
+        color: 0x1b74ab, // Vibrant aquatic river blue (Age of Empires II style)
+        emissive: 0x0c3e5e, // Clear aquatic luminescence
+        emissiveIntensity: 0.22,
+        roughness: 0.12,
+        metalness: 0.18,
         transparent: true,
-        opacity: 0.82,
+        opacity: 0.85,
         depthWrite: false
       });
 
