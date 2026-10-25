@@ -119,11 +119,11 @@ export class FogOfWar {
           // Visible: completely transparent
           data[pixelIdx + 3] = 0;
         } else if (state === 1) {
-          // Explored: shaded semi-transparent shroud
+          // Explored: subtle soft shade so discovered paths & terrain remain clearly visible!
           data[pixelIdx] = 10;
-          data[pixelIdx + 1] = 15;
-          data[pixelIdx + 2] = 25;
-          data[pixelIdx + 3] = 175; // dimmed
+          data[pixelIdx + 1] = 16;
+          data[pixelIdx + 2] = 26;
+          data[pixelIdx + 3] = 52; // Gentle 20% soft shade (reduced from 175/69% murky dark fog)
         } else {
           // Unexplored: pitch black
           data[pixelIdx] = 5;

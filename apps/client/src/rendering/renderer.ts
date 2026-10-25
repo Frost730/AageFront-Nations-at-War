@@ -178,7 +178,7 @@ export class GameRenderer {
     this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x6b8ea8); // Soft historical daytime sky (Rise of Nations / AoE)
-    this.scene.fog = new THREE.FogExp2(0x6b8ea8, 0.0016); // Gentle atmospheric distance haze
+    this.scene.fog = new THREE.Fog(0x6b8ea8, 120, 280); // Crisp playable area with gentle horizon fade
 
     const aspect = window.innerWidth / window.innerHeight;
     // Age of Empires isometric telephoto FOV (32 degrees compresses perspective into crisp isometric orthographic look)
