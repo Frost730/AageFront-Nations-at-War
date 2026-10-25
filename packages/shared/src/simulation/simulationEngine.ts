@@ -964,8 +964,10 @@ export class SimulationEngine {
       if (unit.attackCooldown > 0) unit.attackCooldown -= dt;
       if (unit.gatherCooldown > 0) unit.gatherCooldown -= dt;
 
-      // Auto-aggro & defensive scan for idle combat units with tactical target prioritization
-      if (unit.type !== 'worker' && unit.type !== 'scout' && unit.state === 'idle') {
+      // Auto-aggro & defensive scan for idle combat units (instant first-tick response, interleaved subsequent ticks)
+      const shouldScanAggro = (unit as any).lastAggroTick === undefined || (this.currentTick - (unit as any).lastAggroTick >= 2);
+      if (unit.type !== 'worker' && unit.type !== 'scout' && unit.state === 'idle' && shouldScanAggro) {
+        (unit as any).lastAggroTick = this.currentTick;
         let nearestEnemyId: string | undefined;
         const currentStance = unit.stance || 'aggressive';
         const guardOriginX = unit.guardX ?? unit.x;

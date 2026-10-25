@@ -115,6 +115,24 @@ function createScorchTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+// Pre-allocated static day-night cycle color palette (zero GC allocation)
+const NOON_SUN = new THREE.Color(0xfff8e8);
+const GOLDEN_SUN = new THREE.Color(0xff9a3c);
+const DUSK_MOON = new THREE.Color(0x9bc2ea);
+const DAWN_SUN = new THREE.Color(0xfec89a);
+
+const NOON_SKY = new THREE.Color(0xdceaf8);
+const NOON_GROUND = new THREE.Color(0x485836);
+
+const GOLDEN_SKY = new THREE.Color(0xfde68a);
+const GOLDEN_GROUND = new THREE.Color(0x4a321e);
+
+const DUSK_SKY = new THREE.Color(0x1e293b);
+const DUSK_GROUND = new THREE.Color(0x0f172a);
+
+const DAWN_SKY = new THREE.Color(0xe0e7ff);
+const DAWN_GROUND = new THREE.Color(0x2d3a22);
+
 export class GameRenderer {
   public scene: THREE.Scene;
   public camera: THREE.PerspectiveCamera;
@@ -172,6 +190,12 @@ export class GameRenderer {
   private lastDragonBreathTime: Map<string, number> = new Map();
 
   private rallyFlag: THREE.Group | null = null;
+  private tempVec1: THREE.Vector3 = new THREE.Vector3();
+  private tempVec2: THREE.Vector3 = new THREE.Vector3();
+  private activeSunColor: THREE.Color = new THREE.Color();
+  private activeSkyColor: THREE.Color = new THREE.Color();
+  private activeGroundColor: THREE.Color = new THREE.Color();
+
   private rallyLine: THREE.Line | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -482,12 +506,17 @@ export class GameRenderer {
           }
 
           // Ground shadow / selection ring directly beneath dragon on terrain
-          const groundPos = new THREE.Vector3(group.position.x, 0.05, group.position.z);
-          this.updateSelectionRing(unit.id, groundPos, 1.3, selectedIds.has(unit.id), unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
+          const isSelected = selectedIds.has(unit.id);
+          if (isSelected || this.selectionRings.has(unit.id)) {
+            this.tempVec1.set(group.position.x, 0.05, group.position.z);
+            this.updateSelectionRing(unit.id, this.tempVec1, 1.3, isSelected, unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
+          }
 
-          // Floating health bar above the soaring dragon
-          const healthBarPos = new THREE.Vector3(group.position.x, group.position.y + 1.25, group.position.z);
-          this.updateHealthBar(unit.id, healthBarPos, unit.hp, unit.maxHp, 1.8);
+          // Floating health bar above the soaring dragon (only if damaged or sprite exists)
+          if (unit.hp < unit.maxHp || this.healthBars.has(unit.id)) {
+            this.tempVec2.set(group.position.x, group.position.y + 1.25, group.position.z);
+            this.updateHealthBar(unit.id, this.tempVec2, unit.hp, unit.maxHp, 1.8);
+          }
         } else {
           group.position.y = 0;
 
@@ -496,10 +525,15 @@ export class GameRenderer {
           }
 
           // Selection ring
-          this.updateSelectionRing(unit.id, group.position, 0.75, selectedIds.has(unit.id), unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
+          const isSelected = selectedIds.has(unit.id);
+          if (isSelected || this.selectionRings.has(unit.id)) {
+            this.updateSelectionRing(unit.id, group.position, 0.75, isSelected, unit.facingAngle || 0, unit.team === myTeam ? 0xfacc15 : 0xef4444);
+          }
 
-          // Floating health bar
-          this.updateHealthBar(unit.id, group.position, unit.hp, unit.maxHp, 1.5);
+          // Floating health bar (only if damaged or sprite exists)
+          if (unit.hp < unit.maxHp || this.healthBars.has(unit.id)) {
+            this.updateHealthBar(unit.id, group.position, unit.hp, unit.maxHp, 1.5);
+          }
         }
 
         // Procedural articulated unit animations for all unit actions & dragon flight/combat
@@ -515,6 +549,14 @@ export class GameRenderer {
         this.unitMeshes.delete(id);
         this.removeSelectionRing(id);
         this.removeHealthBar(id);
+      }
+    }
+
+    // Pre-calculate active workers per building in a single linear pass
+    const buildingWorkerCounts = new Map<string, number>();
+    for (const u of units) {
+      if (u.state !== 'dead' && u.targetEntityId) {
+        buildingWorkerCounts.set(u.targetEntityId, (buildingWorkerCounts.get(u.targetEntityId) || 0) + 1);
       }
     }
 
@@ -589,26 +631,14 @@ export class GameRenderer {
 
       group.visible = shouldRender;
       if (shouldRender) {
-        const ringRadius = Math.max(bldg.width, bldg.height) * 0.75;
-        this.updateSelectionRing(bldg.id, group.position, ringRadius, selectedIds.has(bldg.id));
-
-        // Count active workers working at or near this facility
-        let activeWorkers = 0;
-        for (const u of units) {
-          if (u.ownerId === bldg.ownerId && u.state !== 'dead') {
-            if (u.targetEntityId === bldg.id) {
-              activeWorkers++;
-            } else if (
-              (bldg.type === 'lumber_camp' || bldg.type === 'quarry' || bldg.type === 'mining_camp') &&
-              u.state === 'gathering'
-            ) {
-              const d = Math.hypot(u.x - (bldg.x + bldg.width / 2), u.y - (bldg.y + bldg.height / 2));
-              if (d <= 14) activeWorkers++;
-            }
-          }
+        const isSelected = selectedIds.has(bldg.id);
+        if (isSelected || this.selectionRings.has(bldg.id)) {
+          const ringRadius = Math.max(bldg.width, bldg.height) * 0.75;
+          this.updateSelectionRing(bldg.id, group.position, ringRadius, isSelected);
         }
 
-        this.updateBuildingStatusBar(bldg, group.position, activeWorkers, selectedIds.has(bldg.id));
+        const activeWorkers = buildingWorkerCounts.get(bldg.id) || 0;
+        this.updateBuildingStatusBar(bldg, group.position, activeWorkers, isSelected);
       }
     }
 
@@ -1427,6 +1457,11 @@ export class GameRenderer {
     units: UnitData[],
     buildings: BuildingData[]
   ): void {
+    // Skip heavy articulated skeletal math for units outside camera viewpoint
+    if (this.camera.position.distanceTo(group.position) > 140) {
+      return;
+    }
+
     const time = now * 0.001;
 
     // Movement & Combat Range Evaluation
@@ -2535,73 +2570,53 @@ export class GameRenderer {
     const cycleDuration = 240;
     const progress = (nowSec % cycleDuration) / cycleDuration;
 
-    const noonSun = new THREE.Color(0xfff8e8);
-    const goldenSun = new THREE.Color(0xff9a3c);
-    const duskMoon = new THREE.Color(0x9bc2ea);
-    const dawnSun = new THREE.Color(0xfec89a);
-
-    const noonSky = new THREE.Color(0xdceaf8);
-    const noonGround = new THREE.Color(0x485836);
-
-    const goldenSky = new THREE.Color(0xfde68a);
-    const goldenGround = new THREE.Color(0x4a321e);
-
-    const duskSky = new THREE.Color(0x1e293b);
-    const duskGround = new THREE.Color(0x0f172a);
-
-    const dawnSky = new THREE.Color(0xe0e7ff);
-    const dawnGround = new THREE.Color(0x2d3a22);
-
-    let sunColor: THREE.Color;
-    let skyColor: THREE.Color;
-    let groundColor: THREE.Color;
     let sunIntensity: number;
     let hemiIntensity: number;
     let sunElevation: number;
 
     if (progress < 0.40) {
       // 1. Crisp Daylight & High Noon (0% - 40%)
-      sunColor = noonSun;
-      skyColor = noonSky;
-      groundColor = noonGround;
+      this.activeSunColor.copy(NOON_SUN);
+      this.activeSkyColor.copy(NOON_SKY);
+      this.activeGroundColor.copy(NOON_GROUND);
       sunIntensity = 1.65;
       hemiIntensity = 0.95;
       sunElevation = 110;
     } else if (progress < 0.62) {
       // 2. Golden Hour / Amber Sunset (40% - 62%)
       const t = (progress - 0.40) / 0.22;
-      sunColor = noonSun.clone().lerp(goldenSun, t);
-      skyColor = noonSky.clone().lerp(goldenSky, t);
-      groundColor = noonGround.clone().lerp(goldenGround, t);
+      this.activeSunColor.copy(NOON_SUN).lerp(GOLDEN_SUN, t);
+      this.activeSkyColor.copy(NOON_SKY).lerp(GOLDEN_SKY, t);
+      this.activeGroundColor.copy(NOON_GROUND).lerp(GOLDEN_GROUND, t);
       sunIntensity = 1.65 + t * 0.25;
       hemiIntensity = 0.95 - t * 0.15;
       sunElevation = 110 - t * 45;
     } else if (progress < 0.82) {
       // 3. Sapphire Twilight & Moonlit Dusk (62% - 82%)
       const t = (progress - 0.62) / 0.20;
-      sunColor = goldenSun.clone().lerp(duskMoon, t);
-      skyColor = goldenSky.clone().lerp(duskSky, t);
-      groundColor = goldenGround.clone().lerp(duskGround, t);
-      sunIntensity = 1.90 - t * 1.15; // Soft silvery moonlight (0.75)
-      hemiIntensity = 0.80 - t * 0.35; // Dim ambient twilight (0.45)
+      this.activeSunColor.copy(GOLDEN_SUN).lerp(DUSK_MOON, t);
+      this.activeSkyColor.copy(GOLDEN_SKY).lerp(DUSK_SKY, t);
+      this.activeGroundColor.copy(GOLDEN_GROUND).lerp(DUSK_GROUND, t);
+      sunIntensity = 1.90 - t * 1.15;
+      hemiIntensity = 0.80 - t * 0.35;
       sunElevation = 65 + t * 35;
     } else {
       // 4. Rose & Peach Dawn (82% - 100%)
       const t = (progress - 0.82) / 0.18;
-      sunColor = duskMoon.clone().lerp(dawnSun, t);
-      skyColor = duskSky.clone().lerp(dawnSky, t);
-      groundColor = duskGround.clone().lerp(dawnGround, t);
+      this.activeSunColor.copy(DUSK_MOON).lerp(DAWN_SUN, t);
+      this.activeSkyColor.copy(DUSK_SKY).lerp(DAWN_SKY, t);
+      this.activeGroundColor.copy(DUSK_GROUND).lerp(DAWN_GROUND, t);
       sunIntensity = 0.75 + t * 0.90;
       hemiIntensity = 0.45 + t * 0.50;
       sunElevation = 80 + t * 30;
     }
 
-    this.sunLight.color.copy(sunColor);
+    this.sunLight.color.copy(this.activeSunColor);
     this.sunLight.intensity = sunIntensity;
     this.sunLight.position.y = sunElevation;
 
-    this.hemiLight.color.copy(skyColor);
-    this.hemiLight.groundColor.copy(groundColor);
+    this.hemiLight.color.copy(this.activeSkyColor);
+    this.hemiLight.groundColor.copy(this.activeGroundColor);
     this.hemiLight.intensity = hemiIntensity;
 
     // Torch & Window Glow Factor: Activates during dusk & twilight (progress 0.55 - 0.88)

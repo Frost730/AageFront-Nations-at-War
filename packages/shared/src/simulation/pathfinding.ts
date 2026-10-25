@@ -22,6 +22,10 @@ class MinBinaryHeap {
     this.bubbleUp(this.heap.length - 1);
   }
 
+  public clear(): void {
+    this.heap.length = 0;
+  }
+
   public pop(): PathNode | undefined {
     if (this.heap.length === 0) return undefined;
     const top = this.heap[0];
@@ -79,6 +83,11 @@ export class GridPathfinder {
   public readonly width: number;
   public readonly height: number;
   private walkableGrid: boolean[];
+  private searchId: number = 0;
+  private closedSet: Uint32Array;
+  private gScores: Float32Array;
+  private gScoreSearchId: Uint32Array;
+  private openHeap: MinBinaryHeap = new MinBinaryHeap();
 
   constructor(width: number, height: number, initialWalkable?: boolean[]) {
     this.width = width;
@@ -88,6 +97,10 @@ export class GridPathfinder {
     } else {
       this.walkableGrid = new Array(width * height).fill(true);
     }
+    const totalCells = width * height;
+    this.closedSet = new Uint32Array(totalCells);
+    this.gScores = new Float32Array(totalCells);
+    this.gScoreSearchId = new Uint32Array(totalCells);
   }
 
   public setWalkable(x: number, y: number, walkable: boolean): void {
@@ -271,12 +284,14 @@ export class GridPathfinder {
 
     if (sx === ex && sy === ey) return [];
 
-    const totalCells = this.width * this.height;
-    const closedSet = new Uint8Array(totalCells);
-    const gScores = new Float32Array(totalCells);
-    gScores.fill(Infinity);
-
-    const openHeap = new MinBinaryHeap();
+    this.searchId++;
+    if (this.searchId >= 0xFFFFFFFE) {
+      this.closedSet.fill(0);
+      this.gScoreSearchId.fill(0);
+      this.searchId = 1;
+    }
+    const currentSearchId = this.searchId;
+    this.openHeap.clear();
 
     const startH = Math.hypot(ex - sx, ey - sy);
     const startNode: PathNode = {
@@ -289,8 +304,9 @@ export class GridPathfinder {
     };
 
     const startIndex = sy * this.width + sx;
-    gScores[startIndex] = 0;
-    openHeap.push(startNode);
+    this.gScores[startIndex] = 0;
+    this.gScoreSearchId[startIndex] = currentSearchId;
+    this.openHeap.push(startNode);
 
     const directions = [
       { dx: 1, dy: 0, cost: 1.0 },
@@ -306,12 +322,12 @@ export class GridPathfinder {
     let steps = 0;
     let closestNode: PathNode = startNode;
 
-    while (openHeap.size > 0 && steps++ < maxSteps) {
-      const current = openHeap.pop()!;
+    while (this.openHeap.size > 0 && steps++ < maxSteps) {
+      const current = this.openHeap.pop()!;
       const currentIndex = current.y * this.width + current.x;
 
-      if (closedSet[currentIndex] === 1) continue;
-      closedSet[currentIndex] = 1;
+      if (this.closedSet[currentIndex] === currentSearchId) continue;
+      this.closedSet[currentIndex] = currentSearchId;
 
       if (current.h < closestNode.h) {
         closestNode = current;
@@ -329,7 +345,7 @@ export class GridPathfinder {
         const nIndex = ny * this.width + nx;
 
         if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
-        if (closedSet[nIndex] === 1) continue;
+        if (this.closedSet[nIndex] === currentSearchId) continue;
         if (!this.walkableGrid[nIndex]) continue;
 
         // Diagonal corner safety check (prevent cutting through narrow diagonal wall gaps)
@@ -340,11 +356,13 @@ export class GridPathfinder {
         }
 
         const tentG = current.g + dir.cost;
-        if (tentG < gScores[nIndex]) {
-          gScores[nIndex] = tentG;
+        const currentG = (this.gScoreSearchId[nIndex] === currentSearchId) ? this.gScores[nIndex] : Infinity;
+        if (tentG < currentG) {
+          this.gScores[nIndex] = tentG;
+          this.gScoreSearchId[nIndex] = currentSearchId;
           const h = Math.hypot(ex - nx, ey - ny);
           const f = tentG + h;
-          openHeap.push({ x: nx, y: ny, g: tentG, h, f, parent: current });
+          this.openHeap.push({ x: nx, y: ny, g: tentG, h, f, parent: current });
         }
       }
     }
