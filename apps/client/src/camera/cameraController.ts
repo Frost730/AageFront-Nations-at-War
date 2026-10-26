@@ -46,6 +46,14 @@ export class CameraController {
     });
 
     window.addEventListener('wheel', (e) => {
+      // If user is scrolling inside an interactive UI modal or scrollable panel, allow native UI scrolling
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        if (target.closest('.modal-backdrop, .aoe-scroll-pane, #ui-layer, #chat-history, #aoe3-tech-matrix-grid, .aoe-parchment-card, .aoe-wood-backdrop')) {
+          return;
+        }
+      }
+
       e.preventDefault();
       const zoomFactor = e.deltaY > 0 ? 1.15 : 0.87;
       this.zoomDistance = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomDistance * zoomFactor));

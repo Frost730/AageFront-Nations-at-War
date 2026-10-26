@@ -71,6 +71,7 @@ export class HudView {
   private ageModalElem: HTMLElement | null = null;
   private coopModalElem: HTMLElement | null = null;
   private techModalElem: HTMLElement | null = null;
+  private lastTechModalSig: string = '';
   private coopBtnElem!: HTMLElement;
   private allPlayers: PlayerState[] = [];
   private currentPlayer: PlayerState | null = null;
@@ -772,7 +773,13 @@ export class HudView {
     if (buildings) this.allBuildings = buildings;
 
     if (this.techModalElem) {
-      this.updateTechModalDynamicState(player);
+      const activeHall = this.allBuildings.find(b => b.ownerId === player.id && b.type === 'research_hall' && b.isConstructed);
+      const queueProgressKey = activeHall ? activeHall.productionQueue.map(q => q.itemType + ':' + Math.floor(q.progress / 5)).join('|') : '';
+      const stateSig = `${player.age}_${player.researchedTechs.length}_${queueProgressKey}`;
+      if (stateSig !== this.lastTechModalSig) {
+        this.lastTechModalSig = stateSig;
+        this.updateTechModalDynamicState(player);
+      }
     }
 
     const f = (n: number) => Math.floor(n).toLocaleString();
@@ -2372,6 +2379,7 @@ export class HudView {
     if (this.techModalElem) {
       this.techModalElem.remove();
       this.techModalElem = null;
+      this.lastTechModalSig = '';
       return;
     }
 
@@ -2382,13 +2390,29 @@ export class HudView {
     this.techModalElem.className = 'modal-backdrop interactive aoe-wood-backdrop';
     this.techModalElem.style.cssText = 'position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2100; background: rgba(10, 6, 3, 0.82); backdrop-filter: blur(5px);';
 
+    // Click backdrop outside card to close
+    this.techModalElem.addEventListener('click', (e) => {
+      if (e.target === this.techModalElem) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.toggleTechTreeModal();
+        soundManager.playClick();
+      }
+    });
+
     this.renderTechTreeModalContent(player);
     this.rootElem.appendChild(this.techModalElem);
   }
 
   private updateTechModalDynamicState(player: PlayerState): void {
     if (!this.techModalElem) return;
+    const scrollPane = this.techModalElem.querySelector('.aoe-scroll-pane') as HTMLElement | null;
+    const prevScroll = scrollPane ? scrollPane.scrollTop : 0;
     this.renderTechTreeModalContent(player);
+    const newScrollPane = this.techModalElem.querySelector('.aoe-scroll-pane') as HTMLElement | null;
+    if (newScrollPane) {
+      newScrollPane.scrollTop = prevScroll;
+    }
   }
 
   private renderTechTreeModalContent(player: PlayerState): void {
@@ -2424,16 +2448,18 @@ export class HudView {
 
     this.techModalElem.innerHTML = `
       <div class="aoe-parchment-card" style="
-        width: 1020px;
+        width: 1040px;
         max-width: 96vw;
-        max-height: 88vh;
-        padding: 24px;
+        height: 86vh;
+        max-height: 86vh;
+        padding: 20px 24px;
         color: #2b1809;
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 12px;
         position: relative;
         box-shadow: 0 16px 48px rgba(0, 0, 0, 0.95);
+        overflow: hidden;
       ">
         <div class="aoe-corner-rivet aoe-corner-rivet-tl"></div>
         <div class="aoe-corner-rivet aoe-corner-rivet-tr"></div>
@@ -2441,7 +2467,7 @@ export class HudView {
         <div class="aoe-corner-rivet aoe-corner-rivet-br"></div>
 
         <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 8px; flex-shrink: 0;">
           <div>
             <h2 class="cinzel" style="font-size: 20px; color: #451a03; margin: 0; font-weight: 800; letter-spacing: 1px;">
               📜 ACADEMY RESEARCH CODEX & TECH TREE
@@ -2450,13 +2476,13 @@ export class HudView {
               Civilization: <strong>${player.civ.toUpperCase()}</strong> • Current Era: <strong>${player.age}</strong> • Researched: <strong>${player.researchedTechs.length}/16</strong>
             </div>
           </div>
-          <button id="btn-close-tech-modal" class="aoe-btn-crimson" style="padding: 6px 14px; font-size: 12px; background: linear-gradient(180deg, #5c4033 0%, #3a2618 100%); border-color: #8c6a34; color: #fbf1dc;">
-            ✕ Close (Esc)
+          <button id="btn-close-tech-modal" class="aoe-btn-crimson" style="padding: 7px 16px; font-size: 12px; font-weight: 800; background: linear-gradient(180deg, #78350f 0%, #451a03 100%); border: 1.5px solid #d4af37; color: #fef08a; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.4);">
+            <span style="font-size: 14px; font-weight: bold; line-height: 1;">✕</span> Close (Esc)
           </button>
         </div>
 
         <!-- Filter Tab Bar -->
-        <div style="display: flex; gap: 6px; align-items: center;">
+        <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
           <span style="font-size: 11.5px; font-weight: 800; color: #78350f; text-transform: uppercase;">Filter Discipline:</span>
           <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'all' ? 'active' : ''}" data-cat="all" style="padding: 4px 10px; font-size: 11px;">All (16)</button>
           <button class="aoe3-tech-tab-btn ${this.activeTechCategory === 'Economy' ? 'active' : ''}" data-cat="Economy" style="padding: 4px 10px; font-size: 11px;">🌾 Economy</button>
@@ -2466,7 +2492,17 @@ export class HudView {
         </div>
 
         <!-- 3 Columns for 3 Eras -->
-        <div class="aoe-scroll-pane" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; overflow-y: auto; flex: 1; padding: 4px 2px;">
+        <div class="aoe-scroll-pane" style="
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+          overflow-y: scroll;
+          overflow-x: hidden;
+          flex: 1 1 0px;
+          min-height: 0;
+          padding: 4px 6px 28px 2px;
+          touch-action: pan-y;
+        ">
           ${ages.map(age => {
             const ageTechs = displayTechs.filter(t => t.requiredAge === age);
             const isEraReached = pAgeRank >= ageRank(age);
@@ -2583,7 +2619,10 @@ export class HudView {
       </div>
     `;
 
-    this.techModalElem.querySelector('#btn-close-tech-modal')?.addEventListener('click', () => {
+    const closeBtn = this.techModalElem.querySelector('#btn-close-tech-modal');
+    closeBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       this.toggleTechTreeModal();
       soundManager.playClick();
     });
@@ -2592,7 +2631,8 @@ export class HudView {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.activeTechCategory = btn.dataset.cat || 'all';
-        this.renderTechTreeModalContent(player);
+        soundManager.playClick();
+        this.updateTechModalDynamicState(player);
       });
     });
 
@@ -2612,7 +2652,7 @@ export class HudView {
         this.callbacks.onResearchTech(activeHall.id, tech.id);
         soundManager.playClick();
         this.showNotification(`🔬 Research started: ${tech.name}`);
-        this.renderTechTreeModalContent(player);
+        this.updateTechModalDynamicState(player);
       });
     });
   }
@@ -2624,7 +2664,10 @@ export class HudView {
 
       if (e.key === 'Escape') {
         if (this.techModalElem) {
+          e.preventDefault();
+          e.stopPropagation();
           this.toggleTechTreeModal();
+          soundManager.playClick();
           return;
         }
         if (this.ageModalElem) {
