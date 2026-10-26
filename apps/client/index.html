@@ -306,6 +306,83 @@
         background: rgba(0, 0, 0, 0.4);
         border-radius: 4px;
       }
+
+      /* Age of Empires & Rise of Nations Production Queue Styles */
+      .aoe-queue-slot {
+        width: 28px;
+        height: 28px;
+        background: rgba(26, 14, 6, 0.95);
+        border: 1.5px solid #8c6a34;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all 0.15s ease;
+        user-select: none;
+      }
+      .aoe-queue-slot:hover {
+        border-color: #ef4444;
+        background: rgba(127, 29, 29, 0.45);
+        transform: translateY(-1px);
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+      }
+      .aoe-queue-slot.active {
+        border-color: #38bdf8;
+        box-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+      }
+      .aoe-queue-slot-active-dot {
+        position: absolute;
+        bottom: 1.5px;
+        right: 1.5px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 4px #22c55e;
+      }
+      .aoe-queue-slot-num {
+        position: absolute;
+        bottom: 0px;
+        right: 1.5px;
+        font-size: 7.5px;
+        font-weight: 800;
+        color: #fef08a;
+        line-height: 1;
+        text-shadow: 0 1px 2px #000;
+      }
+      .aoe-queue-slot .aoe-queue-slot-cancel {
+        display: none;
+        position: absolute;
+        inset: 0;
+        background: rgba(185, 28, 28, 0.9);
+        border-radius: 3px;
+        color: #fff;
+        font-weight: 900;
+        font-size: 13px;
+        align-items: center;
+        justify-content: center;
+      }
+      .aoe-queue-slot:hover .aoe-queue-slot-cancel {
+        display: flex;
+      }
+      .aoe3-queue-count-badge {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+        color: #fef08a;
+        font-size: 8.5px;
+        font-weight: 800;
+        padding: 0 4px;
+        border-radius: 8px;
+        border: 1px solid #fef08a;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+      }
+
     </style>
   </head>
   <body>

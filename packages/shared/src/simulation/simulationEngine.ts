@@ -779,6 +779,9 @@ export class SimulationEngine {
         const ageRank = (a: AgeName) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
         if (ageRank(player.age) < ageRank(udef.requiredAge)) return false;
 
+        // Max queue size check (15 items max like AoE)
+        if (bldg.productionQueue.length >= 15) return false;
+
         // Check population cap
         if (player.population + udef.populationCost > player.maxPopulation) return false;
 
@@ -826,6 +829,14 @@ export class SimulationEngine {
         const tech = TECHNOLOGIES[cmd.techId];
         if (!tech || player.researchedTechs.includes(tech.id)) return false;
 
+        // In AoE & RoN, a technology cannot be queued if already being researched or queued
+        const isAlreadyQueued = Array.from(this.buildings.values()).some(
+          b => b.ownerId === playerId && b.productionQueue.some(q => q.category === 'tech' && q.itemType === tech.id)
+        );
+        if (isAlreadyQueued) return false;
+
+        if (bldg.productionQueue.length >= 15) return false;
+
         // Check prerequisites
         for (const req of tech.prerequisites) {
           if (!player.researchedTechs.includes(req)) return false;
@@ -867,6 +878,14 @@ export class SimulationEngine {
       case 'ADVANCE_AGE': {
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg || bldg.ownerId !== playerId || bldg.type !== 'town_centre' || !bldg.isConstructed) return false;
+
+        // In AoE & RoN, age advancement can only be queued once
+        const isAgeAlreadyQueued = Array.from(this.buildings.values()).some(
+          b => b.ownerId === playerId && b.productionQueue.some(q => q.category === 'age')
+        );
+        if (isAgeAlreadyQueued) return false;
+
+        if (bldg.productionQueue.length >= 15) return false;
 
         const currentReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
         if (!currentReq || !currentReq.nextAge) return false;
@@ -916,7 +935,7 @@ export class SimulationEngine {
         const item = bldg.productionQueue[cmd.queueIndex];
         if (!item) return false;
 
-        // Refund costs
+        // 100% Cost & Population Refund (Classic Age of Empires & Rise of Nations mechanic)
         if (item.category === 'unit') {
           const udef = UNIT_DEFINITIONS[item.itemType as UnitType];
           if (udef) {
@@ -927,7 +946,26 @@ export class SimulationEngine {
             player.resources.knowledge += udef.cost.knowledge;
             player.population -= udef.populationCost;
           }
+        } else if (item.category === 'tech') {
+          const tech = TECHNOLOGIES[item.itemType];
+          if (tech) {
+            player.resources.food += tech.cost.food;
+            player.resources.wood += tech.cost.wood;
+            player.resources.stone += tech.cost.stone;
+            player.resources.metal += tech.cost.metal;
+            player.resources.knowledge += tech.cost.knowledge;
+          }
+        } else if (item.category === 'age') {
+          const currentReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
+          if (currentReq) {
+            player.resources.food += currentReq.cost.food;
+            player.resources.wood += currentReq.cost.wood;
+            player.resources.stone += currentReq.cost.stone;
+            player.resources.metal += currentReq.cost.metal;
+            player.resources.knowledge += currentReq.cost.knowledge;
+          }
         }
+
         bldg.productionQueue.splice(cmd.queueIndex, 1);
         return true;
       }

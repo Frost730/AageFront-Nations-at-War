@@ -128,6 +128,10 @@ class GameApp {
         networkClient.sendCommand({ type: 'ADVANCE_AGE', buildingId });
         soundManager.playAgeUp();
       },
+      onCancelProduction: (buildingId: string, queueIndex: number) => {
+        networkClient.sendCommand({ type: 'CANCEL_PRODUCTION', buildingId, queueIndex });
+        soundManager.playClick();
+      },
       onSelectIdleWorker: () => {
         this.selectNextIdleWorker();
       },

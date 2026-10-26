@@ -23,6 +23,7 @@ export interface HudCallbacks {
   onTrainUnit: (buildingId: string, unitType: UnitType) => void;
   onResearchTech: (buildingId: string, techId: string) => void;
   onAdvanceAge: (buildingId: string) => void;
+  onCancelProduction?: (buildingId: string, queueIndex: number) => void;
   onSelectIdleWorker: () => void;
   onSelectAllMilitary?: () => void;
   onAssignWorkersToBuild: (buildingId: string) => void;
@@ -51,6 +52,71 @@ const TECH_DISPLAY_INFO: Record<string, { line1: string; line2?: string }> = {
   scholasticism: { line1: 'Scholasticism' },
   standing_army: { line1: 'Standing', line2: 'Army' }
 };
+
+export const getQueueItemIcon = (category: string, itemType: string): string => {
+  if (category === 'age') return '🏛️';
+  if (category === 'tech') {
+    const cat = TECHNOLOGIES[itemType]?.category;
+    if (cat === 'Economy') return '🌾';
+    if (cat === 'Military') return '⚔️';
+    if (cat === 'Construction') return '🏛️';
+    if (cat === 'Exploration') return '🧭';
+    return '📜';
+  }
+  if (itemType === 'worker') return '👨‍🌾';
+  if (itemType === 'basic_infantry') return '🗡️';
+  if (itemType === 'spearman') return '🛡️';
+  if (itemType === 'ranged_infantry') return '🏹';
+  if (itemType === 'cavalry') return '🐎';
+  if (itemType === 'siege_unit') return '🎯';
+  if (itemType === 'advanced_unit') return '👑';
+  if (itemType === 'dragon') return '🐉';
+  if (itemType === 'trade_cart') return '🛒';
+  return '⚔️';
+};
+
+export const getQueueItemName = (category: string, itemType: string): string => {
+  if (category === 'age') return `Advance to ${itemType}`;
+  if (category === 'tech') return TECHNOLOGIES[itemType]?.name || itemType;
+  return UNIT_DEFINITIONS[itemType as UnitType]?.name || itemType.replace(/_/g, ' ');
+};
+
+export const getQueueItemRefundText = (category: string, itemType: string, playerAge?: AgeName): string => {
+  if (category === 'unit') {
+    const udef = UNIT_DEFINITIONS[itemType as UnitType];
+    if (!udef) return '';
+    const parts: string[] = [];
+    if (udef.cost.food) parts.push(`${udef.cost.food}F`);
+    if (udef.cost.wood) parts.push(`${udef.cost.wood}W`);
+    if (udef.cost.stone) parts.push(`${udef.cost.stone}S`);
+    if (udef.cost.metal) parts.push(`${udef.cost.metal}G`);
+    return parts.join(' ');
+  }
+  if (category === 'tech') {
+    const tech = TECHNOLOGIES[itemType];
+    if (!tech) return '';
+    const parts: string[] = [];
+    if (tech.cost.food) parts.push(`${tech.cost.food}F`);
+    if (tech.cost.wood) parts.push(`${tech.cost.wood}W`);
+    if (tech.cost.stone) parts.push(`${tech.cost.stone}S`);
+    if (tech.cost.metal) parts.push(`${tech.cost.metal}G`);
+    if (tech.cost.knowledge) parts.push(`${tech.cost.knowledge}Kn`);
+    return parts.join(' ');
+  }
+  if (category === 'age' && playerAge) {
+    const req = AGE_ADVANCEMENT_REQUIREMENTS[playerAge];
+    if (!req) return '';
+    const parts: string[] = [];
+    if (req.cost.food) parts.push(`${req.cost.food}F`);
+    if (req.cost.wood) parts.push(`${req.cost.wood}W`);
+    if (req.cost.stone) parts.push(`${req.cost.stone}S`);
+    if (req.cost.metal) parts.push(`${req.cost.metal}G`);
+    if (req.cost.knowledge) parts.push(`${req.cost.knowledge}Kn`);
+    return parts.join(' ');
+  }
+  return '';
+};
+
 
 export class HudView {
   public rootElem: HTMLElement;
@@ -86,6 +152,7 @@ export class HudView {
   private activePlacementType: BuildingType | null = null;
   private placementBannerElem: HTMLElement | null = null;
   private selectedBuildingId: string | null = null;
+  private selectedBuildings: BuildingData[] = [];
 
   constructor(container: HTMLElement, callbacks: HudCallbacks) {
     this.callbacks = callbacks;
@@ -1086,6 +1153,7 @@ export class HudView {
 
     // 2. Building Selected
     if (selectedBuildings.length > 0) {
+      this.selectedBuildings = selectedBuildings;
       const bldg = selectedBuildings[0];
       this.selectedBuildingId = bldg.id;
       const bdef = BUILDING_DEFINITIONS[bldg.type];
@@ -1111,18 +1179,54 @@ export class HudView {
         const isTech = item.category === 'tech';
         const isAge = item.category === 'age';
         const actionLabel = isAge ? '🏛️ Advancing' : isTech ? '🔬 Researching' : '⚙️ Training';
-        const techDef = isTech ? TECHNOLOGIES[item.itemType] : null;
-        const itemName = techDef ? techDef.name.toUpperCase() : item.itemType.replace(/_/g, ' ').toUpperCase();
+        const itemName = getQueueItemName(item.category, item.itemType);
+        const progressPct = Math.floor(item.progress);
+        const progressBarGradient = isTech
+          ? 'linear-gradient(90deg, #6366f1, #a78bfa)'
+          : isAge
+          ? 'linear-gradient(90deg, #d97706, #fbbf24)'
+          : 'linear-gradient(90deg, #0284c7, #38bdf8)';
+
         activityHtml = `
-          <div style="margin-top: 4px;">
-            <div style="font-size: 10px; color: ${isTech ? '#a78bfa' : isAge ? '#f59e0b' : '#38bdf8'}; display: flex; justify-content: space-between; font-weight: 700;">
-              <span>${actionLabel}: ${itemName}</span>
-              <span>${Math.floor(item.progress)}%</span>
+          <div style="margin-top: 2px; background: rgba(14, 7, 3, 0.7); border: 1px solid #8c6a34; border-radius: 4px; padding: 4px 6px;">
+            <div style="font-size: 10px; color: ${isTech ? '#a78bfa' : isAge ? '#f59e0b' : '#38bdf8'}; display: flex; justify-content: space-between; font-weight: 700; align-items: center;">
+              <span style="display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <span style="font-size: 11px;">${getQueueItemIcon(item.category, item.itemType)}</span>
+                <span>${actionLabel}: <strong>${itemName}</strong></span>
+              </span>
+              <span style="color: #fef08a; font-weight: 800; font-size: 10.5px; margin-left: 6px;">${progressPct}%</span>
             </div>
-            <div style="width: 100%; height: 6px; background: #331d0d; border: 1px solid #8c6a34; border-radius: 3px; overflow: hidden; margin-top: 2px;">
-              <div style="width: ${item.progress}%; height: 100%; background: ${isTech ? 'linear-gradient(90deg, #6366f1, #a78bfa)' : isAge ? 'linear-gradient(90deg, #d97706, #fbbf24)' : 'linear-gradient(90deg, #0284c7, #38bdf8)'};"></div>
+
+            <!-- Progress bar -->
+            <div style="width: 100%; height: 5px; background: #26150a; border: 1px solid #78350f; border-radius: 2.5px; overflow: hidden; margin-top: 2px;">
+              <div style="width: ${progressPct}%; height: 100%; background: ${progressBarGradient}; transition: width 0.1s linear;"></div>
             </div>
-            ${bldg.productionQueue.length > 1 ? `<div style="font-size: 9px; color: #fef08a; margin-top: 2px;">Queue: +${bldg.productionQueue.length - 1} pending</div>` : ''}
+
+            <!-- Interactive AoE / RoN Queue Ribbon (Click to Cancel & 100% Refund) -->
+            <div style="display: flex; gap: 4px; align-items: center; margin-top: 4px; overflow-x: auto; padding-bottom: 2px;">
+              ${bldg.productionQueue.map((q, idx) => {
+                const qIcon = getQueueItemIcon(q.category, q.itemType);
+                const qName = getQueueItemName(q.category, q.itemType);
+                const qRefund = getQueueItemRefundText(q.category, q.itemType, player.age);
+                const isRunning = idx === 0;
+                return `
+                  <div class="aoe-queue-slot ${isRunning ? 'active' : ''}" data-bldgid="${bldg.id}" data-qidx="${idx}" title="${isRunning ? 'Active: ' : 'Queue #' + (idx + 1) + ': '}${qName} (Click to Cancel & Refund 100%: +${qRefund})">
+                    <span style="font-size: 13px;">${qIcon}</span>
+                    ${isRunning ? '<span class="aoe-queue-slot-active-dot"></span>' : `<span class="aoe-queue-slot-num">#${idx + 1}</span>`}
+                    <div class="aoe-queue-slot-cancel">✕</div>
+                  </div>
+                `;
+              }).join('')}
+              ${bldg.productionQueue.length < 15 ? `
+                <div style="font-size: 8.5px; color: #a16207; font-weight: 700; padding: 0 4px; white-space: nowrap;" title="Capacity: ${bldg.productionQueue.length} of 15 max queue slots">
+                  ${bldg.productionQueue.length}/15
+                </div>
+              ` : `
+                <div style="font-size: 8px; color: #ef4444; font-weight: 800; padding: 0 4px; white-space: nowrap;">
+                  FULL
+                </div>
+              `}
+            </div>
           </div>
         `;
       } else {
@@ -1178,6 +1282,22 @@ export class HudView {
           </div>
         </div>
       `;
+
+        this.selectionDetailsElem.querySelectorAll<HTMLElement>('.aoe-queue-slot').forEach(slot => {
+          slot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const bldgId = slot.dataset.bldgid;
+            const qidx = parseInt(slot.dataset.qidx || '0', 10);
+            if (bldgId && !isNaN(qidx)) {
+              const b = this.allBuildings.find(item => item.id === bldgId);
+              const qItem = b?.productionQueue[qidx];
+              const qName = qItem ? getQueueItemName(qItem.category, qItem.itemType) : 'Item';
+              const qRefund = qItem ? getQueueItemRefundText(qItem.category, qItem.itemType, player.age) : '';
+              this.callbacks.onCancelProduction?.(bldgId, qidx);
+              this.showNotification(`↩️ Canceled ${qName}! 100% cost refunded (${qRefund})`);
+            }
+          });
+        });
       }
 
       if (bldg.ownerId === player.id) {
@@ -2684,7 +2804,7 @@ export class HudView {
       const key = e.key.toUpperCase();
       const targetBtn = this.actionMatrixElem.querySelector<HTMLButtonElement>(`.aoe3-action-btn[data-hotkey="${key}"]`);
       if (targetBtn && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        targetBtn.click();
+        targetBtn.dispatchEvent(new MouseEvent('click', { shiftKey: e.shiftKey, bubbles: true }));
         return;
       }
 
