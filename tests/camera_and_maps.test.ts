@@ -93,4 +93,55 @@ describe('Camera Movement & Full Map Boundary Navigation', () => {
     controller.clampCameraToMap();
     expect((controller as any).zoomDistance).toBeGreaterThanOrEqual(16);
   });
+
+  it('preserves camera zoom and allows native scroll when wheel events occur over UI elements', () => {
+    let wheelHandler: ((e: any) => void) | null = null;
+    const fakeWindow = {
+      addEventListener: (evt: string, handler: any) => {
+        if (evt === 'wheel') wheelHandler = handler;
+      },
+      removeEventListener: () => {},
+      getComputedStyle: () => ({ overflowY: 'visible' })
+    };
+    (globalThis as any).window = fakeWindow;
+    (globalThis as any).Element = class Element {};
+    (globalThis as any).HTMLElement = class HTMLElement extends (globalThis as any).Element {};
+
+    const camera = new THREE.PerspectiveCamera(45, 1920 / 1080, 0.5, 500);
+    const controller = new CameraController(camera, 240, 240);
+    const initialZoom = (controller as any).zoomDistance;
+
+    expect(wheelHandler).not.toBeNull();
+
+    // 1. Wheel event over a UI modal backdrop / scroll pane
+    let prevented = false;
+    class MockUiElement extends (globalThis as any).HTMLElement {
+      closest(sel: string) {
+        return sel.includes('.aoe-scroll-pane') ? this : null;
+      }
+    }
+    const mockTarget = new MockUiElement();
+    wheelHandler!({
+      target: mockTarget,
+      deltaY: 100,
+      preventDefault: () => { prevented = true; },
+      composedPath: () => [mockTarget]
+    });
+
+    expect(prevented).toBe(false);
+    expect((controller as any).zoomDistance).toBe(initialZoom);
+
+    // 2. Wheel event over game canvas (not UI) should zoom camera
+    const mockCanvas = new (globalThis as any).HTMLElement();
+    mockCanvas.closest = () => null;
+    wheelHandler!({
+      target: mockCanvas,
+      deltaY: 100,
+      preventDefault: () => { prevented = true; },
+      composedPath: () => [mockCanvas]
+    });
+
+    expect(prevented).toBe(true);
+    expect((controller as any).zoomDistance).not.toBe(initialZoom);
+  });
 });

@@ -47,11 +47,22 @@ export class CameraController {
 
     window.addEventListener('wheel', (e) => {
       // If user is scrolling inside an interactive UI modal or scrollable panel, allow native UI scrolling
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        if (target.closest('.modal-backdrop, .aoe-scroll-pane, #ui-layer, #chat-history, #aoe3-tech-matrix-grid, .aoe-parchment-card, .aoe-wood-backdrop')) {
-          return;
-        }
+      const target = e.target instanceof Element ? e.target : (e.target as Node | null)?.parentElement;
+      const path = (e.composedPath ? e.composedPath() : []) as EventTarget[];
+
+      const isInsideUI = Boolean(
+        (target && target.closest('.modal-backdrop, .aoe-scroll-pane, #ui-layer, #chat-history, #aoe3-tech-matrix-grid, .aoe-parchment-card, .aoe-wood-backdrop, .interactive')) ||
+        path.some(node => {
+          if (!(node instanceof HTMLElement)) return false;
+          if (node.id === 'ui-layer' || node.id === 'aoe3-tech-matrix-grid' || node.id === 'chat-history') return true;
+          if (node.classList?.contains('aoe-scroll-pane') || node.classList?.contains('modal-backdrop') || node.classList?.contains('aoe-parchment-card') || node.classList?.contains('interactive')) return true;
+          const style = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(node) : null;
+          return Boolean(style && (style.overflowY === 'auto' || style.overflowY === 'scroll') && node.scrollHeight > node.clientHeight);
+        })
+      );
+
+      if (isInsideUI) {
+        return;
       }
 
       e.preventDefault();
