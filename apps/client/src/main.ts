@@ -9,6 +9,7 @@ import {
   GameSettings,
   CivName,
   BUILDING_DEFINITIONS,
+  TECHNOLOGIES,
   FormationType,
   UnitStance,
   MatchReplayRecorder,
@@ -556,12 +557,27 @@ class GameApp {
           soundManager.playCombatHit(attacker?.type || 'basic_infantry');
           this.renderer.spawnAttackVisual(ev.attackerId, ev.targetId, this.currentUnits, this.currentBuildings);
         } else if (ev.type === 'AGE_ADVANCED') {
-          soundManager.playAgeUp();
-          this.hud.showNotification(`Civilization advanced to ${ev.newAge}!`);
+          if (ev.playerId === this.myPlayerId) {
+            soundManager.playAgeUp();
+            this.hud.showNotification(`👑 Civilization advanced to ${ev.newAge}!`);
+          } else {
+            const advPlayer = this.currentPlayers.find(p => p.id === ev.playerId);
+            if (advPlayer) {
+              this.hud.showNotification(`ℹ️ ${advPlayer.name} has advanced to ${ev.newAge}.`);
+            }
+          }
         } else if (ev.type === 'TECH_RESEARCHED') {
-          this.hud.showNotification(`Technology Researched: ${ev.techId}`);
+          if (ev.playerId === this.myPlayerId) {
+            const techName = TECHNOLOGIES[ev.techId]?.name || ev.techId;
+            soundManager.playClick();
+            this.hud.showNotification(`🔬 Technology Researched: ${techName}!`);
+          }
         } else if (ev.type === 'BUILDING_COMPLETED') {
-          soundManager.playBuild();
+          const b = this.currentBuildings.find(item => item.id === ev.buildingId);
+          if (b && b.ownerId === this.myPlayerId) {
+            soundManager.playBuild();
+            this.hud.showNotification(`🏛️ Construction complete: ${BUILDING_DEFINITIONS[b.type]?.name || 'Building'}!`);
+          }
         } else 
         if (ev.type === 'TRADE_COMPLETED') {
           if (ev.ownerId === this.myPlayerId) {

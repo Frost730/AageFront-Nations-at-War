@@ -1174,7 +1174,7 @@ export class HudView {
             </div>
           </div>
         `;
-      } else if (bldg.productionQueue.length > 0) {
+      } else if (bldg.ownerId === player.id && bldg.productionQueue.length > 0) {
         const item = bldg.productionQueue[0];
         const isTech = item.category === 'tech';
         const isAge = item.category === 'age';
@@ -1543,32 +1543,7 @@ export class HudView {
     
     // If Market: train Trade Cart + Commodity Trading
     if (bldg.type === 'market') {
-      const trainCaravanBtn = document.createElement('button');
-      trainCaravanBtn.className = 'aoe3-action-btn';
-      trainCaravanBtn.style.cssText = 'padding: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px;';
-      trainCaravanBtn.innerHTML = `
-        <span class="aoe3-hotkey-badge">Q</span>
-        <span style="font-size: 15px;">🛒</span>
-        <span style="font-weight: 700;">Trade Cart</span>
-        <span style="font-size: 8.5px; color: #fef08a;">50F 50W</span>
-      `;
-      trainCaravanBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const curPlayer = this.currentPlayer || player;
-        if (curPlayer.population >= curPlayer.maxPopulation) {
-          soundManager.playError();
-          this.showNotification(`⚠️ Population cap reached! Construct Houses.`);
-          return;
-        }
-        if (curPlayer.resources.food < 50 || curPlayer.resources.wood < 50) {
-          soundManager.playError();
-          this.showNotification(`⚠️ Trade Caravan requires 50 Food & 50 Wood!`);
-          return;
-        }
-        this.callbacks.onTrainUnit(bldg.id, 'trade_cart');
-        this.showNotification(`🛒 Trade Caravan training queued at Commercial Market.`);
-      });
-      this.actionMatrixElem.appendChild(trainCaravanBtn);
+      this.createTrainUnitButton(bldg, 'trade_cart', 'Trade Cart', '🛒', '50F 50W', 'Q', player);
 
       const trades: { label: string; icon: string; buy: ResourceType; sell: ResourceType; buyAmt: number; sellAmt: number; hotkey: string }[] = [
         { label: 'Buy Food', icon: '🌾', buy: 'food', sell: 'wood', buyAmt: 100, sellAmt: 120, hotkey: 'W' },
@@ -1608,61 +1583,11 @@ export class HudView {
 
     // If Town Centre: train worker, advance age, summon dragon in imperial age
     if (bldg.type === 'town_centre') {
-      const trainWorkerBtn = document.createElement('button');
-      trainWorkerBtn.className = 'aoe3-action-btn';
-      trainWorkerBtn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px;';
-      trainWorkerBtn.innerHTML = `
-        <span class="aoe3-hotkey-badge">Q</span>
-        <span style="font-size: 16px;">👨‍🌾</span>
-        <span style="font-weight: 700;">Worker</span>
-        <span style="font-size: 8.5px; color: #fef08a;">50 Food</span>
-      `;
-      trainWorkerBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const curPlayer = this.currentPlayer || player;
-      if (curPlayer.population >= curPlayer.maxPopulation) {
-          soundManager.playError();
-          this.showNotification(`⚠️ Population cap reached (${curPlayer.population}/${curPlayer.maxPopulation})! Construct Houses.`);
-          return;
-        }
-        if (curPlayer.resources.food < 50) {
-          soundManager.playError();
-          this.showNotification(`⚠️ Need 50 Food to train a Worker! (Have ${Math.floor(curPlayer.resources.food)})`);
-          return;
-        }
-        this.callbacks.onTrainUnit(bldg.id, 'worker');
-        this.showNotification(`👨‍🌾 Worker training queued at Town Centre.`);
-      });
-      this.actionMatrixElem.appendChild(trainWorkerBtn);
+      this.createTrainUnitButton(bldg, 'worker', 'Worker', '👨‍🌾', '50 Food', 'Q', player);
 
       // If Imperial or Industrial Age, summon War Dragon
       if (player.age === 'Imperial Age' || player.age === 'Industrial Age') {
-        const dragonBtn = document.createElement('button');
-        dragonBtn.className = 'aoe3-action-btn';
-        dragonBtn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: #ef4444;';
-        dragonBtn.innerHTML = `
-          <span class="aoe3-hotkey-badge">W</span>
-          <span style="font-size: 16px;">🐉</span>
-          <span style="font-weight: 700; color: #f87171;">Dragon</span>
-          <span style="font-size: 8.5px; color: #fef08a;">250F 250G</span>
-        `;
-        dragonBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const curPlayer = this.currentPlayer || player;
-          if (curPlayer.population >= curPlayer.maxPopulation) {
-            soundManager.playError();
-            this.showNotification('⚠️ Population limit reached! Build more housing.');
-            return;
-          }
-          if (curPlayer.resources.food < 250 || curPlayer.resources.metal < 250) {
-            soundManager.playError();
-            this.showNotification('⚠️ War Dragon requires 250 Food & 250 Gold!');
-            return;
-          }
-          this.callbacks.onTrainUnit(bldg.id, 'dragon');
-          this.showNotification('🐉 Summoning War Dragon into the skies!');
-        });
-        this.actionMatrixElem.appendChild(dragonBtn);
+        this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'W', player);
       }
 
       // Advance Age Button
@@ -1670,6 +1595,7 @@ export class HudView {
       if (ageReq && ageReq.nextAge) {
         const ageBtn = document.createElement('button');
         ageBtn.id = 'hud-advance-age-btn';
+        ageBtn.dataset.hotkey = 'E';
         ageBtn.className = 'aoe3-action-btn';
         ageBtn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: #d4af37;';
         ageBtn.innerHTML = `
@@ -1900,47 +1826,125 @@ export class HudView {
     player: PlayerState
   ): void {
     const isDragon = unitType === 'dragon';
+    const curPlayer = this.currentPlayer || player;
+
+    // Find candidate buildings if multiple of the same type are selected
+    const candidateBuildings = this.selectedBuildings.filter(
+      b => b.ownerId === curPlayer.id && b.type === bldg.type && b.isConstructed
+    );
+    const buildingsToUse = candidateBuildings.length > 0 ? candidateBuildings : [bldg];
+
+    // Total queued count of this specific unit across selected candidate buildings
+    const queuedCount = buildingsToUse.reduce(
+      (sum, b) => sum + b.productionQueue.filter(q => q.itemType === unitType).length,
+      0
+    );
+
     const btn = document.createElement('button');
     btn.className = 'aoe3-action-btn';
-    btn.style.cssText = `padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; ${isDragon ? 'border-color: #ef4444;' : ''}`;
+    btn.dataset.hotkey = hotkey;
+    btn.style.cssText = `position: relative; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; ${isDragon ? 'border-color: #ef4444;' : ''}`;
     btn.innerHTML = `
       <span class="aoe3-hotkey-badge">${hotkey}</span>
+      ${queuedCount > 0 ? `<span class="aoe3-queue-count-badge">x${queuedCount}</span>` : ''}
       <span style="font-size: 16px;">${icon}</span>
       <span style="font-weight: 700; ${isDragon ? 'color: #f87171;' : ''}">${label}</span>
       <span style="font-size: 8.5px; color: #fef08a;">${costText}</span>
     `;
 
+    btn.title = `${label} (${costText})\nHotkey: [${hotkey}]\nClick: Train 1\nShift+Click: Batch Train 5`;
+
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const curPlayer = this.currentPlayer || player;
-      if (curPlayer.population >= curPlayer.maxPopulation) {
-        soundManager.playError();
-        this.showNotification(`⚠️ Population cap reached (${curPlayer.population}/${curPlayer.maxPopulation})! Construct Houses.`);
-        return;
-      }
+      const p = this.currentPlayer || player;
       const udef = UNIT_DEFINITIONS[unitType];
+      if (!udef) return;
+
       const ageRank = (a: any) => ['Founding Age', 'Kingdom Age', 'Imperial Age', 'Industrial Age'].indexOf(a);
-      if (udef && ageRank(curPlayer.age) < ageRank(udef.requiredAge)) {
+      if (ageRank(p.age) < ageRank(udef.requiredAge)) {
         soundManager.playError();
         this.showNotification(`🔒 ${label} requires ${udef.requiredAge}! Advance your civilization first.`);
         return;
       }
-      if (udef) {
+
+      // Shift+Click batch training: 5 units at once (AoE / RoN style)
+      const trainTargetCount = e.shiftKey ? 5 : 1;
+      let trainedCount = 0;
+
+      let tempFood = p.resources.food;
+      let tempWood = p.resources.wood;
+      let tempStone = p.resources.stone;
+      let tempMetal = p.resources.metal;
+      let tempKnowledge = p.resources.knowledge;
+      let tempPop = p.population;
+
+      for (let i = 0; i < trainTargetCount; i++) {
+        // Multi-building auto-balancing: pick building with smallest queue under 15 items
+        const availableBldgs = buildingsToUse
+          .filter(b => b.productionQueue.length < 15)
+          .sort((a, b) => a.productionQueue.length - b.productionQueue.length);
+
+        if (availableBldgs.length === 0) {
+          if (trainedCount === 0) {
+            soundManager.playError();
+            this.showNotification(`⚠️ Production queue full (maximum 15 items per building)!`);
+          }
+          break;
+        }
+
+        if (tempPop + udef.populationCost > p.maxPopulation) {
+          if (trainedCount === 0) {
+            soundManager.playError();
+            this.showNotification(`⚠️ Population cap reached (${tempPop}/${p.maxPopulation})! Construct Houses.`);
+          }
+          break;
+        }
+
         const canAfford =
-          curPlayer.resources.food >= udef.cost.food &&
-          curPlayer.resources.wood >= udef.cost.wood &&
-          curPlayer.resources.stone >= udef.cost.stone &&
-          curPlayer.resources.metal >= udef.cost.metal &&
-          curPlayer.resources.knowledge >= udef.cost.knowledge;
+          tempFood >= udef.cost.food &&
+          tempWood >= udef.cost.wood &&
+          tempStone >= udef.cost.stone &&
+          tempMetal >= udef.cost.metal &&
+          tempKnowledge >= udef.cost.knowledge;
+
         if (!canAfford) {
-          soundManager.playError();
-          this.showNotification(`⚠️ Insufficient resources! Need ${costText} to recruit ${label}.`);
-          return;
+          if (trainedCount === 0) {
+            soundManager.playError();
+            this.showNotification(`⚠️ Insufficient resources! Need ${costText} to recruit ${label}.`);
+          }
+          break;
+        }
+
+        tempFood -= udef.cost.food;
+        tempWood -= udef.cost.wood;
+        tempStone -= udef.cost.stone;
+        tempMetal -= udef.cost.metal;
+        tempKnowledge -= udef.cost.knowledge;
+        tempPop += udef.populationCost;
+
+        const targetBldg = availableBldgs[0];
+        targetBldg.productionQueue.push({
+          id: `client_q_${Date.now()}_${i}`,
+          itemType: unitType,
+          category: 'unit',
+          progress: 0,
+          totalTime: udef.trainingTime
+        });
+
+        this.callbacks.onTrainUnit(targetBldg.id, unitType);
+        trainedCount++;
+      }
+
+      if (trainedCount > 0) {
+        soundManager.playClick();
+        if (trainedCount > 1) {
+          this.showNotification(`⚔️ Queued ${trainedCount}x ${label} across ${buildingsToUse.length > 1 ? buildingsToUse.length + ' buildings' : bldg.type.replace('_', ' ')}!`);
+        } else {
+          this.showNotification(isDragon ? `🐉 Summoning War Dragon into the skies!` : `⚔️ Recruiting ${label}...`);
         }
       }
-      this.callbacks.onTrainUnit(bldg.id, unitType);
-      this.showNotification(isDragon ? `🐉 Summoning War Dragon into the skies!` : `⚔️ Recruiting ${label}...`);
     });
+
     this.actionMatrixElem.appendChild(btn);
   }
 
