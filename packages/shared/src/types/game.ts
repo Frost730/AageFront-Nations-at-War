@@ -93,6 +93,7 @@ export interface UnitData {
   tradeSourceId?: string;
   tradeTargetId?: string;
   tradeGoldYield?: number;
+  autoExploring?: boolean;
 }
 
 export interface BuildingData {

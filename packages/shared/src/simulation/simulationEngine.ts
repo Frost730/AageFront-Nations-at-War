@@ -54,6 +54,7 @@ export class SimulationEngine {
   private unitIdCounter: number = 1000;
   private buildingIdCounter: number = 2000;
   private aiStates: Map<string, AICommanderState> = new Map();
+  public teamExploredGrids: Map<number, Uint8Array> = new Map();
 
   public getAIState(playerId: string): AICommanderState | undefined {
     return this.aiStates.get(playerId);
@@ -123,6 +124,10 @@ export class SimulationEngine {
       this.spawnInitialBase(p.id, p.team, startPos);
     });
 
+    for (let t = 1; t <= 6; t++) {
+      this.teamExploredGrids.set(t, new Uint8Array(this.mapData.width * this.mapData.height));
+    }
+    this.updateExploration();
     this.recalculateTerritory();
   }
 
@@ -436,6 +441,7 @@ export class SimulationEngine {
           const u = this.units.get(uid);
           if (u && u.ownerId === playerId && u.state !== 'dead') {
             validUnits.push(u);
+            u.autoExploring = false;
           }
         }
         if (validUnits.length === 0) return false;
@@ -475,6 +481,7 @@ export class SimulationEngine {
         for (const uid of cmd.unitIds) {
           const unit = this.units.get(uid);
           if (!unit || unit.ownerId !== playerId || unit.state === 'dead') continue;
+          unit.autoExploring = false;
           unit.stance = cmd.stance;
           unit.guardX = unit.x;
           unit.guardY = unit.y;
@@ -929,6 +936,33 @@ export class SimulationEngine {
         return true;
       }
 
+      case 'TOGGLE_AUTO_EXPLORE': {
+        for (const uid of cmd.unitIds) {
+          const unit = this.units.get(uid);
+          if (unit && unit.ownerId === playerId && unit.type === 'scout' && unit.state !== 'dead') {
+            unit.autoExploring = cmd.enabled !== undefined ? cmd.enabled : !unit.autoExploring;
+            if (unit.autoExploring) {
+              const target = this.findNextExplorationTarget(unit);
+              if (target) {
+                const path = this.pathfinder.findPath(unit.x, unit.y, target.x, target.y);
+                if (path && path.length > 0) {
+                  unit.targetX = target.x;
+                  unit.targetY = target.y;
+                  unit.path = path;
+                  unit.state = 'moving';
+                }
+              }
+            } else {
+              if (unit.state === 'moving') {
+                unit.state = 'idle';
+                unit.path = undefined;
+              }
+            }
+          }
+        }
+        return true;
+      }
+
       case 'CANCEL_PRODUCTION': {
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg || bldg.ownerId !== playerId) return false;
@@ -1026,6 +1060,9 @@ export class SimulationEngine {
     }
 
     this.spatialGrid.build(this.units.values());
+    if (this.currentTick % 6 === 0) {
+      this.updateExploration();
+    }
 
     this.updateGates();
 
@@ -1101,6 +1138,22 @@ export class SimulationEngine {
   private updateUnits(dt: number): void {
     for (const unit of this.units.values()) {
       if (unit.state === 'dead') continue;
+
+      // Auto-explore logic for Pathfinder Scouts (AoE style)
+      if (unit.type === 'scout' && unit.autoExploring) {
+        if (unit.state === 'idle' || !unit.path || unit.path.length === 0) {
+          const nextTarget = this.findNextExplorationTarget(unit);
+          if (nextTarget) {
+            const path = this.pathfinder.findPath(unit.x, unit.y, nextTarget.x, nextTarget.y);
+            if (path && path.length > 0) {
+              unit.targetX = nextTarget.x;
+              unit.targetY = nextTarget.y;
+              unit.path = path;
+              unit.state = 'moving';
+            }
+          }
+        }
+      }
 
       const def = UNIT_DEFINITIONS[unit.type];
       const player = this.players.get(unit.ownerId);
@@ -1669,6 +1722,18 @@ export class SimulationEngine {
       if (unit.path.length === 0 && unit.state === 'moving') {
         unit.state = 'idle';
         unit.path = undefined;
+        if (unit.type === 'scout' && unit.autoExploring) {
+          const nextTarget = this.findNextExplorationTarget(unit);
+          if (nextTarget) {
+            const path = this.pathfinder.findPath(unit.x, unit.y, nextTarget.x, nextTarget.y);
+            if (path && path.length > 0) {
+              unit.targetX = nextTarget.x;
+              unit.targetY = nextTarget.y;
+              unit.path = path;
+              unit.state = 'moving';
+            }
+          }
+        }
       }
     } else {
       const newX = unit.x + (dx / dist) * moveStep;
@@ -2153,6 +2218,99 @@ export class SimulationEngine {
       }
     }
     player.population = currentPop;
+  }
+
+  
+  public updateExploration(): void {
+    const w = this.mapData.width;
+    const h = this.mapData.height;
+
+    for (const u of this.units.values()) {
+      if (u.state === 'dead') continue;
+      const grid = this.teamExploredGrids.get(u.team);
+      if (!grid) continue;
+      const r = UNIT_DEFINITIONS[u.type]?.visionRange || 8;
+      const minX = Math.max(0, Math.floor(u.x - r));
+      const maxX = Math.min(w - 1, Math.ceil(u.x + r));
+      const minY = Math.max(0, Math.floor(u.y - r));
+      const maxY = Math.min(h - 1, Math.ceil(u.y + r));
+      const r2 = r * r;
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          if ((x - u.x) ** 2 + (y - u.y) ** 2 <= r2) {
+            grid[y * w + x] = 1;
+          }
+        }
+      }
+    }
+
+    for (const b of this.buildings.values()) {
+      if (b.hp <= 0) continue;
+      const grid = this.teamExploredGrids.get(b.team);
+      if (!grid) continue;
+      const r = (BUILDING_DEFINITIONS[b.type] as any)?.visionRange || 10;
+      const cx = b.x + b.width / 2;
+      const cy = b.y + b.height / 2;
+      const minX = Math.max(0, Math.floor(cx - r));
+      const maxX = Math.min(w - 1, Math.ceil(cx + r));
+      const minY = Math.max(0, Math.floor(cy - r));
+      const maxY = Math.min(h - 1, Math.ceil(cy + r));
+      const r2 = r * r;
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          if ((x - cx) ** 2 + (y - cy) ** 2 <= r2) {
+            grid[y * w + x] = 1;
+          }
+        }
+      }
+    }
+  }
+
+  public findNextExplorationTarget(unit: UnitData): Vector2D | null {
+    const grid = this.teamExploredGrids.get(unit.team);
+    const w = this.mapData.width;
+    const h = this.mapData.height;
+
+    // Search coarse sectors across the map for unexplored walkable clusters
+    const sectorStep = 4;
+    const candidates: { x: number; y: number; dist: number }[] = [];
+
+    for (let sy = 2; sy < h - 2; sy += sectorStep) {
+      for (let sx = 2; sx < w - 2; sx += sectorStep) {
+        const idx = sy * w + sx;
+        if (grid && grid[idx] === 0 && this.pathfinder.isWalkable(sx, sy)) {
+          const d = Math.hypot(sx - unit.x, sy - unit.y);
+          candidates.push({ x: sx, y: sy, dist: d });
+        }
+      }
+    }
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => a.dist - b.dist);
+      // Pick among top 3 closest unexplored sectors to create natural, non-linear scouting
+      const pickIdx = Math.min(candidates.length - 1, Math.floor(Math.random() * Math.min(3, candidates.length)));
+      const chosen = candidates[pickIdx];
+      return { x: chosen.x, y: chosen.y };
+    }
+
+    // Strategy 2: If everything is explored, scout enemy perimeter
+    const enemyBldgs = Array.from(this.buildings.values()).filter(b => b.team !== unit.team && b.hp > 0);
+    if (enemyBldgs.length > 0) {
+      const randBldg = enemyBldgs[Math.floor(Math.random() * enemyBldgs.length)];
+      const adj = this.findAdjacentWalkableToBuilding(randBldg.x, randBldg.y, randBldg.width, randBldg.height);
+      if (adj) return adj;
+    }
+
+    // Fallback: random walkable perimeter point
+    for (let attempts = 0; attempts < 15; attempts++) {
+      const rx = Math.floor(Math.random() * (w - 6) + 3);
+      const ry = Math.floor(Math.random() * (h - 6) + 3);
+      if (this.pathfinder.isWalkable(rx, ry)) {
+        return { x: rx, y: ry };
+      }
+    }
+
+    return null;
   }
 
   private recalculateTerritory(): void {

@@ -74,7 +74,8 @@ export type CommandPayload =
   | { type: 'ADVANCE_AGE'; buildingId: string }
   | { type: 'SET_RALLY_POINT'; buildingId: string; point: Vector2D; targetEntityId?: string; targetType?: 'ground' | 'resource' | 'building' }
   | { type: 'CANCEL_PRODUCTION'; buildingId: string; queueIndex: number }
-  | { type: 'TRANSFER_RESOURCES'; recipientId: string; resource: ResourceType; amount: number };
+  | { type: 'TRANSFER_RESOURCES'; recipientId: string; resource: ResourceType; amount: number }
+  | { type: 'TOGGLE_AUTO_EXPLORE'; unitIds: string[]; enabled?: boolean };
 
 export interface ServerSnapshot {
   tick: number;

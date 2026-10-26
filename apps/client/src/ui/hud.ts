@@ -30,6 +30,7 @@ export interface HudCallbacks {
   onTradeCommodity?: (buyResource: ResourceType, sellResource: ResourceType, buyAmount: number, sellAmount: number) => void;
   onSetStance?: (stance: UnitStance) => void;
   onSetFormation?: (formation: FormationType) => void;
+  onToggleAutoExplore?: (unitIds: string[], enabled?: boolean) => void;
   onOpenMenu: () => void;
   onTransferResources?: (recipientId: string, resource: ResourceType, amount: number) => void;
 }
@@ -1060,8 +1061,8 @@ export class HudView {
                     <span style="color: #94a3b8;">(${udef.role})</span>
                   </div>
                 </div>
-                <div style="font-size: 11px; color: #38bdf8; font-weight: 700; text-transform: uppercase;">
-                  ● ${unit.state}
+                <div style="font-size: 11px; color: ${unit.autoExploring ? '#4ade80' : '#38bdf8'}; font-weight: 700; text-transform: uppercase;">
+                  ● ${unit.autoExploring ? 'AUTO-EXPLORING' : unit.state}
                 </div>
               </div>
 
@@ -1107,6 +1108,12 @@ export class HudView {
           } else {
             this.updateActionMatrixDynamicState(player);
           }
+        } else if (unit.type === 'scout' && unit.ownerId === player.id) {
+          const targetKey = `scout_matrix_${unit.id}_${unit.autoExploring}`;
+          if (this.currentContextKey !== targetKey) {
+            this.currentContextKey = targetKey;
+            this.renderScoutActionMatrix([unit], player);
+          }
         } else {
           if (this.currentContextKey !== 'unit_other') {
             this.currentContextKey = 'unit_other';
@@ -1133,6 +1140,7 @@ export class HudView {
         `;
 
         const hasWorker = selectedUnits.some(u => u.type === 'worker' && u.ownerId === player.id);
+        const myScouts = selectedUnits.filter(u => u.type === 'scout' && u.ownerId === player.id);
         if (hasWorker) {
           const targetKey = `worker_matrix_${player.age}`;
           if (this.currentContextKey !== targetKey) {
@@ -1140,6 +1148,12 @@ export class HudView {
             this.renderWorkerBuildMatrix(player);
           } else {
             this.updateActionMatrixDynamicState(player);
+          }
+        } else if (myScouts.length > 0) {
+          const targetKey = `scout_matrix_multi_${myScouts.map(s => s.id + ':' + s.autoExploring).join(',')}`;
+          if (this.currentContextKey !== targetKey) {
+            this.currentContextKey = targetKey;
+            this.renderScoutActionMatrix(myScouts, player);
           }
         } else {
           if (this.currentContextKey !== 'squad_combat') {
@@ -1334,6 +1348,54 @@ export class HudView {
 
   // ==========================================
   
+
+  private renderScoutActionMatrix(scouts: UnitData[], player: PlayerState): void {
+    this.resetActionMatrixGrid();
+    this.actionMatrixElem.innerHTML = '';
+
+    const anyAutoExploring = scouts.some(s => s.autoExploring);
+    const btn = document.createElement('button');
+    btn.id = 'btn-toggle-auto-explore';
+    btn.className = 'aoe3-action-btn';
+    btn.dataset.hotkey = 'E';
+    btn.style.cssText = anyAutoExploring
+      ? 'grid-column: span 5; grid-row: span 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-color: #f59e0b; background: rgba(120, 53, 15, 0.45); cursor: pointer;'
+      : 'grid-column: span 5; grid-row: span 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-color: #38bdf8; background: rgba(12, 74, 110, 0.35); cursor: pointer;';
+
+    btn.innerHTML = anyAutoExploring
+      ? `
+        <span class="aoe3-hotkey-badge">E</span>
+        <span style="font-size: 22px;">🛑</span>
+        <span style="font-weight: 800; color: #fef08a; font-size: 12px; letter-spacing: 0.5px;">Cancel Auto-Explore</span>
+        <span style="font-size: 9px; color: #86efac; font-weight: 700;">● Active (Click or Press E to Stop)</span>
+      `
+      : `
+        <span class="aoe3-hotkey-badge">E</span>
+        <span style="font-size: 22px;">🧭</span>
+        <span style="font-weight: 800; color: #fef08a; font-size: 12px; letter-spacing: 0.5px;">Activate Auto-Explore</span>
+        <span style="font-size: 9px; color: #cbd5e1;">Automatically scout uncharted terrain & fog of war (E)</span>
+      `;
+
+    btn.title = anyAutoExploring
+      ? 'Cancel Auto-Explore [E]\nReturn scout to manual command and halt exploration.'
+      : 'Auto-Explore Map [E]\nScout automatically surveys uncharted areas, finds resources, and uncovers fog of war across the entire map.';
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const scoutIds = scouts.map(s => s.id);
+      const newState = !anyAutoExploring;
+      this.callbacks.onToggleAutoExplore?.(scoutIds, newState);
+      soundManager.playClick();
+      if (newState) {
+        this.showNotification('🧭 Pathfinder Scout entered Auto-Explore mode!');
+      } else {
+        this.showNotification('🛑 Scout Auto-Explore cancelled.');
+      }
+    });
+
+    this.actionMatrixElem.appendChild(btn);
+  }
+
   public getCurrentFormation(): FormationType {
     return this.currentFormation;
   }

@@ -160,6 +160,10 @@ class GameApp {
         this.activeFormation = formation;
         soundManager.playClick();
       },
+      onToggleAutoExplore: (unitIds: string[], enabled?: boolean) => {
+        networkClient.sendCommand({ type: 'TOGGLE_AUTO_EXPLORE', unitIds, enabled });
+        soundManager.playClick();
+      },
       onAssignWorkersToBuild: (buildingId: string) => {
         const myWorkers = this.currentUnits.filter(u => u.ownerId === this.myPlayerId && u.type === 'worker' && u.state !== 'dead');
         const workerIds = myWorkers.map(w => w.id);
