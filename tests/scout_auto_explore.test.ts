@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  SimulationEngine
+  SimulationEngine,
+  UNIT_DEFINITIONS
 } from '../packages/shared/src/index.js';
 
 describe('Pathfinder Scout Auto-Explore System (AoE Style)', () => {
@@ -95,5 +96,64 @@ describe('Pathfinder Scout Auto-Explore System (AoE Style)', () => {
     expect(scout.autoExploring).toBe(false);
     expect(scout.targetX).toBe(15);
     expect(scout.targetY).toBe(15);
+  });
+
+  it('trains scout in Town Centre with auto-explore enabled upon spawning', () => {
+    const sim = createSim();
+    const p1 = sim.players.get('p1')!;
+    p1.resources.food = 500;
+    p1.resources.wood = 500;
+    p1.maxPopulation = 20;
+
+    const tc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'p1' && b.type === 'town_centre')!;
+    expect(tc).toBeDefined();
+
+    const initialScoutCount = Array.from(sim.units.values()).filter(u => u.ownerId === 'p1' && u.type === 'scout').length;
+    expect(initialScoutCount).toBe(1); // 1 starting scout
+
+    // Train second scout from Town Centre
+    const trainRes = sim.processCommand('p1', {
+      type: 'TRAIN_UNIT',
+      buildingId: tc.id,
+      unitType: 'scout'
+    });
+    expect(trainRes).toBe(true);
+    expect(tc.productionQueue.length).toBe(1);
+
+    // Fast-forward training time (scout trainingTime is 6s -> 120 ticks)
+    for (let i = 0; i < 130; i++) {
+      sim.tick(0.05);
+    }
+
+    const allP1Scouts = Array.from(sim.units.values()).filter(u => u.ownerId === 'p1' && u.type === 'scout');
+    expect(allP1Scouts.length).toBe(2);
+
+    const newlySpawnedScout = allP1Scouts.find(s => s.id !== 'unit_1003' && s.id !== allP1Scouts[0].id) || allP1Scouts[1];
+    expect(newlySpawnedScout.autoExploring).toBe(true);
+    expect(newlySpawnedScout.state).toBe('moving');
+  });
+
+  it('enforces hard limit of maximum 3 scouts per player', () => {
+    const sim = createSim();
+    const p1 = sim.players.get('p1')!;
+    p1.resources.food = 2000;
+    p1.resources.wood = 2000;
+    p1.maxPopulation = 30;
+
+    const tc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'p1' && b.type === 'town_centre')!;
+    
+    // Player starts with 1 scout. Train 2nd scout:
+    const res2 = sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'scout' });
+    expect(res2).toBe(true);
+
+    // Train 3rd scout:
+    const res3 = sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'scout' });
+    expect(res3).toBe(true);
+
+    // Attempt to queue a 4th scout (should fail and not deduct resources):
+    const foodBefore = p1.resources.food;
+    const res4 = sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'scout' });
+    expect(res4).toBe(false);
+    expect(p1.resources.food).toBe(foodBefore);
   });
 });

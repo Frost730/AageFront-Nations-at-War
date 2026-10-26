@@ -148,6 +148,7 @@ export class HudView {
   private activeTechCategory: string = 'all';
   private isHoveringTech: boolean = false;
   private allBuildings: BuildingData[] = [];
+  private allUnits: UnitData[] = [];
 
   private currentContextKey: string = '';
   private activePlacementType: BuildingType | null = null;
@@ -839,6 +840,7 @@ export class HudView {
     if (townCentreId) this.townCentreId = townCentreId;
     if (allPlayers) this.allPlayers = allPlayers;
     if (buildings) this.allBuildings = buildings;
+    if (units) this.allUnits = units;
 
     if (this.techModalElem) {
       const activeHall = this.allBuildings.find(b => b.ownerId === player.id && b.type === 'research_hall' && b.isConstructed);
@@ -1643,13 +1645,40 @@ export class HudView {
       return;
     }
 
-    // If Town Centre: train worker, advance age, summon dragon in imperial age
+    // If Town Centre: train worker, train scout (max 3), advance age, summon dragon
     if (bldg.type === 'town_centre') {
       this.createTrainUnitButton(bldg, 'worker', 'Worker', '👨‍🌾', '50 Food', 'Q', player);
 
-      // If Imperial or Industrial Age, summon War Dragon
-      if (player.age === 'Imperial Age' || player.age === 'Industrial Age') {
-        this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'W', player);
+      // Pathfinder Scout with max 3 limit
+      const livingScouts = this.allUnits.filter(
+        (u: UnitData) => u.ownerId === player.id && u.type === 'scout' && u.state !== 'dead'
+      ).length;
+      const queuedScouts = this.allBuildings
+        .filter(b => b.ownerId === player.id)
+        .reduce((sum, b) => sum + b.productionQueue.filter(q => q.itemType === 'scout').length, 0);
+      const totalScouts = livingScouts + queuedScouts;
+
+      if (totalScouts >= 3) {
+        const maxScoutBtn = document.createElement('button');
+        maxScoutBtn.className = 'aoe3-action-btn';
+        maxScoutBtn.dataset.hotkey = 'W';
+        maxScoutBtn.style.cssText = 'position: relative; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: #64748b; opacity: 0.65; cursor: not-allowed;';
+        maxScoutBtn.innerHTML = `
+          <span class="aoe3-hotkey-badge">W</span>
+          <span class="aoe3-queue-count-badge" style="background: #475569; color: #f1f5f9;">3/3 MAX</span>
+          <span style="font-size: 16px;">🧭</span>
+          <span style="font-weight: 700; color: #94a3b8;">Scout</span>
+          <span style="font-size: 8.5px; color: #cbd5e1;">Limit Reached</span>
+        `;
+        maxScoutBtn.title = 'Pathfinder Scout limit reached (maximum 3 scouts per player).\nAll 3 scouts are actively deployed or queued.';
+        maxScoutBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          soundManager.playError();
+          this.showNotification('⚠️ Maximum limit of 3 Pathfinder Scouts reached (3/3)!');
+        });
+        this.actionMatrixElem.appendChild(maxScoutBtn);
+      } else {
+        this.createTrainUnitButton(bldg, 'scout', 'Scout', '🧭', '70F 20W', 'W', player);
       }
 
       // Advance Age Button
@@ -1671,6 +1700,11 @@ export class HudView {
           this.toggleAgeModal();
         });
         this.actionMatrixElem.appendChild(ageBtn);
+      }
+
+      // If Imperial or Industrial Age, summon War Dragon (Hotkey R)
+      if (player.age === 'Imperial Age' || player.age === 'Industrial Age') {
+        this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'R', player);
       }
     }
 
@@ -1954,6 +1988,21 @@ export class HudView {
           break;
         }
 
+        if (unitType === 'scout') {
+          const curScouts = this.allUnits.filter(
+            (u: UnitData) => u.ownerId === p.id && u.type === 'scout' && u.state !== 'dead'
+          ).length + this.allBuildings
+            .filter(b => b.ownerId === p.id)
+            .reduce((sum, b) => sum + b.productionQueue.filter(q => q.itemType === 'scout').length, 0);
+          if (curScouts >= 3) {
+            if (trainedCount === 0) {
+              soundManager.playError();
+              this.showNotification('⚠️ Maximum limit of 3 Pathfinder Scouts reached (3/3)!');
+            }
+            break;
+          }
+        }
+
         if (tempPop + udef.populationCost > p.maxPopulation) {
           if (trainedCount === 0) {
             soundManager.playError();
@@ -2001,6 +2050,8 @@ export class HudView {
         soundManager.playClick();
         if (trainedCount > 1) {
           this.showNotification(`⚔️ Queued ${trainedCount}x ${label} across ${buildingsToUse.length > 1 ? buildingsToUse.length + ' buildings' : bldg.type.replace('_', ' ')}!`);
+        } else if (unitType === 'scout') {
+          this.showNotification('🧭 Pathfinder Scout queued at Town Centre! Will auto-explore upon deployment.');
         } else {
           this.showNotification(isDragon ? `🐉 Summoning War Dragon into the skies!` : `⚔️ Recruiting ${label}...`);
         }

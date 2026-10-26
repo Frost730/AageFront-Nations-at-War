@@ -596,6 +596,8 @@ class GameApp {
             soundManager.playTrainUnit();
             if (ev.unitType === 'worker') {
               this.hud.showNotification(`🧑‍🌾 Citizen Worker ready & automated to work!`);
+            } else if (ev.unitType === 'scout') {
+              this.hud.showNotification(`🧭 Pathfinder Scout deployed & actively auto-exploring the frontier!`);
             } else {
               const name = ev.unitType.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
               this.hud.showNotification(`⚔️ ${name} deployed into service!`);

@@ -789,6 +789,19 @@ export class SimulationEngine {
         // Max queue size check (15 items max like AoE)
         if (bldg.productionQueue.length >= 15) return false;
 
+        // Cap scout units to maximum 3 per player
+        if (cmd.unitType === 'scout') {
+          const livingScouts = Array.from(this.units.values()).filter(
+            u => u.ownerId === playerId && u.type === 'scout' && u.state !== 'dead'
+          ).length;
+          const queuedScouts = Array.from(this.buildings.values())
+            .filter(b => b.ownerId === playerId)
+            .reduce((sum, b) => sum + b.productionQueue.filter(q => q.itemType === 'scout').length, 0);
+          if (livingScouts + queuedScouts >= 3) {
+            return false;
+          }
+        }
+
         // Check population cap
         if (player.population + udef.populationCost > player.maxPopulation) return false;
 
@@ -2059,6 +2072,20 @@ export class SimulationEngine {
       y: spawnY
     });
 
+    if (unitType === 'scout') {
+      unit.autoExploring = true;
+      const target = this.findNextExplorationTarget(unit);
+      if (target) {
+        const path = this.pathfinder.findPath(unit.x, unit.y, target.x, target.y);
+        if (path && path.length > 0) {
+          unit.targetX = target.x;
+          unit.targetY = target.y;
+          unit.path = path;
+          unit.state = 'moving';
+        }
+      }
+    }
+
     if (unitType === 'trade_cart') {
       let bestDest: BuildingData | null = null;
       let maxDist = 0;
@@ -2271,7 +2298,42 @@ export class SimulationEngine {
     const w = this.mapData.width;
     const h = this.mapData.height;
 
-    // Search coarse sectors across the map for unexplored walkable clusters
+    // Priority 1: Unexplored Resource Deposits (Metal, Stone, Food, Wood)
+    const unexploredResources: { x: number; y: number; dist: number }[] = [];
+    for (const node of this.resourceNodes.values()) {
+      const idx = node.y * w + node.x;
+      if (grid && grid[idx] === 0) {
+        const walkable = this.pathfinder.findNearestWalkable(node.x, node.y, 3);
+        if (walkable) {
+          const d = Math.hypot(walkable.x - unit.x, walkable.y - unit.y);
+          unexploredResources.push({ x: walkable.x, y: walkable.y, dist: d });
+        }
+      }
+    }
+    if (unexploredResources.length > 0) {
+      unexploredResources.sort((a, b) => a.dist - b.dist);
+      const chosen = unexploredResources[Math.floor(Math.random() * Math.min(3, unexploredResources.length))];
+      return { x: chosen.x, y: chosen.y };
+    }
+
+    // Priority 2: Unexplored Enemy Base Quadrants & Start Positions
+    const unexploredEnemySpawns: { x: number; y: number; dist: number }[] = [];
+    for (const sp of this.mapData.startPositions) {
+      const idx = sp.y * w + sp.x;
+      if (grid && grid[idx] === 0) {
+        const walkable = this.pathfinder.findNearestWalkable(sp.x, sp.y, 4);
+        if (walkable) {
+          const d = Math.hypot(walkable.x - unit.x, walkable.y - unit.y);
+          unexploredEnemySpawns.push({ x: walkable.x, y: walkable.y, dist: d });
+        }
+      }
+    }
+    if (unexploredEnemySpawns.length > 0) {
+      unexploredEnemySpawns.sort((a, b) => a.dist - b.dist);
+      return { x: unexploredEnemySpawns[0].x, y: unexploredEnemySpawns[0].y };
+    }
+
+    // Priority 3: General unexplored territory sectors (fog of war sweeps)
     const sectorStep = 4;
     const candidates: { x: number; y: number; dist: number }[] = [];
 
@@ -2287,13 +2349,12 @@ export class SimulationEngine {
 
     if (candidates.length > 0) {
       candidates.sort((a, b) => a.dist - b.dist);
-      // Pick among top 3 closest unexplored sectors to create natural, non-linear scouting
       const pickIdx = Math.min(candidates.length - 1, Math.floor(Math.random() * Math.min(3, candidates.length)));
       const chosen = candidates[pickIdx];
       return { x: chosen.x, y: chosen.y };
     }
 
-    // Strategy 2: If everything is explored, scout enemy perimeter
+    // Priority 4: All explored - scout enemy structures and perimeters
     const enemyBldgs = Array.from(this.buildings.values()).filter(b => b.team !== unit.team && b.hp > 0);
     if (enemyBldgs.length > 0) {
       const randBldg = enemyBldgs[Math.floor(Math.random() * enemyBldgs.length)];
