@@ -1317,7 +1317,7 @@ export class HudView {
       }
 
       if (bldg.ownerId === player.id) {
-        const queueKey = bldg.productionQueue.map(q => `${q.itemType}:${Math.floor(q.progress)}`).join(',');
+        const queueKey = bldg.productionQueue.map(q => q.itemType).join(',');
         const techKey = player.researchedTechs.length;
         const targetKey = `bldg_${bldg.id}_${bldg.type}_${bldg.isConstructed}_${player.age}_${techKey}_${queueKey}_${this.activeTechCategory}`;
         if (this.currentContextKey !== targetKey) {
@@ -1681,23 +1681,75 @@ export class HudView {
         this.createTrainUnitButton(bldg, 'scout', 'Scout', '🧭', '70F 20W', 'W', player);
       }
 
-      // Advance Age Button
+      // Advance Age Button (Interactive Queue & Advancement)
       const ageReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
       if (ageReq && ageReq.nextAge) {
+        const isAgeAlreadyQueued = bldg.productionQueue.some(q => q.category === 'age');
+        const canAfford =
+          player.resources.food >= ageReq.cost.food &&
+          player.resources.wood >= ageReq.cost.wood &&
+          player.resources.stone >= ageReq.cost.stone &&
+          player.resources.metal >= ageReq.cost.metal &&
+          player.resources.knowledge >= ageReq.cost.knowledge;
+
         const ageBtn = document.createElement('button');
         ageBtn.id = 'hud-advance-age-btn';
         ageBtn.dataset.hotkey = 'E';
         ageBtn.className = 'aoe3-action-btn';
-        ageBtn.style.cssText = 'padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: #d4af37;';
+        ageBtn.style.cssText = `position: relative; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: ${isAgeAlreadyQueued ? '#38bdf8' : canAfford ? '#fbbf24' : '#64748b'};`;
         ageBtn.innerHTML = `
           <span class="aoe3-hotkey-badge">E</span>
+          <span class="aoe3-queue-count-badge" style="display: ${isAgeAlreadyQueued ? 'block' : 'none'};">Queued</span>
           <span style="font-size: 16px;">👑</span>
-          <span style="font-weight: 700; color: #fef08a;">Advance</span>
-          <span style="font-size: 8.5px; color: #cbd5e1;">Requirements</span>
+          <span style="font-weight: 700; color: #fef08a;">${isAgeAlreadyQueued ? 'Advancing' : 'Advance'}</span>
+          <span style="font-size: 8.5px; color: ${isAgeAlreadyQueued ? '#38bdf8' : canAfford ? '#22c55e' : '#cbd5e1'};">${isAgeAlreadyQueued ? 'In Queue' : ageReq.cost.food + 'F ' + ageReq.cost.wood + 'W'}</span>
         `;
+        ageBtn.title = `Advance to ${ageReq.nextAge}\nCost: ${ageReq.cost.food} Food, ${ageReq.cost.wood} Wood, ${ageReq.cost.knowledge} Knowledge\nClick: Advance to ${ageReq.nextAge}\nShift+Click: View Era Requirements`;
+
         ageBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          this.toggleAgeModal();
+          if (isAgeAlreadyQueued) {
+            this.showNotification(`🏛️ Civilization advancement to ${ageReq.nextAge} is already queued in the Town Centre!`);
+            return;
+          }
+
+          if (e.shiftKey) {
+            this.toggleAgeModal();
+            return;
+          }
+
+          if (!canAfford) {
+            const missingRes: string[] = [];
+            if (player.resources.food < ageReq.cost.food) missingRes.push(`${ageReq.cost.food - player.resources.food} Food`);
+            if (player.resources.wood < ageReq.cost.wood) missingRes.push(`${ageReq.cost.wood - player.resources.wood} Wood`);
+            if (player.resources.knowledge < ageReq.cost.knowledge) missingRes.push(`${ageReq.cost.knowledge - player.resources.knowledge} Knowledge`);
+            if (player.resources.stone < ageReq.cost.stone) missingRes.push(`${ageReq.cost.stone - player.resources.stone} Stone`);
+            if (player.resources.metal < ageReq.cost.metal) missingRes.push(`${ageReq.cost.metal - player.resources.metal} Metal`);
+
+            soundManager.playError();
+            this.showNotification(`⚠️ Cannot advance to ${ageReq.nextAge}! Need: ${missingRes.join(', ')}`);
+            this.toggleAgeModal();
+            return;
+          }
+
+          // Directly queue Age Advancement in selected Town Centre
+          bldg.productionQueue.push({
+            id: `client_age_${ageReq.nextAge}`,
+            itemType: ageReq.nextAge!,
+            category: 'age',
+            progress: 0,
+            totalTime: ageReq.researchTime
+          });
+          player.resources.food = Math.max(0, player.resources.food - ageReq.cost.food);
+          player.resources.wood = Math.max(0, player.resources.wood - ageReq.cost.wood);
+          player.resources.stone = Math.max(0, player.resources.stone - ageReq.cost.stone);
+          player.resources.metal = Math.max(0, player.resources.metal - ageReq.cost.metal);
+          player.resources.knowledge = Math.max(0, player.resources.knowledge - ageReq.cost.knowledge);
+
+          this.callbacks.onAdvanceAge(bldg.id);
+          soundManager.playAgeUp();
+          this.showNotification(`👑 Advancing civilization to ${ageReq.nextAge} queued in Town Centre!`);
+          this.renderBuildingActionMatrix(bldg, player);
         });
         this.actionMatrixElem.appendChild(ageBtn);
       }
@@ -1980,10 +2032,11 @@ export class HudView {
     const btn = document.createElement('button');
     btn.className = 'aoe3-action-btn';
     btn.dataset.hotkey = hotkey;
+    btn.dataset.unittype = unitType;
     btn.style.cssText = `position: relative; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; ${isDragon ? 'border-color: #ef4444;' : ''}`;
     btn.innerHTML = `
       <span class="aoe3-hotkey-badge">${hotkey}</span>
-      ${queuedCount > 0 ? `<span class="aoe3-queue-count-badge">x${queuedCount}</span>` : ''}
+      <span class="aoe3-queue-count-badge" style="display: ${queuedCount > 0 ? 'block' : 'none'};">x${queuedCount}</span>
       <span style="font-size: 16px;">${icon}</span>
       <span style="font-weight: 700; ${isDragon ? 'color: #f87171;' : ''}">${label}</span>
       <span style="font-size: 8.5px; color: #fef08a;">${costText}</span>
@@ -2074,6 +2127,14 @@ export class HudView {
         tempKnowledge -= udef.cost.knowledge;
         tempPop += udef.populationCost;
 
+        // Optimistically deduct on client player object so rapid sequential clicks don't desync before server tick
+        p.resources.food = Math.max(0, p.resources.food - udef.cost.food);
+        p.resources.wood = Math.max(0, p.resources.wood - udef.cost.wood);
+        p.resources.stone = Math.max(0, p.resources.stone - udef.cost.stone);
+        p.resources.metal = Math.max(0, p.resources.metal - udef.cost.metal);
+        p.resources.knowledge = Math.max(0, p.resources.knowledge - udef.cost.knowledge);
+        p.population += udef.populationCost;
+
         const targetBldg = availableBldgs[0];
         targetBldg.productionQueue.push({
           id: `client_q_${Date.now()}_${i}`,
@@ -2089,6 +2150,16 @@ export class HudView {
 
       if (trainedCount > 0) {
         soundManager.playClick();
+        // Update badge immediately on clicked button
+        const newQueued = buildingsToUse.reduce(
+          (sum, b) => sum + b.productionQueue.filter(q => q.itemType === unitType).length,
+          0
+        );
+        const badge = btn.querySelector<HTMLElement>('.aoe3-queue-count-badge');
+        if (badge) {
+          badge.textContent = `x${newQueued}`;
+          badge.style.display = newQueued > 0 ? 'block' : 'none';
+        }
         if (trainedCount > 1) {
           this.showNotification(`⚔️ Queued ${trainedCount}x ${label} across ${buildingsToUse.length > 1 ? buildingsToUse.length + ' buildings' : bldg.type.replace('_', ' ')}!`);
         } else if (unitType === 'scout') {
@@ -2103,17 +2174,42 @@ export class HudView {
   }
 
   private updateActionMatrixDynamicState(player: PlayerState): void {
+    const candidateBuildings = this.selectedBuildings.filter(
+      b => b.ownerId === player.id && b.isConstructed
+    );
+
+    // 1. Update queue count badges on all train buttons in-place
+    this.actionMatrixElem.querySelectorAll<HTMLButtonElement>('.aoe3-action-btn[data-unittype]').forEach(btn => {
+      const uType = btn.dataset.unittype;
+      if (!uType) return;
+      const count = candidateBuildings.reduce(
+        (sum, b) => sum + b.productionQueue.filter(q => q.itemType === uType).length,
+        0
+      );
+      const badge = btn.querySelector<HTMLElement>('.aoe3-queue-count-badge');
+      if (badge) {
+        badge.textContent = `x${count}`;
+        badge.style.display = count > 0 ? 'block' : 'none';
+      }
+    });
+
+    // 2. Update advance age button state in-place
     const ageBtn = this.actionMatrixElem.querySelector<HTMLElement>('#hud-advance-age-btn');
     if (ageBtn) {
       const ageReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
-      if (ageReq) {
+      if (ageReq && ageReq.nextAge) {
+        const isAgeAlreadyQueued = candidateBuildings.some(b => b.productionQueue.some(q => q.category === 'age'));
         const canAfford =
           player.resources.food >= ageReq.cost.food &&
           player.resources.wood >= ageReq.cost.wood &&
           player.resources.stone >= ageReq.cost.stone &&
           player.resources.metal >= ageReq.cost.metal &&
           player.resources.knowledge >= ageReq.cost.knowledge;
-        ageBtn.style.borderColor = canAfford ? '#fbbf24' : '#64748b';
+        ageBtn.style.borderColor = isAgeAlreadyQueued ? '#38bdf8' : canAfford ? '#fbbf24' : '#64748b';
+        const badge = ageBtn.querySelector<HTMLElement>('.aoe3-queue-count-badge');
+        if (badge) {
+          badge.style.display = isAgeAlreadyQueued ? 'block' : 'none';
+        }
       }
     }
   }
@@ -2418,8 +2514,9 @@ export class HudView {
           this.showNotification('⚠️ Cannot advance: Collect the required resources highlighted above!');
           return;
         }
-        if (this.townCentreId) {
-          this.callbacks.onAdvanceAge(this.townCentreId);
+        const tcId = (this.selectedBuildingId && this.allBuildings.find(b => b.id === this.selectedBuildingId && b.type === 'town_centre')?.id) || this.townCentreId;
+        if (tcId) {
+          this.callbacks.onAdvanceAge(tcId);
           soundManager.playAgeUp();
           this.showNotification(`👑 Advancing civilization to ${nextAge}!`);
         }
@@ -2882,26 +2979,8 @@ export class HudView {
         <div class="aoe-corner-rivet aoe-corner-rivet-bl"></div>
         <div class="aoe-corner-rivet aoe-corner-rivet-br"></div>
 
-        <!-- Corner Quick Close Button -->
-        <button id="btn-corner-close-tech-modal" class="aoe-btn-crimson" style="
-          position: absolute;
-          top: 12px;
-          right: 14px;
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          font-size: 14px;
-          font-weight: 900;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 20;
-          padding: 0;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-        " title="Close Codex (Esc)">✕</button>
-
         <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 8px; padding-right: 36px; flex-shrink: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 8px; flex-shrink: 0;">
           <div>
             <h2 class="cinzel" style="font-size: 20px; color: #451a03; margin: 0; font-weight: 800; letter-spacing: 1px;">
               📜 ACADEMY RESEARCH CODEX & TECH TREE
@@ -3014,8 +3093,7 @@ export class HudView {
     const closeBtn = this.techModalElem.querySelector('#btn-close-tech-modal');
     closeBtn?.addEventListener('click', closeHandler);
 
-    const cornerCloseBtn = this.techModalElem.querySelector('#btn-corner-close-tech-modal');
-    cornerCloseBtn?.addEventListener('click', closeHandler);
+
 
     // Filter Tabs
     this.techModalElem.querySelectorAll<HTMLButtonElement>('.aoe3-tech-tab-btn[data-cat]').forEach(btn => {

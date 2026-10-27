@@ -204,4 +204,38 @@ describe('Production Queuing System (AoE & RoN Style)', () => {
     expect(p1.resources.wood).toBe(woodBefore);
     expect(p1.resources.knowledge).toBe(knowBefore);
   });
+
+  it('allows queuing multiple workers and age advancement simultaneously in the same town centre queue', () => {
+    const sim = createSim();
+    const p1 = sim.players.get('p1')!;
+    p1.resources.food = 2000;
+    p1.resources.wood = 2000;
+    p1.resources.knowledge = 500;
+    p1.maxPopulation = 50;
+
+    const tc = Array.from(sim.buildings.values()).find(b => b.ownerId === 'p1' && b.type === 'town_centre')!;
+    expect(tc).toBeDefined();
+
+    // 1. Queue 3 workers
+    expect(sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'worker' })).toBe(true);
+    expect(sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'worker' })).toBe(true);
+    expect(sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'worker' })).toBe(true);
+    expect(tc.productionQueue.length).toBe(3);
+
+    // 2. Queue Age Advancement directly behind the workers in the town centre queue
+    expect(sim.processCommand('p1', { type: 'ADVANCE_AGE', buildingId: tc.id })).toBe(true);
+    expect(tc.productionQueue.length).toBe(4);
+    expect(tc.productionQueue[3].category).toBe('age');
+    expect(tc.productionQueue[3].itemType).toBe('Kingdom Age');
+
+    // 3. Queue 2 more workers behind the age advancement
+    expect(sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'worker' })).toBe(true);
+    expect(sim.processCommand('p1', { type: 'TRAIN_UNIT', buildingId: tc.id, unitType: 'worker' })).toBe(true);
+    expect(tc.productionQueue.length).toBe(6);
+
+    // Verify order in queue
+    expect(tc.productionQueue.map(q => q.category)).toEqual([
+      'unit', 'unit', 'unit', 'age', 'unit', 'unit'
+    ]);
+  });
 });

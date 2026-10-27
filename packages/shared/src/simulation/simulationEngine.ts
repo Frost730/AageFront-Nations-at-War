@@ -105,7 +105,7 @@ export class SimulationEngine {
         age: 'Founding Age',
         resources: { ...startingResources },
         population: 4, // 3 workers + 1 scout
-        maxPopulation: 15,
+        maxPopulation: 25,
         researchedTechs: [],
         isDefeated: false,
         isVictorious: false,

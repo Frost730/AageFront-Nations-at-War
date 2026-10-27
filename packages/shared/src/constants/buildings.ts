@@ -30,7 +30,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDefinition> = {
     hp: 2400,
     width: 4,
     height: 4,
-    populationProvided: 10,
+    populationProvided: 25,
     territoryRadius: 18,
     visionRange: 14,
     attackRange: 7.0,
