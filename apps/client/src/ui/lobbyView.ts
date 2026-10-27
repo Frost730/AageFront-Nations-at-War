@@ -222,9 +222,10 @@ export class LobbyView {
             <div>
               <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">AI Difficulty</label>
               <select id="select-ai-diff" class="aoe-select" ${!isHost ? 'disabled' : ''} style="width: 100%;">
-                <option value="easy" ${state.settings.aiDifficulty === 'easy' ? 'selected' : ''}>Easy (Relaxed Expansion)</option>
-                <option value="medium" ${state.settings.aiDifficulty === 'medium' ? 'selected' : ''}>Medium (Standard Tactical)</option>
-                <option value="hard" ${state.settings.aiDifficulty === 'hard' ? 'selected' : ''}>Hard (Aggressive Tactical)</option>
+                <option value="easy" ${state.settings.aiDifficulty === 'easy' ? 'selected' : ''}>Easy (Relaxed)</option>
+                <option value="standard" ${state.settings.aiDifficulty === 'standard' || state.settings.aiDifficulty === 'medium' ? 'selected' : ''}>Standard (Balanced Tactical)</option>
+                <option value="tough" ${state.settings.aiDifficulty === 'tough' || state.settings.aiDifficulty === 'hard' ? 'selected' : ''}>Tough (Aggressive & Fortresses)</option>
+                <option value="toughest" ${state.settings.aiDifficulty === 'toughest' ? 'selected' : ''}>Toughest (Relentless & Dragon Swarms)</option>
               </select>
             </div>
 

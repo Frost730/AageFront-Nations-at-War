@@ -41,13 +41,14 @@ export class MainMenuView {
   // Skirmish War Room State
   private skirmishRoster: SkirmishCommanderConfig[] = [
     { name: 'Commander', civ: 'Veyran Confederacy', team: 1, isAi: false },
-    { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' }
+    { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' }
   ];
   private skirmishFormat: string = '1v1';
   private skirmishMapSize: number = 240;
   private skirmishMapType: MapType = 'green_frontier';
   private skirmishResources: 'standard' | 'high' | 'deathmatch' = 'standard';
   private skirmishVictory: VictoryConditionType = 'conquest';
+  private skirmishAiDifficulty: AIDifficulty = 'standard';
 
   constructor(container: HTMLElement, callbacks: MainMenuCallbacks) {
     this.callbacks = callbacks;
@@ -289,66 +290,66 @@ export class MainMenuView {
       case '1v1':
         this.skirmishRoster = [
           me,
-          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' }
+          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' }
         ];
         this.skirmishMapSize = 240; // RoN Small (2-3 players)
         break;
       case '2v2':
         this.skirmishRoster = [
           me,
-          { name: 'AI Ally 1', civ: 'Solari Dominion', team: 1, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 2', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'medium' }
+          { name: 'AI Ally 1', civ: 'Solari Dominion', team: 1, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 2', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'standard' }
         ];
         this.skirmishMapSize = 280; // RoN Standard (4 players)
         break;
       case '3v3':
         this.skirmishRoster = [
           me,
-          { name: 'AI Ally 1', civ: 'Solari Dominion', team: 1, isAi: true, difficulty: 'medium' },
-          { name: 'AI Ally 2', civ: 'Nambara Alliance', team: 1, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 2', civ: 'Veyran Confederacy', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 3', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' }
+          { name: 'AI Ally 1', civ: 'Solari Dominion', team: 1, isAi: true, difficulty: 'standard' },
+          { name: 'AI Ally 2', civ: 'Nambara Alliance', team: 1, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 2', civ: 'Veyran Confederacy', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 3', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'standard' }
         ];
         this.skirmishMapSize = 320; // RoN Large (5-6 players)
         break;
       case '4v4':
         this.skirmishRoster = [
           me,
-          { name: 'AI Ally 1', civ: 'Solari Dominion', team: 1, isAi: true, difficulty: 'medium' },
-          { name: 'AI Ally 2', civ: 'Nambara Alliance', team: 1, isAi: true, difficulty: 'medium' },
-          { name: 'AI Ally 3', civ: 'Ironvale Kingdom', team: 1, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 2', civ: 'Veyran Confederacy', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 3', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 4', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'medium' }
+          { name: 'AI Ally 1', civ: 'Solari Dominion', team: 1, isAi: true, difficulty: 'standard' },
+          { name: 'AI Ally 2', civ: 'Nambara Alliance', team: 1, isAi: true, difficulty: 'standard' },
+          { name: 'AI Ally 3', civ: 'Ironvale Kingdom', team: 1, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 2', civ: 'Veyran Confederacy', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 3', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 4', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'standard' }
         ];
         this.skirmishMapSize = 360; // RoN Huge (7-8 players)
         break;
       case '1v2':
         this.skirmishRoster = [
           me,
-          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 2', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' }
+          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 2', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'standard' }
         ];
         this.skirmishMapSize = 240; // RoN Small
         break;
       case '1v3':
         this.skirmishRoster = [
           me,
-          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 2', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Enemy 3', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'medium' }
+          { name: 'AI Enemy 1', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 2', civ: 'Solari Dominion', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Enemy 3', civ: 'Nambara Alliance', team: 2, isAi: true, difficulty: 'standard' }
         ];
         this.skirmishMapSize = 280; // RoN Standard
         break;
       case 'ffa':
         this.skirmishRoster = [
           me,
-          { name: 'AI Nation 2', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'medium' },
-          { name: 'AI Nation 3', civ: 'Solari Dominion', team: 3, isAi: true, difficulty: 'medium' },
-          { name: 'AI Nation 4', civ: 'Nambara Alliance', team: 4, isAi: true, difficulty: 'medium' }
+          { name: 'AI Nation 2', civ: 'Ironvale Kingdom', team: 2, isAi: true, difficulty: 'standard' },
+          { name: 'AI Nation 3', civ: 'Solari Dominion', team: 3, isAi: true, difficulty: 'standard' },
+          { name: 'AI Nation 4', civ: 'Nambara Alliance', team: 4, isAi: true, difficulty: 'standard' }
         ];
         this.skirmishMapSize = 280; // RoN Standard
         break;
@@ -433,11 +434,12 @@ export class MainMenuView {
           <div class="aoe-parchment-inner" style="padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
               <!-- Table Headers: Player, Civilization, Team -->
-              <div style="display: grid; grid-template-columns: 24px 1.4fr 1.2fr 80px 24px; gap: 8px; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 6px; margin-bottom: 8px;">
+              <div style="display: grid; grid-template-columns: 24px 1.2fr 1fr 85px 65px 24px; gap: 6px; align-items: center; border-bottom: 2px solid #8c6a34; padding-bottom: 6px; margin-bottom: 8px;">
                 <span></span>
-                <span class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; text-transform: uppercase;">Player</span>
-                <span class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; text-transform: uppercase;">Civilization</span>
-                <span class="cinzel" style="font-weight: 800; font-size: 12px; color: #451a03; text-transform: uppercase; text-align: center;">Team</span>
+                <span class="cinzel" style="font-weight: 800; font-size: 11px; color: #451a03; text-transform: uppercase;">Player</span>
+                <span class="cinzel" style="font-weight: 800; font-size: 11px; color: #451a03; text-transform: uppercase;">Civilization</span>
+                <span class="cinzel" style="font-weight: 800; font-size: 11px; color: #451a03; text-transform: uppercase; text-align: center;">Difficulty</span>
+                <span class="cinzel" style="font-weight: 800; font-size: 11px; color: #451a03; text-transform: uppercase; text-align: center;">Team</span>
                 <span></span>
               </div>
 
@@ -451,7 +453,7 @@ export class MainMenuView {
                   return `
                     <div style="
                       display: grid;
-                      grid-template-columns: 24px 1.4fr 1.2fr 80px 24px;
+                      grid-template-columns: 24px 1.2fr 1fr 85px 65px 24px;
                       gap: 8px;
                       align-items: center;
                       background: rgba(255, 255, 255, 0.45);
@@ -505,6 +507,20 @@ export class MainMenuView {
                             <option value="${civ}" ${c.civ === civ ? 'selected' : ''}>${civ}</option>
                           `).join('')}
                         </select>
+                      </div>
+
+                      <!-- Difficulty Select -->
+                      <div>
+                        ${isPlayer ? `
+                          <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 11px; color: #15803d; text-align: center;">Human</div>
+                        ` : `
+                          <select class="roster-diff-select aoe-select" data-index="${idx}" style="width: 100%; height: 26px; font-size: 10.5px; padding: 2px;">
+                            <option value="easy" ${c.difficulty === 'easy' ? 'selected' : ''}>Easy</option>
+                            <option value="standard" ${c.difficulty === 'standard' || c.difficulty === 'medium' || !c.difficulty ? 'selected' : ''}>Standard</option>
+                            <option value="tough" ${c.difficulty === 'tough' || c.difficulty === 'hard' ? 'selected' : ''}>Tough</option>
+                            <option value="toughest" ${c.difficulty === 'toughest' ? 'selected' : ''}>Toughest</option>
+                          </select>
+                        `}
                       </div>
 
                       <!-- Team Select -->
@@ -576,10 +592,11 @@ export class MainMenuView {
               </select>
 
               <span class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03;">AI Difficulty:</span>
-              <select class="aoe-select" style="width: 100%;">
-                <option>Standard (Medium)</option>
-                <option>Moderate</option>
-                <option>Hard</option>
+              <select id="sp-ai-difficulty" class="aoe-select" style="width: 100%;">
+                <option value="easy" ${this.skirmishAiDifficulty === 'easy' ? 'selected' : ''}>Easy (Relaxed)</option>
+                <option value="standard" ${this.skirmishAiDifficulty === 'standard' || this.skirmishAiDifficulty === 'medium' ? 'selected' : ''}>Standard (Balanced)</option>
+                <option value="tough" ${this.skirmishAiDifficulty === 'tough' || this.skirmishAiDifficulty === 'hard' ? 'selected' : ''}>Tough (Aggressive)</option>
+                <option value="toughest" ${this.skirmishAiDifficulty === 'toughest' ? 'selected' : ''}>Toughest (Relentless & Dragons)</option>
               </select>
 
               <span class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03;">Resources:</span>
@@ -714,7 +731,7 @@ export class MainMenuView {
           civ,
           team: 1,
           isAi: true,
-          difficulty: 'medium'
+          difficulty: 'standard'
         });
         this.skirmishFormat = 'custom';
         soundManager.playClick();
@@ -732,7 +749,7 @@ export class MainMenuView {
           civ,
           team: 2,
           isAi: true,
-          difficulty: 'medium'
+          difficulty: 'standard'
         });
         this.skirmishFormat = 'custom';
         soundManager.playClick();
@@ -757,6 +774,14 @@ export class MainMenuView {
       this.skirmishVictory = (e.target as HTMLSelectElement).value as any;
     });
 
+    this.rootElem.querySelector('#sp-ai-difficulty')?.addEventListener('change', (e) => {
+      this.skirmishAiDifficulty = (e.target as HTMLSelectElement).value as AIDifficulty;
+      this.skirmishRoster.forEach(p => {
+        if (p.isAi) p.difficulty = this.skirmishAiDifficulty;
+      });
+      this.render();
+    });
+
     // Navigation Buttons
     this.rootElem.querySelector('#btn-back')?.addEventListener('click', () => {
       this.currentModal = 'none';
@@ -773,7 +798,7 @@ export class MainMenuView {
         victoryCondition: this.skirmishVictory,
         startingResources: this.skirmishResources,
         sharedTeamEconomy: false,
-        aiDifficulty: 'medium'
+        aiDifficulty: this.skirmishAiDifficulty || 'standard'
       });
     });
   }

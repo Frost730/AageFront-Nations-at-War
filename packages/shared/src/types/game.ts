@@ -16,7 +16,7 @@ export type VictoryConditionType = 'conquest' | 'territorial' | 'technology' | '
 
 export type MapType = 'green_frontier' | 'highland_kingdom' | 'riverlands';
 
-export type AIDifficulty = 'easy' | 'medium' | 'hard';
+export type AIDifficulty = 'easy' | 'standard' | 'tough' | 'toughest' | 'medium' | 'hard';
 
 export type UnitType =
   | 'worker'

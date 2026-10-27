@@ -11,7 +11,8 @@ import {
   CivName,
   AgeName,
   FormationType,
-  UnitStance
+  UnitStance,
+  AIDifficulty
 } from '../types/game.js';
 import { CommandPayload, ServerSnapshot, GameEvent } from '../types/network.js';
 import { UNIT_DEFINITIONS } from '../constants/units.js';
@@ -32,6 +33,14 @@ export interface AICommanderState {
   harassUnitIds: string[];
   lastHarassTick: number;
   lastAllyHelpTick: number;
+}
+
+
+export function getAIDifficultyTier(difficulty?: AIDifficulty): 'easy' | 'standard' | 'tough' | 'toughest' {
+  if (difficulty === 'toughest') return 'toughest';
+  if (difficulty === 'tough' || difficulty === 'hard') return 'tough';
+  if (difficulty === 'standard' || difficulty === 'medium') return 'standard';
+  return 'easy';
 }
 
 export class SimulationEngine {
@@ -2713,7 +2722,11 @@ export class SimulationEngine {
       const rawRallyY = Math.round(basePos.y + (dy / dist) * rallyDist);
 
       const walkableRally = this.pathfinder.findNearestWalkable(rawRallyX, rawRallyY, 8) || { x: rawRallyX, y: rawRallyY };
-      const initialDelay = player.aiDifficulty === 'hard' ? 1000 : player.aiDifficulty === 'medium' ? 1600 : 2200;
+      const diffTier = getAIDifficultyTier(player.aiDifficulty);
+      const initialDelay =
+        diffTier === 'toughest' ? 400 :
+        diffTier === 'tough' ? 800 :
+        diffTier === 'standard' ? 1500 : 2200;
 
       state = {
         playerId: player.id,
@@ -2743,6 +2756,31 @@ export class SimulationEngine {
       const workers = myUnits.filter(u => u.type === 'worker');
       const military = myUnits.filter(u => u.type !== 'worker' && u.type !== 'scout');
       const scouts = myUnits.filter(u => u.type === 'scout');
+      const diffTier = getAIDifficultyTier(player.aiDifficulty);
+
+      // Scaled economy target
+      const targetWorkerCount =
+        diffTier === 'toughest' ? 38 :
+        diffTier === 'tough' ? 30 :
+        diffTier === 'standard' ? 22 : 14;
+
+      // Minimum baseline economy before saving for age advancement
+      const minWorkersForAge =
+        player.age === 'Founding Age' ? (diffTier === 'easy' ? 10 : 8) :
+        player.age === 'Kingdom Age' ? (diffTier === 'easy' ? 14 : 12) : 16;
+
+      const ageReq = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
+      const isAlreadyAdvancing = myBuildings.some(b => b.productionQueue.some(q => q.category === 'age'));
+
+      let isSavingForAge = false;
+      if (ageReq && ageReq.nextAge && !isAlreadyAdvancing && workers.length >= minWorkersForAge) {
+        if (
+          workers.length >= minWorkersForAge ||
+          (player.resources.food >= ageReq.cost.food * 0.7 && player.resources.wood >= ageReq.cost.wood * 0.7)
+        ) {
+          isSavingForAge = true;
+        }
+      }
 
       // Base anchor point: preferably Town Centre, otherwise any owned building or unit
       const tc = myBuildings.find(b => b.type === 'town_centre' && b.isConstructed) || myBuildings.find(b => b.type === 'town_centre');
@@ -2853,10 +2891,36 @@ export class SimulationEngine {
       }
 
       // -------------------------------------------------------------
+      // 2.5. STRATEGIC AGE ADVANCEMENT (Top Imperial Progression Priority)
+      // -------------------------------------------------------------
+      if (ageReq && ageReq.nextAge && !isAlreadyAdvancing && workers.length >= minWorkersForAge) {
+        const tcForAge = operationalTCs.find(
+          b => b.productionQueue.length < 15 && !b.productionQueue.some(q => q.category === 'age')
+        );
+        if (tcForAge) {
+          if (
+            player.resources.food >= ageReq.cost.food &&
+            player.resources.wood >= ageReq.cost.wood &&
+            player.resources.stone >= ageReq.cost.stone &&
+            player.resources.metal >= ageReq.cost.metal &&
+            player.resources.knowledge >= ageReq.cost.knowledge
+          ) {
+            this.processCommand(player.id, {
+              type: 'ADVANCE_AGE',
+              buildingId: tcForAge.id
+            });
+          }
+        }
+      }
+
+      // -------------------------------------------------------------
       // 3. WORKER REPRODUCTION ACROSS ALL TOWN CENTRES
       // -------------------------------------------------------------
-      const targetWorkerCount = player.aiDifficulty === 'hard' ? 28 : player.aiDifficulty === 'medium' ? 20 : 14;
       for (const opTc of operationalTCs) {
+        // If saving for age and we already have baseline workers, don't drain food
+        if (isSavingForAge && workers.length >= minWorkersForAge) {
+          continue;
+        }
         if (workers.length < targetWorkerCount && opTc.productionQueue.length < 2 && player.resources.food >= 50 && player.population < player.maxPopulation) {
           this.processCommand(player.id, {
             type: 'TRAIN_UNIT',
@@ -2890,8 +2954,14 @@ export class SimulationEngine {
       // -------------------------------------------------------------
       const popHeadroom = player.maxPopulation - player.population;
       const hasPendingHouse = myBuildings.some(b => b.type === 'house' && !b.isConstructed);
-      const maxHousingPop = player.aiDifficulty === 'hard' ? 200 : 150;
-      const headroomThreshold = player.aiDifficulty === 'hard' ? 7 : 5;
+      const maxHousingPop =
+        diffTier === 'toughest' ? 250 :
+        diffTier === 'tough' ? 200 :
+        diffTier === 'standard' ? 150 : 100;
+      const headroomThreshold =
+        diffTier === 'toughest' ? 8 :
+        diffTier === 'tough' ? 7 :
+        diffTier === 'standard' ? 5 : 4;
       if (player.maxPopulation < maxHousingPop && popHeadroom <= headroomThreshold && !hasPendingHouse && player.resources.wood >= 60) {
         const builder = getBuilderWorker();
         if (builder) {
@@ -2910,7 +2980,10 @@ export class SimulationEngine {
       // -------------------------------------------------------------
       // 6. NATION EXPANSION (SECONDARY TOWN CENTRES / COLONIES)
       // -------------------------------------------------------------
-      const maxTCs = player.age === 'Founding Age' ? 1 : player.age === 'Kingdom Age' ? 2 : (player.aiDifficulty === 'hard' ? 4 : 3);
+      const maxTCs =
+        player.age === 'Founding Age' ? 1 :
+        player.age === 'Kingdom Age' ? 2 :
+        (diffTier === 'toughest' ? 5 : diffTier === 'tough' ? 4 : diffTier === 'standard' ? 3 : 2);
       if (totalTCs < maxTCs && operationalTCs.length > 0 && workers.length >= 8 && player.resources.wood >= 250 && player.resources.stone >= 100 && !myBuildings.some(b => b.type === 'town_centre' && !b.isConstructed)) {
         const builder = getBuilderWorker();
         if (builder) {
@@ -2941,13 +3014,33 @@ export class SimulationEngine {
       const miningCampCount = myBuildings.filter(b => b.type === 'mining_camp').length;
 
       // Scaled maximums based on Age & Difficulty
-      const maxBarracks = player.age === 'Founding Age' ? (player.aiDifficulty === 'hard' ? 2 : 1) : player.age === 'Kingdom Age' ? (player.aiDifficulty === 'hard' ? 3 : 2) : (player.aiDifficulty === 'hard' ? 4 : 3);
-      const maxArchery = player.age === 'Founding Age' ? 0 : player.age === 'Kingdom Age' ? (player.aiDifficulty === 'hard' ? 2 : 1) : (player.aiDifficulty === 'hard' ? 3 : 2);
-      const maxStables = player.age === 'Founding Age' ? 0 : player.age === 'Kingdom Age' ? (player.aiDifficulty === 'hard' ? 2 : 1) : (player.aiDifficulty === 'hard' ? 3 : 2);
-      const maxWorkshops = (player.age === 'Imperial Age' || player.age === 'Industrial Age') ? (player.aiDifficulty === 'hard' ? 2 : 1) : 0;
-      const maxForts = (player.age === 'Imperial Age' || player.age === 'Industrial Age') ? (player.aiDifficulty === 'hard' ? 2 : 1) : 0;
-      const maxFarms = player.age === 'Founding Age' ? 4 : player.age === 'Kingdom Age' ? 6 : (player.aiDifficulty === 'hard' ? 10 : 8);
-      const maxTowers = player.aiDifficulty === 'hard' ? 6 : player.aiDifficulty === 'medium' ? 4 : 2;
+      const maxBarracks =
+        player.age === 'Founding Age' ? (diffTier === 'toughest' || diffTier === 'tough' ? 2 : 1) :
+        player.age === 'Kingdom Age' ? (diffTier === 'toughest' ? 4 : diffTier === 'tough' ? 3 : 2) :
+        (diffTier === 'toughest' ? 5 : diffTier === 'tough' ? 4 : 3);
+      const maxArchery =
+        player.age === 'Founding Age' ? 0 :
+        player.age === 'Kingdom Age' ? (diffTier === 'toughest' ? 3 : diffTier === 'tough' ? 2 : 1) :
+        (diffTier === 'toughest' ? 4 : diffTier === 'tough' ? 3 : 2);
+      const maxStables =
+        player.age === 'Founding Age' ? 0 :
+        player.age === 'Kingdom Age' ? (diffTier === 'toughest' ? 3 : diffTier === 'tough' ? 2 : 1) :
+        (diffTier === 'toughest' ? 4 : diffTier === 'tough' ? 3 : 2);
+      const maxWorkshops =
+        (player.age === 'Imperial Age' || player.age === 'Industrial Age') ?
+        (diffTier === 'toughest' ? 3 : diffTier === 'tough' ? 2 : 1) : 0;
+      const maxForts =
+        player.age === 'Founding Age' ? 0 :
+        player.age === 'Kingdom Age' ? (diffTier === 'toughest' ? 2 : diffTier === 'easy' ? 0 : 1) :
+        (diffTier === 'toughest' ? 4 : diffTier === 'tough' ? 3 : diffTier === 'standard' ? 2 : 1);
+      const maxFarms =
+        player.age === 'Founding Age' ? 4 :
+        player.age === 'Kingdom Age' ? 6 :
+        (diffTier === 'toughest' ? 12 : diffTier === 'tough' ? 10 : 8);
+      const maxTowers =
+        diffTier === 'toughest' ? 8 :
+        diffTier === 'tough' ? 6 :
+        diffTier === 'standard' ? 4 : 2;
 
       if (barracksCount < maxBarracks && player.resources.wood >= 120 && player.resources.stone >= 30) {
         const builder = getBuilderWorker();
@@ -3014,7 +3107,7 @@ export class SimulationEngine {
             });
           }
         }
-      } else if (fortCount < maxForts && player.resources.stone >= 250 && player.resources.metal >= 150) {
+      } else if (fortCount < maxForts && player.resources.wood >= 180 && player.resources.stone >= 350 && player.resources.metal >= 100 && player.resources.knowledge >= 20) {
         const builder = getBuilderWorker();
         if (builder) {
           const spot = this.findBuildingPlacementSpot('fort', basePos.x, basePos.y);
@@ -3100,22 +3193,7 @@ export class SimulationEngine {
         }
       }
 
-      // 5. Age Advancement
-      const req = AGE_ADVANCEMENT_REQUIREMENTS[player.age];
-      if (req && req.nextAge && tc && tc.isConstructed && tc.productionQueue.length === 0) {
-        if (
-          player.resources.food >= req.cost.food &&
-          player.resources.wood >= req.cost.wood &&
-          player.resources.stone >= req.cost.stone &&
-          player.resources.metal >= req.cost.metal &&
-          player.resources.knowledge >= req.cost.knowledge
-        ) {
-          this.processCommand(player.id, {
-            type: 'ADVANCE_AGE',
-            buildingId: tc.id
-          });
-        }
-      }
+      // 5. Age Advancement handled above in priority 2.5
 
       // 6. Technology Research
       const researchBldg = myBuildings.find(b => b.type === 'research_hall' && b.isConstructed && b.productionQueue.length === 0);
@@ -3196,33 +3274,55 @@ export class SimulationEngine {
       }
 
       const fortList = myBuildings.filter(b => b.type === 'fort' && b.isConstructed && b.productionQueue.length < 2);
+
+      // AERIAL DRAGON RECRUITMENT & AIR DOMINANCE (Imperial & Industrial Age)
+      if (player.age === 'Imperial Age' || player.age === 'Industrial Age') {
+        const livingDragons = myUnits.filter(u => u.type === 'dragon').length;
+        const queuedDragons = myBuildings.reduce(
+          (sum, b) => sum + b.productionQueue.filter(q => q.itemType === 'dragon').length, 0
+        );
+        const totalDragons = livingDragons + queuedDragons;
+
+        const targetDragons =
+          diffTier === 'toughest' ? 5 :
+          diffTier === 'tough' ? 3 :
+          diffTier === 'standard' ? 2 : 1;
+
+        if (totalDragons < targetDragons && player.population + 4 <= player.maxPopulation) {
+          // Check Forts first, then Town Centres
+          const dragonProducers = [
+            ...fortList,
+            ...operationalTCs.filter(b => b.productionQueue.length < 2)
+          ];
+
+          for (const prodBldg of dragonProducers) {
+            if (
+              player.resources.food >= 150 &&
+              player.resources.wood >= 40 &&
+              player.resources.metal >= 120 &&
+              player.resources.knowledge >= 60
+            ) {
+              this.processCommand(player.id, {
+                type: 'TRAIN_UNIT',
+                buildingId: prodBldg.id,
+                unitType: 'dragon'
+              });
+              break;
+            }
+          }
+        }
+      }
+
+      // Train Royal Guards at Fort in Kingdom Age or if dragon requirements aren't met
       for (const b of fortList) {
-        if (player.population + 4 <= player.maxPopulation) {
-          const canDragon = player.resources.food >= 150 && player.resources.metal >= 120 && player.resources.knowledge >= 60;
-          if (canDragon) {
-            this.processCommand(player.id, {
-              type: 'TRAIN_UNIT',
-              buildingId: b.id,
-              unitType: 'dragon'
-            });
-          } else if (player.resources.food >= 120 && player.resources.metal >= 120) {
+        if (b.productionQueue.length < 2 && player.population + 2 <= player.maxPopulation) {
+          if (player.resources.food >= 120 && player.resources.metal >= 120) {
             this.processCommand(player.id, {
               type: 'TRAIN_UNIT',
               buildingId: b.id,
               unitType: 'advanced_unit'
             });
           }
-        }
-      }
-
-      // Train War Dragon from Town Centre in Imperial/Industrial Age if fort is busy or not built
-      if ((player.age === 'Imperial Age' || player.age === 'Industrial Age') && tc && tc.isConstructed && tc.productionQueue.length < 2) {
-        if (player.population + 4 <= player.maxPopulation && player.resources.food >= 150 && player.resources.metal >= 120 && player.resources.knowledge >= 60) {
-          this.processCommand(player.id, {
-            type: 'TRAIN_UNIT',
-            buildingId: tc.id,
-            unitType: 'dragon'
-          });
         }
       }
 
@@ -3316,8 +3416,8 @@ export class SimulationEngine {
       }
 
       // C. Cavalry Harass Raids (Medium & Hard AI)
-      if (state.currentTactic === 'amassing' && player.aiDifficulty !== 'easy' && state.harassUnitIds.length === 0) {
-        const harassCooldown = player.aiDifficulty === 'hard' ? 600 : 1000;
+      if (state.currentTactic === 'amassing' && diffTier !== 'easy' && state.harassUnitIds.length === 0) {
+        const harassCooldown = diffTier === 'toughest' ? 350 : diffTier === 'tough' ? 600 : 1000;
         if (this.currentTick - state.lastHarassTick >= harassCooldown) {
           const cavUnits = military.filter(u => u.type === 'cavalry' && !state.harassUnitIds.includes(u.id));
           if (cavUnits.length >= 1) {
@@ -3334,7 +3434,7 @@ export class SimulationEngine {
                   closestW = ew;
                 }
               }
-              const raidUnits = cavUnits.slice(0, player.aiDifficulty === 'hard' ? 2 : 1);
+              const raidUnits = cavUnits.slice(0, diffTier === 'toughest' ? 3 : diffTier === 'tough' ? 2 : 1);
               state.harassUnitIds = raidUnits.map(r => r.id);
               state.lastHarassTick = this.currentTick;
               this.processCommand(player.id, {
@@ -3374,8 +3474,8 @@ export class SimulationEngine {
 
       // D. Amassing & Wave Launch Transition
       const mainMilitary = military.filter(m => !state.harassUnitIds.includes(m.id));
-      const waveThreshold = player.aiDifficulty === 'hard' ? 10 : player.aiDifficulty === 'medium' ? 7 : 5;
-      const minTimerThreshold = player.aiDifficulty === 'hard' ? 4 : player.aiDifficulty === 'medium' ? 3 : 2;
+      const waveThreshold = diffTier === 'toughest' ? 4 : diffTier === 'tough' ? 5 : diffTier === 'standard' ? 7 : 10;
+      const minTimerThreshold = diffTier === 'toughest' ? 5 : diffTier === 'tough' ? 4 : diffTier === 'standard' ? 3 : 2;
 
       if (state.currentTactic === 'amassing') {
         // Move idle units to rally point if far from staging area
@@ -3399,7 +3499,7 @@ export class SimulationEngine {
         if (sizeTriggered || timeTriggered) {
           state.currentTactic = 'assault';
           state.waveNumber++;
-          const waveCooldown = player.aiDifficulty === 'hard' ? 1200 : player.aiDifficulty === 'medium' ? 1800 : 2400;
+          const waveCooldown = diffTier === 'toughest' ? 700 : diffTier === 'tough' ? 1100 : diffTier === 'standard' ? 1600 : 2400;
           state.nextWaveTick = this.currentTick + waveCooldown;
           state.assignedTargetId = undefined;
         }
