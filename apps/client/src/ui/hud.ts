@@ -1428,16 +1428,16 @@ export class HudView {
     this.actionMatrixElem.innerHTML = '';
 
     const stances: { id: UnitStance; label: string; icon: string; hotkey: string }[] = [
-      { id: 'aggressive', label: 'Aggressive', icon: '⚔️', hotkey: 'Q' },
-      { id: 'defensive', label: 'Defensive', icon: '🛡️', hotkey: 'W' },
-      { id: 'stand_ground', label: 'Stand Ground', icon: '🛑', hotkey: 'E' }
+      { id: 'aggressive', label: 'Aggressive', icon: '⚔️', hotkey: 'Z' },
+      { id: 'defensive', label: 'Defensive', icon: '🛡️', hotkey: 'X' },
+      { id: 'stand_ground', label: 'Stand Ground', icon: '🛑', hotkey: 'C' }
     ];
 
     const formations: { id: FormationType; label: string; icon: string; hotkey: string }[] = [
-      { id: 'line', label: 'Line', icon: '━', hotkey: 'A' },
-      { id: 'box', label: 'Box', icon: '⏹', hotkey: 'S' },
-      { id: 'staggered', label: 'Staggered', icon: '⁖', hotkey: 'D' },
-      { id: 'column', label: 'Column', icon: '‖', hotkey: 'F' }
+      { id: 'line', label: 'Line', icon: '━', hotkey: '1' },
+      { id: 'box', label: 'Box', icon: '⏹', hotkey: '2' },
+      { id: 'staggered', label: 'Staggered', icon: '⁖', hotkey: '3' },
+      { id: 'column', label: 'Column', icon: '‖', hotkey: '4' }
     ];
 
     // Stance Buttons
@@ -1534,7 +1534,7 @@ export class HudView {
       { type: 'fort', label: 'Fortress', icon: '🏰', costText: '180W 350S' }
     ];
 
-    const hotkeys = ['Q', 'W', 'E', 'R', 'T', 'A', 'S', 'D', 'F', 'G', 'Z', 'X'];
+    const hotkeys = ['Q', 'E', 'R', 'T', 'Y', 'F', 'G', 'H', 'Z', 'X', 'C', 'V'];
 
     buildingsToOffer.forEach((b, idx) => {
       const def = BUILDING_DEFINITIONS[b.type];
@@ -1610,7 +1610,7 @@ export class HudView {
       this.createTrainUnitButton(bldg, 'trade_cart', 'Trade Cart', '🛒', '50F 50W', 'Q', player);
 
       const trades: { label: string; icon: string; buy: ResourceType; sell: ResourceType; buyAmt: number; sellAmt: number; hotkey: string }[] = [
-        { label: 'Buy Food', icon: '🌾', buy: 'food', sell: 'wood', buyAmt: 100, sellAmt: 120, hotkey: 'W' },
+        { label: 'Buy Food', icon: '🌾', buy: 'food', sell: 'wood', buyAmt: 100, sellAmt: 120, hotkey: 'E' },
         { label: 'Buy Wood', icon: '🪵', buy: 'wood', sell: 'food', buyAmt: 100, sellAmt: 120, hotkey: 'E' },
         { label: 'Buy Stone', icon: '🪨', buy: 'stone', sell: 'wood', buyAmt: 100, sellAmt: 130, hotkey: 'R' },
         { label: 'Buy Gold', icon: '🪙', buy: 'metal', sell: 'wood', buyAmt: 100, sellAmt: 150, hotkey: 'T' },
@@ -1661,10 +1661,10 @@ export class HudView {
       if (totalScouts >= 3) {
         const maxScoutBtn = document.createElement('button');
         maxScoutBtn.className = 'aoe3-action-btn';
-        maxScoutBtn.dataset.hotkey = 'W';
+        maxScoutBtn.dataset.hotkey = 'C';
         maxScoutBtn.style.cssText = 'position: relative; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; border-color: #64748b; opacity: 0.65; cursor: not-allowed;';
         maxScoutBtn.innerHTML = `
-          <span class="aoe3-hotkey-badge">W</span>
+          <span class="aoe3-hotkey-badge">C</span>
           <span class="aoe3-queue-count-badge" style="background: #475569; color: #f1f5f9;">3/3 MAX</span>
           <span style="font-size: 16px;">🧭</span>
           <span style="font-weight: 700; color: #94a3b8;">Scout</span>
@@ -1678,7 +1678,7 @@ export class HudView {
         });
         this.actionMatrixElem.appendChild(maxScoutBtn);
       } else {
-        this.createTrainUnitButton(bldg, 'scout', 'Scout', '🧭', '70F 20W', 'W', player);
+        this.createTrainUnitButton(bldg, 'scout', 'Scout', '🧭', '70F 20W', 'C', player);
       }
 
       // Advance Age Button (Interactive Queue & Advancement)
@@ -1763,9 +1763,9 @@ export class HudView {
     // Barracks Units
     if (bldg.type === 'barracks') {
       this.createTrainUnitButton(bldg, 'basic_infantry', 'Infantry', '⚔️', '60F 20G', 'Q', player);
-      this.createTrainUnitButton(bldg, 'spearman', 'Spearman', '🛡️', '50F 20W', 'W', player);
+      this.createTrainUnitButton(bldg, 'spearman', 'Spearman', '🛡️', '50F 20W', 'E', player);
       if (player.age === 'Imperial Age' || player.age === 'Industrial Age') {
-        this.createTrainUnitButton(bldg, 'advanced_unit', 'Royal Guard', '👑', '120F 120G', 'E', player);
+        this.createTrainUnitButton(bldg, 'advanced_unit', 'Royal Guard', '👑', '120F 120G', 'R', player);
       }
     }
 
@@ -1787,7 +1787,7 @@ export class HudView {
     // Fort / Roost: War Dragon
     if (bldg.type === 'fort') {
       this.createTrainUnitButton(bldg, 'advanced_unit', 'Royal Guard', '🛡️', '120F 120G', 'Q', player);
-      this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'W', player);
+      this.createTrainUnitButton(bldg, 'dragon', 'War Dragon', '🐉', '250F 250G', 'R', player);
     }
 
     // Research Hall: Technologies
@@ -1905,7 +1905,7 @@ export class HudView {
         return a.name.localeCompare(b.name);
       });
 
-      const hotkeys = ['Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V', 'T', 'G', 'B', 'Y'];
+      const hotkeys = ['1', '2', '3', '4', '5', '6', '7', '8', 'Q', 'E', 'R', 'F', 'Z', 'X', 'C', 'V'];
       filteredTechs.forEach((t, idx) => {
         const tAgeRank = ageRank(t.requiredAge);
         const isAgeLocked = tAgeRank > playerAgeRank;
@@ -3172,6 +3172,13 @@ export class HudView {
 
       // Check if button with matching hotkey exists in actionMatrixElem
       const key = e.key.toUpperCase();
+
+      // Camera navigation keys (WASD & Arrows) must never trigger action matrix clicks
+      const CAMERA_KEYS = ['W', 'A', 'S', 'D', 'ARROWUP', 'ARROWDOWN', 'ARROWLEFT', 'ARROWRIGHT'];
+      if (CAMERA_KEYS.includes(key)) {
+        return;
+      }
+
       const targetBtn = this.actionMatrixElem.querySelector<HTMLButtonElement>(`.aoe3-action-btn[data-hotkey="${key}"]`);
       if (targetBtn && !e.ctrlKey && !e.altKey && !e.metaKey) {
         targetBtn.dispatchEvent(new MouseEvent('click', { shiftKey: e.shiftKey, bubbles: true }));
