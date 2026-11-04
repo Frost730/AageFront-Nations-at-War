@@ -1073,6 +1073,23 @@ describe('Industrial Age Instant Troop Spawning', () => {
     player.resources.wood = 500;
     player.resources.food = 100;
 
+    // Commercial Market required for commodity exchange
+    sim.buildings.set('bldg_test_market', {
+      id: 'bldg_test_market',
+      ownerId: 'player_human',
+      team: 1,
+      type: 'market',
+      x: 10,
+      y: 10,
+      width: 3,
+      height: 3,
+      hp: 600,
+      maxHp: 600,
+      isConstructed: true,
+      constructionProgress: 1,
+      productionQueue: []
+    });
+
     // Exchange 120 Wood for 100 Food
     const ok = sim.processCommand('player_human', {
       type: 'TRADE_COMMODITY',

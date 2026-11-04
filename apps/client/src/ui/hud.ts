@@ -13,7 +13,8 @@ import {
   AgeName,
   ResourceType,
   UnitStance,
-  FormationType
+  FormationType,
+  escapeHtml
 } from '@agefront/shared';
 import { soundManager } from '../audio/soundManager.js';
 
@@ -954,7 +955,7 @@ export class HudView {
             <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">
               <span style="font-weight: 800; color: #fef08a; font-size: 10px;">${idx + 1}</span>
               <span style="font-size: 11px;">${civFlags[s.player.civ] || '🛡️'}</span>
-              <strong style="color: ${s.player.id === player.id ? '#67e8f9' : '#f8fafc'}; font-size: 11px;">${s.player.name}</strong>
+              <strong style="color: ${s.player.id === player.id ? '#67e8f9' : '#f8fafc'}; font-size: 11px;">${escapeHtml(s.player.name)}</strong>
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-family: monospace; font-weight: 700; color: #fef08a;">${s.score.toLocaleString()}</span>
@@ -2584,8 +2585,8 @@ export class HudView {
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <div style="width: 12px; height: 12px; border-radius: 50%; background: ${tm.color}; border: 1px solid #000;"></div>
-                  <strong style="font-size: 14px; color: #3b1d08;">${tm.name}</strong>
-                  <span style="font-size: 11px; color: #78350f;">(${tm.civ} • ${tm.age})</span>
+                  <strong style="font-size: 14px; color: #3b1d08;">${escapeHtml(tm.name)}</strong>
+                  <span style="font-size: 11px; color: #78350f;">(${escapeHtml(tm.civ)} • ${escapeHtml(tm.age)})</span>
                 </div>
                 <div style="font-size: 12px; color: #991b1b; font-weight: 800;">
                   Pop: ${tm.population}/${tm.maxPopulation}

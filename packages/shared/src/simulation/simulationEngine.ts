@@ -143,7 +143,7 @@ export class SimulationEngine {
 
   public isValidBuildingPlacement(type: BuildingType, px: number, py: number, minGap: number = 1): boolean {
     const def = BUILDING_DEFINITIONS[type];
-    if (!def) return false;
+    if (!def || !Number.isFinite(px) || !Number.isFinite(py)) return false;
 
     // Bounds check
     if (px < 1 || px + def.width >= this.mapData.width - 1 || py < 1 || py + def.height >= this.mapData.height - 1) {
@@ -440,13 +440,20 @@ export class SimulationEngine {
   }
 
   public processCommand(playerId: string, cmd: CommandPayload): boolean {
+    if (!cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string') return false;
     const player = this.players.get(playerId);
     if (!player || player.isDefeated) return false;
 
     switch (cmd.type) {
       case 'MOVE': {
+        if (!Array.isArray(cmd.unitIds) || !cmd.target || !Number.isFinite(cmd.target.x) || !Number.isFinite(cmd.target.y)) {
+          return false;
+        }
+        cmd.target.x = Math.max(0, Math.min(this.mapData.width - 1, cmd.target.x));
+        cmd.target.y = Math.max(0, Math.min(this.mapData.height - 1, cmd.target.y));
+        const unitIdList = cmd.unitIds.slice(0, 200);
         const validUnits: UnitData[] = [];
-        for (const uid of cmd.unitIds) {
+        for (const uid of unitIdList) {
           const u = this.units.get(uid);
           if (u && u.ownerId === playerId && u.state !== 'dead') {
             validUnits.push(u);
@@ -478,7 +485,21 @@ export class SimulationEngine {
       }
 
       case 'TRADE_COMMODITY': {
+        if (!Number.isFinite(cmd.buyAmount) || !Number.isFinite(cmd.sellAmount)) return false;
         if (cmd.buyAmount <= 0 || cmd.sellAmount <= 0) return false;
+        const validResTypes: ResourceType[] = ['food', 'wood', 'stone', 'metal', 'knowledge'];
+        if (!validResTypes.includes(cmd.buyResource) || !validResTypes.includes(cmd.sellResource)) return false;
+        if (cmd.buyResource === cmd.sellResource) return false;
+
+        // Player must own an operational constructed Market to trade commodities
+        const hasMarket = Array.from(this.buildings.values()).some(
+          b => b.ownerId === playerId && b.type === 'market' && b.isConstructed && b.hp > 0
+        );
+        if (!hasMarket) return false;
+
+        // Fair trade ratio check (prevent infinite free resource generation exploits)
+        if (cmd.sellAmount < cmd.buyAmount * 0.7) return false;
+
         if (player.resources[cmd.sellResource] < cmd.sellAmount) return false;
         player.resources[cmd.sellResource] -= cmd.sellAmount;
         player.resources[cmd.buyResource] += cmd.buyAmount;
@@ -487,6 +508,9 @@ export class SimulationEngine {
       }
 
       case 'SET_STANCE': {
+        if (!Array.isArray(cmd.unitIds) || !['aggressive', 'defensive', 'stand_ground'].includes(cmd.stance)) {
+          return false;
+        }
         for (const uid of cmd.unitIds) {
           const unit = this.units.get(uid);
           if (!unit || unit.ownerId !== playerId || unit.state === 'dead') continue;
@@ -499,6 +523,7 @@ export class SimulationEngine {
       }
 
       case 'ATTACK': {
+        if (!Array.isArray(cmd.unitIds) || typeof cmd.targetEntityId !== 'string') return false;
         const targetUnit = this.units.get(cmd.targetEntityId);
         const targetBuilding = this.buildings.get(cmd.targetEntityId);
         const targetTeam = targetUnit?.team ?? targetBuilding?.team;
@@ -596,6 +621,7 @@ export class SimulationEngine {
       }
 
       case 'GATHER': {
+        if (!Array.isArray(cmd.unitIds) || typeof cmd.resourceNodeId !== 'string') return false;
         const node = this.resourceNodes.get(cmd.resourceNodeId);
         const bldg = this.buildings.get(cmd.resourceNodeId);
 
@@ -657,6 +683,9 @@ export class SimulationEngine {
 
 
       case 'BUILD': {
+        if (!cmd.buildingType || !BUILDING_DEFINITIONS[cmd.buildingType]) return false;
+        if (!cmd.position || !Number.isFinite(cmd.position.x) || !Number.isFinite(cmd.position.y)) return false;
+        if (!Array.isArray(cmd.unitIds)) (cmd as any).unitIds = [];
         const def = BUILDING_DEFINITIONS[cmd.buildingType];
         if (!def) return false;
 
@@ -756,6 +785,7 @@ export class SimulationEngine {
       }
 
       case 'REPAIR': {
+        if (typeof cmd.buildingId !== 'string' || !Array.isArray(cmd.unitIds)) return false;
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg) return false;
         const player = this.players.get(playerId);
@@ -780,6 +810,7 @@ export class SimulationEngine {
       }
 
       case 'TRAIN_UNIT': {
+        if (typeof cmd.buildingId !== 'string' || !cmd.unitType || !UNIT_DEFINITIONS[cmd.unitType]) return false;
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg || bldg.ownerId !== playerId || !bldg.isConstructed) return false;
 
@@ -852,6 +883,7 @@ export class SimulationEngine {
       }
 
       case 'RESEARCH_TECH': {
+        if (typeof cmd.buildingId !== 'string' || typeof cmd.techId !== 'string') return false;
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg || bldg.ownerId !== playerId || !bldg.isConstructed) return false;
 
@@ -905,6 +937,7 @@ export class SimulationEngine {
       }
 
       case 'ADVANCE_AGE': {
+        if (typeof cmd.buildingId !== 'string') return false;
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg || bldg.ownerId !== playerId || bldg.type !== 'town_centre' || !bldg.isConstructed) return false;
 
@@ -947,6 +980,7 @@ export class SimulationEngine {
       }
 
       case 'SET_RALLY_POINT': {
+        if (typeof cmd.buildingId !== 'string' || !cmd.point || !Number.isFinite(cmd.point.x) || !Number.isFinite(cmd.point.y)) return false;
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg || bldg.ownerId !== playerId) return false;
         bldg.rallyPoint = {
@@ -959,6 +993,7 @@ export class SimulationEngine {
       }
 
       case 'TOGGLE_AUTO_EXPLORE': {
+        if (!Array.isArray(cmd.unitIds)) return false;
         for (const uid of cmd.unitIds) {
           const unit = this.units.get(uid);
           if (unit && unit.ownerId === playerId && unit.type === 'scout' && unit.state !== 'dead') {
@@ -986,6 +1021,7 @@ export class SimulationEngine {
       }
 
       case 'CANCEL_PRODUCTION': {
+        if (typeof cmd.buildingId !== 'string' || !Number.isInteger(cmd.queueIndex) || cmd.queueIndex < 0) return false;
         const bldg = this.buildings.get(cmd.buildingId);
         if (!bldg || bldg.ownerId !== playerId) return false;
         const item = bldg.productionQueue[cmd.queueIndex];
@@ -1027,6 +1063,10 @@ export class SimulationEngine {
       }
 
       case 'TRANSFER_RESOURCES': {
+        if (typeof cmd.recipientId !== 'string') return false;
+        const validResTypes: ResourceType[] = ['food', 'wood', 'stone', 'metal', 'knowledge'];
+        if (!validResTypes.includes(cmd.resource)) return false;
+        if (!Number.isFinite(cmd.amount) || cmd.amount <= 0 || isNaN(cmd.amount)) return false;
         const recipient = this.players.get(cmd.recipientId);
         if (!recipient || recipient.team !== player.team || cmd.amount <= 0) return false;
 

@@ -22,28 +22,37 @@ const isAllowedLanOrigin = (origin?: string): boolean => {
   try {
     const url = new URL(origin);
     const host = url.hostname;
-    return (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host.startsWith('192.168.') ||
-      host.startsWith('10.') ||
-      host.startsWith('172.') ||
-      host.endsWith('.local') ||
-      host.endsWith('.onrender.com') ||
-      host.endsWith('.render.com') ||
-      Boolean(process.env.RENDER) ||
-      Boolean(process.env.ALLOWED_ORIGINS?.split(',').includes(host))
-    );
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+    if (host.startsWith('192.168.') || host.startsWith('10.') || host.endsWith('.local')) return true;
+
+    // RFC1918 172.16.0.0 - 172.31.255.255 private subnet check
+    const match172 = /^172\.(\d{1,3})\./.exec(host);
+    if (match172) {
+      const second = parseInt(match172[1], 10);
+      if (second >= 16 && second <= 31) return true;
+    }
+
+    // Specific external hostname if deployed on cloud (prevent wildcard *.onrender.com hijack)
+    if (process.env.RENDER_EXTERNAL_HOSTNAME && host === process.env.RENDER_EXTERNAL_HOSTNAME) return true;
+    if (process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()).includes(host)) return true;
+
+    return false;
   } catch {
     return false;
   }
 };
 
-// Security and privacy headers
+// Security hardening: disable framework fingerprinting and enforce privacy headers
+app.disable('x-powered-by');
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss: http: https:;"
+  );
   next();
 });
 
@@ -56,7 +65,7 @@ app.use(cors({
     }
   }
 }));
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = '0.0.0.0';

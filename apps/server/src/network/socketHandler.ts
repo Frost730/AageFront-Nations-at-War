@@ -3,9 +3,45 @@ import {
   ClientToServerEvents,
   ServerToClientEvents,
   CommandPayload,
-  CivName
+  CivName,
+  CIVILIZATIONS
 } from '@agefront/shared';
-import { LobbyManager, Room } from '../lobby/lobbyManager.js';
+import { LobbyManager, Room, validateGameSettings } from '../lobby/lobbyManager.js';
+
+
+class SocketRateLimiter {
+  private commandBuckets = new Map<string, { count: number; resetTime: number }>();
+  private lobbyBuckets = new Map<string, { count: number; resetTime: number }>();
+
+  public checkCommand(socketId: string, limit: number = 60): boolean {
+    const now = Date.now();
+    let b = this.commandBuckets.get(socketId);
+    if (!b || now > b.resetTime) {
+      this.commandBuckets.set(socketId, { count: 1, resetTime: now + 1000 });
+      return true;
+    }
+    b.count++;
+    return b.count <= limit;
+  }
+
+  public checkLobby(socketId: string, limit: number = 15): boolean {
+    const now = Date.now();
+    let b = this.lobbyBuckets.get(socketId);
+    if (!b || now > b.resetTime) {
+      this.lobbyBuckets.set(socketId, { count: 1, resetTime: now + 1000 });
+      return true;
+    }
+    b.count++;
+    return b.count <= limit;
+  }
+
+  public cleanup(socketId: string): void {
+    this.commandBuckets.delete(socketId);
+    this.lobbyBuckets.delete(socketId);
+  }
+}
+
+const rateLimiter = new SocketRateLimiter();
 
 export function setupSocketHandler(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
@@ -22,6 +58,10 @@ export function setupSocketHandler(
 
     // Request permission to join a match room
     socket.on('lobby:requestJoin', ({ roomCode = 'MAIN', name, civ = 'Veyran Confederacy', team = 1 }) => {
+      if (!rateLimiter.checkLobby(socket.id)) {
+        socket.emit('lobby:error', 'Too many requests. Please slow down.');
+        return;
+      }
       const room = lobbyManager.getOrCreateRoom(roomCode);
       if (room.players.length >= 8) {
         socket.emit('lobby:error', 'Match room is full (8/8 players).');
@@ -136,6 +176,10 @@ export function setupSocketHandler(
 
     // Direct Join / Host Lobby
     socket.on('lobby:join', ({ name, civ, team }) => {
+      if (!rateLimiter.checkLobby(socket.id)) {
+        socket.emit('lobby:error', 'Too many requests. Please slow down.');
+        return;
+      }
       currentRoom = lobbyManager.getOrCreateRoom('MAIN');
       socket.join(currentRoom.roomCode);
 
@@ -157,7 +201,8 @@ export function setupSocketHandler(
         return;
       }
 
-      currentRoom.settings = { ...currentRoom.settings, ...settings };
+      const validatedSettings = validateGameSettings(settings);
+      currentRoom.settings = { ...currentRoom.settings, ...validatedSettings };
       io.to(currentRoom.roomCode).emit('lobby:state', lobbyManager.getLobbyState(currentRoom));
     });
 
@@ -167,9 +212,11 @@ export function setupSocketHandler(
       const player = currentRoom.players.find(p => p.socketId === socket.id);
       if (!player) return;
 
-      if (data.civ) player.civ = data.civ;
-      if (data.team !== undefined) player.team = data.team;
-      if (data.isReady !== undefined) player.isReady = data.isReady;
+      if (data && typeof data === 'object') {
+        if (data.civ && data.civ in CIVILIZATIONS) player.civ = data.civ;
+        if (typeof data.team === 'number' && Number.isInteger(data.team) && data.team >= 1 && data.team <= 4) player.team = data.team;
+        if (typeof data.isReady === 'boolean') player.isReady = data.isReady;
+      }
 
       io.to(currentRoom.roomCode).emit('lobby:state', lobbyManager.getLobbyState(currentRoom));
     });
@@ -180,7 +227,9 @@ export function setupSocketHandler(
       const player = currentRoom.players.find(p => p.socketId === socket.id);
       if (!player || !player.isHost) return;
 
-      lobbyManager.addAi(currentRoom, civ, team);
+      if (currentRoom.players.length < 8) {
+        lobbyManager.addAi(currentRoom, civ, team);
+      }
       io.to(currentRoom.roomCode).emit('lobby:state', lobbyManager.getLobbyState(currentRoom));
     });
 
@@ -248,16 +297,22 @@ export function setupSocketHandler(
       }, 50);
     });
 
-    // Handle in-game command (Validated server-side)
+    // Handle in-game command (Validated server-side and rate-limited)
     socket.on('game:command', (cmd: CommandPayload) => {
       if (!currentRoom || !currentRoom.simulation || !currentPlayerId) return;
+      if (!rateLimiter.checkCommand(socket.id)) return;
+      if (!cmd || typeof cmd !== 'object') return;
 
-      // Authoritative validation: unit/building ownership is checked inside processCommand
-      currentRoom.simulation.processCommand(currentPlayerId, cmd);
+      try {
+        currentRoom.simulation.processCommand(currentPlayerId, cmd);
+      } catch (err) {
+        console.error('[Security] Exception caught in processCommand for socket', socket.id, err);
+      }
     });
 
     // Disconnect
     socket.on('disconnect', () => {
+      rateLimiter.cleanup(socket.id);
       if (currentRoom) {
         lobbyManager.removePlayer(currentRoom, socket.id);
         currentRoom.pendingRequests = currentRoom.pendingRequests.filter(r => r.socketId !== socket.id);

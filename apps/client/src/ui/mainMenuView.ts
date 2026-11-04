@@ -483,10 +483,10 @@ export class MainMenuView {
                       <!-- Player Name / AI input -->
                       <div>
                         ${isPlayer ? `
-                          <input class="roster-name-input aoe-input" data-index="${idx}" type="text" value="${c.name}" style="width: 100%; height: 26px; padding: 2px 6px;" />
+                          <input class="roster-name-input aoe-input" data-index="${idx}" type="text" value="${escapeHtml(c.name)}" style="width: 100%; height: 26px; padding: 2px 6px;" />
                         ` : `
                           <div style="font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; color: #2b1809; padding-left: 4px;">
-                            ${c.name}
+                            ${escapeHtml(c.name)}
                           </div>
                         `}
                       </div>
@@ -856,7 +856,8 @@ export class MainMenuView {
     });
 
     this.rootElem.querySelector('#btn-create-lobby')?.addEventListener('click', () => {
-      const name = (this.rootElem.querySelector('#host-name') as HTMLInputElement).value || 'Host Commander';
+      const rawName = (this.rootElem.querySelector('#host-name') as HTMLInputElement).value || 'Host Commander';
+      const name = sanitizeText(rawName, 20) || 'Host Commander';
       const civ = (this.rootElem.querySelector('#host-civ') as HTMLSelectElement).value as CivName;
       this.callbacks.onHostLan(name, civ);
       soundManager.playClick();
