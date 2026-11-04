@@ -881,17 +881,36 @@ export class TerrainMesh {
   }
 
   // -------------------------------------------------------------
-  // LUSH FOREST TREES & NATURAL FLORA (Tiered Pines, Noble Oaks)
+  // LUSH FOREST TREES & NATURAL FLORA (Tiered Pines, Noble Oaks, Weeping Willows, Date Palms)
   // -------------------------------------------------------------
   private buildLushForestAndFlora(width: number, height: number, tiles: MapTile[]): void {
-    const forestSpots: THREE.Vector3[] = [];
+    const forestSpots: { pos: THREE.Vector3; isPrimary: boolean }[] = [];
 
     tiles.forEach((t, idx) => {
       const tx = idx % width;
       const tz = Math.floor(idx / width);
 
       if (t.terrain === 'forest') {
-        forestSpots.push(new THREE.Vector3(tx + 0.5, t.elevation * 0.85, tz + 0.5));
+        const hash1 = Math.sin(idx * 12.9898 + 78.233) * 43758.5453;
+        const jx1 = ((hash1 - Math.floor(hash1)) - 0.5) * 0.28;
+        const hash2 = Math.sin(idx * 39.346 + 11.135) * 23421.631;
+        const jz1 = ((hash2 - Math.floor(hash2)) - 0.5) * 0.28;
+
+        // Primary mature canopy tree
+        forestSpots.push({
+          pos: new THREE.Vector3(tx + 0.5 + jx1, t.elevation * 0.85, tz + 0.5 + jz1),
+          isPrimary: true
+        });
+
+        // Secondary companion tree/sapling on every forest tile to eliminate empty grid gaps
+        const hash3 = Math.sin(idx * 71.182 + 55.432) * 31234.123;
+        const jx2 = ((hash3 - Math.floor(hash3)) - 0.5) * 0.52;
+        const hash4 = Math.sin(idx * 93.411 + 33.719) * 17892.456;
+        const jz2 = ((hash4 - Math.floor(hash4)) - 0.5) * 0.52;
+        forestSpots.push({
+          pos: new THREE.Vector3(tx + 0.5 + jx2, t.elevation * 0.85, tz + 0.5 + jz2),
+          isPrimary: false
+        });
       }
     });
 
@@ -945,20 +964,20 @@ export class TerrainMesh {
       return geom;
     };
 
-    // Helper: Scalloped conifer skirts
+    // Helper: Scalloped conifer skirts with undulating needle lobes
     const createScallopedBough = (bottomR: number, height: number, segs = 14) => {
       const geom = new THREE.ConeGeometry(bottomR, height, segs, 2);
       const pos = geom.attributes.position;
       for (let i = 0; i < pos.count; i++) {
         const y = pos.getY(i);
-        if (y < -height * 0.3) {
+        if (y < -height * 0.28) {
           const x = pos.getX(i);
           const z = pos.getZ(i);
           const angle = Math.atan2(z, x);
-          const wave = 1.0 + 0.22 * Math.sin(angle * 7);
+          const wave = 1.0 + 0.26 * Math.sin(angle * 7);
           pos.setX(i, x * wave);
           pos.setZ(i, z * wave);
-          pos.setY(i, y - 0.06 * Math.sin(angle * 7));
+          pos.setY(i, y - 0.08 * Math.sin(angle * 7));
         }
       }
       geom.computeVertexNormals();
@@ -972,78 +991,144 @@ export class TerrainMesh {
       const palmTex = getPalmFrondTexture();
       const acaciaTex = getAcaciaFoliageTexture();
 
-      const palmSpots: THREE.Vector3[] = [];
-      const acaciaSpots: THREE.Vector3[] = [];
-      forestSpots.forEach((p, idx) => {
-        if (idx % 3 === 0) acaciaSpots.push(p);
-        else palmSpots.push(p);
+      const palmSpots: { pos: THREE.Vector3; isPrimary: boolean }[] = [];
+      const acaciaSpots: { pos: THREE.Vector3; isPrimary: boolean }[] = [];
+      forestSpots.forEach((spot, idx) => {
+        if (idx % 3 === 0) acaciaSpots.push(spot);
+        else palmSpots.push(spot);
       });
 
-      // Date Palms (Slender curved trunk + radiating drooping feather fronds)
+      // Date Palms (Slender curved trunk + radiating 10-blade arching feather fronds + dates cluster)
       if (palmSpots.length > 0) {
-        const palmTrunkGeom = new THREE.CylinderGeometry(0.12, 0.24, 2.3, 7);
-        palmTrunkGeom.translate(0, 1.1, 0);
+        const palmTrunkGeom = new THREE.CylinderGeometry(0.11, 0.22, 2.4, 8);
+        const trunkPos = palmTrunkGeom.attributes.position;
+        for (let i = 0; i < trunkPos.count; i++) {
+          const y = trunkPos.getY(i);
+          if (y > 0) {
+            const curve = Math.pow(y / 2.4, 2) * 0.22;
+            trunkPos.setX(i, trunkPos.getX(i) + curve);
+          }
+        }
+        palmTrunkGeom.translate(0, 1.2, 0);
+        palmTrunkGeom.computeVertexNormals();
 
         const palmMat = new THREE.MeshStandardMaterial({
           map: palmTex,
           color: 0x4f8e32,
-          roughness: 0.78,
+          roughness: 0.76,
           side: THREE.DoubleSide
         });
         applyWindHook(palmMat);
 
-        // 8-bladed radiant drooping palm crown
-        const palmCrownGeom = new THREE.BufferGeometry();
-        const crownGroup = new THREE.Group();
-        for (let f = 0; f < 8; f++) {
-          const frondGeom = new THREE.PlaneGeometry(1.6, 0.65, 3, 2);
-          frondGeom.translate(0.8, 0, 0);
-          frondGeom.rotateZ(-0.45); // Droop downward
-          frondGeom.rotateY((f * Math.PI) / 4);
-          frondGeom.translate(0, 2.25, 0);
-          crownGroup.add(new THREE.Mesh(frondGeom, palmMat));
-        }
+        // Radiant 10-blade arched drooping palm crown
+        const createPalmCrownGeom = () => {
+          const geom = new THREE.BufferGeometry();
+          const vertices: number[] = [];
+          const normals: number[] = [];
+          const uvs: number[] = [];
+          const indices: number[] = [];
+
+          const numFronds = 10;
+          const segments = 5;
+
+          for (let f = 0; f < numFronds; f++) {
+            const angle = (f / numFronds) * Math.PI * 2;
+            const cosA = Math.cos(angle);
+            const sinA = Math.sin(angle);
+            const frondLen = 1.65 + (f % 3) * 0.18;
+            const droopPower = 1.15 + (f % 2) * 0.25;
+            const startIndex = vertices.length / 3;
+
+            for (let s = 0; s <= segments; s++) {
+              const t = s / segments;
+              const r = t * frondLen;
+              // Arch up initially, then droop down gracefully
+              const y = 2.3 + Math.sin(t * Math.PI * 0.65) * 0.42 - Math.pow(t, 2.0) * droopPower;
+              // Leaf width tapers at base and tip
+              const w = Math.sin(t * Math.PI) * 0.58;
+
+              const px = -sinA * (w * 0.5);
+              const pz = cosA * (w * 0.5);
+
+              vertices.push(cosA * r + px, y, sinA * r + pz);
+              normals.push(0, 1, 0);
+              uvs.push(0, t);
+
+              vertices.push(cosA * r - px, y, sinA * r - pz);
+              normals.push(0, 1, 0);
+              uvs.push(1, t);
+
+              if (s < segments) {
+                const i0 = startIndex + s * 2;
+                const i1 = startIndex + s * 2 + 1;
+                const i2 = startIndex + (s + 1) * 2;
+                const i3 = startIndex + (s + 1) * 2 + 1;
+                indices.push(i0, i2, i1);
+                indices.push(i1, i2, i3);
+                // Double-sided back faces so visible from below
+                indices.push(i0, i1, i2);
+                indices.push(i1, i3, i2);
+              }
+            }
+          }
+
+          geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+          geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+          geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+          geom.setIndex(indices);
+          geom.computeVertexNormals();
+          return geom;
+        };
+
+        const palmCrownGeom = createPalmCrownGeom();
+        const palmDatesGeom = new THREE.DodecahedronGeometry(0.32, 1);
+        palmDatesGeom.translate(0, 2.22, 0);
+
+        const datesMat = new THREE.MeshStandardMaterial({
+          color: 0x854d0e,
+          roughness: 0.72
+        });
 
         const instPalmTrunk = new THREE.InstancedMesh(palmTrunkGeom, trunkMat, palmSpots.length);
-        const dummy = new THREE.Object3D();
-        palmSpots.forEach((pos, idx) => {
-          dummy.position.set(pos.x, pos.y, pos.z);
-          const sc = 0.88 + ((idx * 17) % 30) * 0.012;
-          dummy.scale.set(sc, sc * 1.1, sc);
-          dummy.rotation.y = ((idx * 61) % 360) * (Math.PI / 180);
-          dummy.updateMatrix();
-          instPalmTrunk.setMatrixAt(idx, dummy.matrix);
-        });
-        instPalmTrunk.instanceMatrix.needsUpdate = true;
-        instPalmTrunk.castShadow = true;
-        this.treesGroup.add(instPalmTrunk);
+        const instPalmCrown = new THREE.InstancedMesh(palmCrownGeom, palmMat, palmSpots.length);
+        const instPalmDates = new THREE.InstancedMesh(palmDatesGeom, datesMat, palmSpots.length);
 
-        // Palms Fronds Instancing
-        const frondMergedGeom = new THREE.ConeGeometry(1.4, 0.65, 8, 1, true);
-        frondMergedGeom.translate(0, 2.2, 0);
-        const instFronds = new THREE.InstancedMesh(frondMergedGeom, palmMat, palmSpots.length);
-        palmSpots.forEach((pos, idx) => {
-          dummy.position.set(pos.x, pos.y, pos.z);
-          const sc = 0.88 + ((idx * 17) % 30) * 0.012;
-          dummy.scale.set(sc * 1.25, sc * 0.9, sc * 1.25);
+        const dummy = new THREE.Object3D();
+        palmSpots.forEach((spot, idx) => {
+          dummy.position.set(spot.pos.x, spot.pos.y, spot.pos.z);
+          const baseSc = spot.isPrimary ? 1.0 : 0.68;
+          const sc = baseSc * (0.9 + ((idx * 17) % 25) * 0.012);
+          dummy.scale.set(sc, sc * (1.0 + ((idx * 7) % 15) * 0.01), sc);
           dummy.rotation.y = ((idx * 61) % 360) * (Math.PI / 180);
           dummy.updateMatrix();
-          instFronds.setMatrixAt(idx, dummy.matrix);
+
+          instPalmTrunk.setMatrixAt(idx, dummy.matrix);
+          instPalmCrown.setMatrixAt(idx, dummy.matrix);
+          instPalmDates.setMatrixAt(idx, dummy.matrix);
         });
-        instFronds.instanceMatrix.needsUpdate = true;
-        instFronds.castShadow = true;
-        this.treesGroup.add(instFronds);
+
+        instPalmTrunk.instanceMatrix.needsUpdate = true;
+        instPalmCrown.instanceMatrix.needsUpdate = true;
+        instPalmDates.instanceMatrix.needsUpdate = true;
+        instPalmTrunk.castShadow = true;
+        instPalmCrown.castShadow = true;
+
+        this.treesGroup.add(instPalmTrunk);
+        this.treesGroup.add(instPalmCrown);
+        this.treesGroup.add(instPalmDates);
       }
 
       // Umbrella Acacias (Flat-topped horizontal savanna discs)
       if (acaciaSpots.length > 0) {
-        const aTrunkGeom = new THREE.CylinderGeometry(0.12, 0.22, 1.6, 6);
-        aTrunkGeom.translate(0, 0.8, 0);
+        const aTrunkGeom = new THREE.CylinderGeometry(0.14, 0.24, 1.8, 6);
+        aTrunkGeom.translate(0, 0.9, 0);
 
-        const aCrownGeom1 = new THREE.CylinderGeometry(1.25, 0.95, 0.25, 8);
-        aCrownGeom1.translate(0, 1.85, 0);
-        const aCrownGeom2 = new THREE.CylinderGeometry(0.75, 0.55, 0.22, 8);
-        aCrownGeom2.translate(-0.35, 1.6, 0.25);
+        const aCrownGeom1 = new THREE.CylinderGeometry(1.35, 0.95, 0.28, 10);
+        aCrownGeom1.translate(0, 2.05, 0);
+        const aCrownGeom2 = new THREE.CylinderGeometry(0.85, 0.6, 0.24, 8);
+        aCrownGeom2.translate(-0.45, 1.75, 0.3);
+        const aCrownGeom3 = new THREE.CylinderGeometry(0.7, 0.5, 0.22, 8);
+        aCrownGeom3.translate(0.42, 1.55, -0.28);
 
         const acaciaMat = new THREE.MeshStandardMaterial({
           map: acaciaTex,
@@ -1055,25 +1140,34 @@ export class TerrainMesh {
         const instATrunk = new THREE.InstancedMesh(aTrunkGeom, trunkMat, acaciaSpots.length);
         const instACrown1 = new THREE.InstancedMesh(aCrownGeom1, acaciaMat, acaciaSpots.length);
         const instACrown2 = new THREE.InstancedMesh(aCrownGeom2, acaciaMat, acaciaSpots.length);
+        const instACrown3 = new THREE.InstancedMesh(aCrownGeom3, acaciaMat, acaciaSpots.length);
 
         const dummy = new THREE.Object3D();
-        acaciaSpots.forEach((pos, idx) => {
-          dummy.position.set(pos.x, pos.y, pos.z);
-          const sc = 0.85 + ((idx * 23) % 30) * 0.012;
+        acaciaSpots.forEach((spot, idx) => {
+          dummy.position.set(spot.pos.x, spot.pos.y, spot.pos.z);
+          const baseSc = spot.isPrimary ? 1.0 : 0.68;
+          const sc = baseSc * (0.88 + ((idx * 23) % 25) * 0.012);
           dummy.scale.set(sc, sc, sc);
           dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
           dummy.updateMatrix();
+
           instATrunk.setMatrixAt(idx, dummy.matrix);
           instACrown1.setMatrixAt(idx, dummy.matrix);
           instACrown2.setMatrixAt(idx, dummy.matrix);
+          instACrown3.setMatrixAt(idx, dummy.matrix);
         });
 
         instATrunk.instanceMatrix.needsUpdate = true;
         instACrown1.instanceMatrix.needsUpdate = true;
         instACrown2.instanceMatrix.needsUpdate = true;
+        instACrown3.instanceMatrix.needsUpdate = true;
+        instATrunk.castShadow = true;
+        instACrown1.castShadow = true;
+
         this.treesGroup.add(instATrunk);
         this.treesGroup.add(instACrown1);
         this.treesGroup.add(instACrown2);
+        this.treesGroup.add(instACrown3);
       }
       return;
     }
@@ -1085,81 +1179,138 @@ export class TerrainMesh {
       const willowTex = getWillowFoliageTexture();
       const foliageTex = getFoliageTexture();
 
-      const willowSpots: THREE.Vector3[] = [];
-      const cypressSpots: THREE.Vector3[] = [];
-      forestSpots.forEach((p, idx) => {
-        if (idx % 2 === 0) willowSpots.push(p);
-        else cypressSpots.push(p);
+      const willowSpots: { pos: THREE.Vector3; isPrimary: boolean }[] = [];
+      const cypressSpots: { pos: THREE.Vector3; isPrimary: boolean }[] = [];
+      forestSpots.forEach((spot, idx) => {
+        if (idx % 2 === 0) willowSpots.push(spot);
+        else cypressSpots.push(spot);
       });
 
-      // Weeping Willows (Cascading pendulous leaf domes)
+      // Weeping Willows (Cascading pendulous leaf domes with drooping tendril skirts)
       if (willowSpots.length > 0) {
-        const wTrunkGeom = new THREE.CylinderGeometry(0.18, 0.32, 1.4, 7);
-        wTrunkGeom.translate(0, 0.7, 0);
+        const wTrunkGeom = new THREE.CylinderGeometry(0.2, 0.36, 1.5, 8);
+        wTrunkGeom.translate(0, 0.75, 0);
 
-        // Drooping willow dome
-        const wDomeGeom = new THREE.CylinderGeometry(0.9, 1.35, 1.2, 8);
-        wDomeGeom.translate(0, 1.6, 0);
+        // Broad billowing willow canopy dome
+        const wDomeGeom = createBillowingCrown(1.35);
+        wDomeGeom.scale(1.22, 0.85, 1.22);
+        wDomeGeom.translate(0, 1.95, 0);
+
+        // Cascading pendulous curtain skirts
+        const createWillowSkirt = (topR: number, botR: number, height: number, yOffset: number) => {
+          const geom = new THREE.CylinderGeometry(topR, botR, height, 16, 2, true);
+          const pos = geom.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            const y = pos.getY(i);
+            const x = pos.getX(i);
+            const z = pos.getZ(i);
+            const angle = Math.atan2(z, x);
+            if (y < 0) {
+              const droop = Math.sin(angle * 8) * 0.22;
+              pos.setY(i, y + droop);
+              pos.setX(i, x * (1.0 + 0.12 * Math.cos(angle * 8)));
+              pos.setZ(i, z * (1.0 + 0.12 * Math.cos(angle * 8)));
+            }
+          }
+          geom.translate(0, yOffset, 0);
+          geom.computeVertexNormals();
+          return geom;
+        };
+
+        const wSkirt1Geom = createWillowSkirt(1.2, 1.6, 1.35, 1.45);
+        const wSkirt2Geom = createWillowSkirt(0.9, 1.3, 1.1, 1.8);
 
         const willowMat = new THREE.MeshStandardMaterial({
           map: willowTex,
-          color: 0x497733,
-          roughness: 0.8
+          color: 0x4e8538,
+          roughness: 0.78,
+          side: THREE.DoubleSide
         });
         applyWindHook(willowMat);
 
         const instWTrunk = new THREE.InstancedMesh(wTrunkGeom, trunkMat, willowSpots.length);
         const instWDome = new THREE.InstancedMesh(wDomeGeom, willowMat, willowSpots.length);
+        const instWSkirt1 = new THREE.InstancedMesh(wSkirt1Geom, willowMat, willowSpots.length);
+        const instWSkirt2 = new THREE.InstancedMesh(wSkirt2Geom, willowMat, willowSpots.length);
 
         const dummy = new THREE.Object3D();
-        willowSpots.forEach((pos, idx) => {
-          dummy.position.set(pos.x, pos.y, pos.z);
-          const sc = 0.9 + ((idx * 19) % 25) * 0.012;
+        willowSpots.forEach((spot, idx) => {
+          dummy.position.set(spot.pos.x, spot.pos.y, spot.pos.z);
+          const baseSc = spot.isPrimary ? 1.0 : 0.68;
+          const sc = baseSc * (0.92 + ((idx * 19) % 25) * 0.012);
           dummy.scale.set(sc * 1.15, sc * 0.95, sc * 1.15);
           dummy.rotation.y = ((idx * 37) % 360) * (Math.PI / 180);
           dummy.updateMatrix();
+
           instWTrunk.setMatrixAt(idx, dummy.matrix);
           instWDome.setMatrixAt(idx, dummy.matrix);
+          instWSkirt1.setMatrixAt(idx, dummy.matrix);
+          instWSkirt2.setMatrixAt(idx, dummy.matrix);
         });
 
         instWTrunk.instanceMatrix.needsUpdate = true;
         instWDome.instanceMatrix.needsUpdate = true;
+        instWSkirt1.instanceMatrix.needsUpdate = true;
+        instWSkirt2.instanceMatrix.needsUpdate = true;
+        instWTrunk.castShadow = true;
+        instWDome.castShadow = true;
+
         this.treesGroup.add(instWTrunk);
         this.treesGroup.add(instWDome);
+        this.treesGroup.add(instWSkirt1);
+        this.treesGroup.add(instWSkirt2);
       }
 
-      // Columnar River Cypress
+      // Columnar River Cypress (3-Tiered flame-shaped spires)
       if (cypressSpots.length > 0) {
-        const cyTrunkGeom = new THREE.CylinderGeometry(0.1, 0.18, 1.2, 6);
-        cyTrunkGeom.translate(0, 0.6, 0);
-        const cyCrownGeom = new THREE.ConeGeometry(0.65, 2.2, 8);
-        cyCrownGeom.translate(0, 1.7, 0);
+        const cyTrunkGeom = new THREE.CylinderGeometry(0.12, 0.2, 1.4, 6);
+        cyTrunkGeom.translate(0, 0.7, 0);
+
+        const cyTier1 = createScallopedBough(0.72, 1.15, 10);
+        cyTier1.translate(0, 1.1, 0);
+        const cyTier2 = createScallopedBough(0.58, 1.25, 10);
+        cyTier2.translate(0, 1.8, 0);
+        const cyTier3 = createScallopedBough(0.38, 1.35, 10);
+        cyTier3.translate(0, 2.55, 0);
 
         const cyMat = new THREE.MeshStandardMaterial({
           map: foliageTex,
-          color: 0x3d662e,
+          color: 0x2e5c26,
           roughness: 0.78
         });
         applyWindHook(cyMat);
 
         const instCyTrunk = new THREE.InstancedMesh(cyTrunkGeom, trunkMat, cypressSpots.length);
-        const instCyCrown = new THREE.InstancedMesh(cyCrownGeom, cyMat, cypressSpots.length);
+        const instCyTier1 = new THREE.InstancedMesh(cyTier1, cyMat, cypressSpots.length);
+        const instCyTier2 = new THREE.InstancedMesh(cyTier2, cyMat, cypressSpots.length);
+        const instCyTier3 = new THREE.InstancedMesh(cyTier3, cyMat, cypressSpots.length);
 
         const dummy = new THREE.Object3D();
-        cypressSpots.forEach((pos, idx) => {
-          dummy.position.set(pos.x, pos.y, pos.z);
-          const sc = 0.85 + ((idx * 29) % 30) * 0.012;
+        cypressSpots.forEach((spot, idx) => {
+          dummy.position.set(spot.pos.x, spot.pos.y, spot.pos.z);
+          const baseSc = spot.isPrimary ? 1.0 : 0.68;
+          const sc = baseSc * (0.88 + ((idx * 29) % 25) * 0.012);
           dummy.scale.set(sc, sc * 1.15, sc);
           dummy.rotation.y = ((idx * 53) % 360) * (Math.PI / 180);
           dummy.updateMatrix();
+
           instCyTrunk.setMatrixAt(idx, dummy.matrix);
-          instCyCrown.setMatrixAt(idx, dummy.matrix);
+          instCyTier1.setMatrixAt(idx, dummy.matrix);
+          instCyTier2.setMatrixAt(idx, dummy.matrix);
+          instCyTier3.setMatrixAt(idx, dummy.matrix);
         });
 
         instCyTrunk.instanceMatrix.needsUpdate = true;
-        instCyCrown.instanceMatrix.needsUpdate = true;
+        instCyTier1.instanceMatrix.needsUpdate = true;
+        instCyTier2.instanceMatrix.needsUpdate = true;
+        instCyTier3.instanceMatrix.needsUpdate = true;
+        instCyTrunk.castShadow = true;
+        instCyTier1.castShadow = true;
+
         this.treesGroup.add(instCyTrunk);
-        this.treesGroup.add(instCyCrown);
+        this.treesGroup.add(instCyTier1);
+        this.treesGroup.add(instCyTier2);
+        this.treesGroup.add(instCyTier3);
       }
       return;
     }
@@ -1172,75 +1323,82 @@ export class TerrainMesh {
 
     // Highland & Black Forest have dominant pines; Green Frontier has dominant Oaks
     const isTaiga = this.mapType === 'highland_kingdom' || this.mapType === 'black_forest';
-    const coniferSpots: THREE.Vector3[] = [];
-    const oakSpots: THREE.Vector3[] = [];
+    const coniferSpots: { pos: THREE.Vector3; isPrimary: boolean }[] = [];
+    const oakSpots: { pos: THREE.Vector3; isPrimary: boolean }[] = [];
 
-    forestSpots.forEach((p, idx) => {
+    forestSpots.forEach((spot, idx) => {
       if (isTaiga) {
-        if (idx % 4 === 0) oakSpots.push(p);
-        else coniferSpots.push(p);
+        if (idx % 4 === 0) oakSpots.push(spot);
+        else coniferSpots.push(spot);
       } else {
-        if (idx % 3 === 0) coniferSpots.push(p);
-        else oakSpots.push(p);
+        if (idx % 3 === 0) coniferSpots.push(spot);
+        else oakSpots.push(spot);
       }
     });
 
-    // Conifers (Spruce / Scots Pine / Colossal Black Pines)
+    // Conifers (5-Tiered Spruce / Scots Pine / Colossal Black Pines)
     if (coniferSpots.length > 0) {
-      const cTrunkGeom = new THREE.CylinderGeometry(0.12, 0.24, 1.6, 8);
-      cTrunkGeom.translate(0, 0.7, 0);
+      const cTrunkGeom = new THREE.CylinderGeometry(0.14, 0.26, 1.7, 8);
+      cTrunkGeom.translate(0, 0.75, 0);
 
-      const cTier1 = createScallopedBough(1.2, 0.9);
-      cTier1.translate(0, 1.1, 0);
-      const cTier2 = createScallopedBough(0.95, 0.85);
+      const cTier1 = createScallopedBough(1.25, 0.95);
+      cTier1.translate(0, 1.05, 0);
+      const cTier2 = createScallopedBough(1.0, 0.9);
       cTier2.translate(0, 1.65, 0);
-      const cTier3 = createScallopedBough(0.7, 0.8);
-      cTier3.translate(0, 2.15, 0);
-      const cTier4 = createScallopedBough(0.45, 0.75);
-      cTier4.translate(0, 2.65, 0);
+      const cTier3 = createScallopedBough(0.75, 0.85);
+      cTier3.translate(0, 2.2, 0);
+      const cTier4 = createScallopedBough(0.52, 0.8);
+      cTier4.translate(0, 2.75, 0);
+      const cTier5 = createScallopedBough(0.28, 0.7);
+      cTier5.translate(0, 3.25, 0);
 
       let pColor1 = 0x245422;
       let pColor2 = 0x32692f;
       let pColor3 = 0x407f3d;
       let pColor4 = 0x4f944b;
+      let pColor5 = 0x60aa5c;
 
       if (this.mapType === 'highland_kingdom') {
         pColor1 = 0x1b3d1b; // Cold alpine spruce
         pColor2 = 0x264d27;
         pColor3 = 0x346336;
         pColor4 = 0x457d47;
+        pColor5 = 0x569658;
       } else if (this.mapType === 'black_forest') {
         pColor1 = 0x0f2413; // Deep ancient black pine
         pColor2 = 0x16331a;
         pColor3 = 0x1f4524;
         pColor4 = 0x2a5930;
+        pColor5 = 0x376f3f;
       }
 
       const coniferMat1 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor1, roughness: 0.82 });
       const coniferMat2 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor2, roughness: 0.8 });
       const coniferMat3 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor3, roughness: 0.78 });
       const coniferMat4 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor4, roughness: 0.75 });
+      const coniferMat5 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor5, roughness: 0.72 });
 
       applyWindHook(coniferMat1);
       applyWindHook(coniferMat2);
       applyWindHook(coniferMat3);
       applyWindHook(coniferMat4);
+      applyWindHook(coniferMat5);
 
       const instCTrunk = new THREE.InstancedMesh(cTrunkGeom, trunkMat, coniferSpots.length);
       const instCTier1 = new THREE.InstancedMesh(cTier1, coniferMat1, coniferSpots.length);
       const instCTier2 = new THREE.InstancedMesh(cTier2, coniferMat2, coniferSpots.length);
       const instCTier3 = new THREE.InstancedMesh(cTier3, coniferMat3, coniferSpots.length);
       const instCTier4 = new THREE.InstancedMesh(cTier4, coniferMat4, coniferSpots.length);
+      const instCTier5 = new THREE.InstancedMesh(cTier5, coniferMat5, coniferSpots.length);
 
       const dummy = new THREE.Object3D();
-      coniferSpots.forEach((pos, idx) => {
-        const jx = (((idx * 17 + 7) % 15) / 14 - 0.5) * 0.52;
-        const jz = (((idx * 31 + 11) % 15) / 14 - 0.5) * 0.52;
-        dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
-
-        const baseSc = this.mapType === 'black_forest' ? 1.25 : 0.88;
-        const scale = baseSc + ((idx * 23) % 35) * 0.015;
-        dummy.scale.set(scale, scale * (0.95 + ((idx * 7) % 25) * 0.01), scale);
+      coniferSpots.forEach((spot, idx) => {
+        dummy.position.set(spot.pos.x, spot.pos.y, spot.pos.z);
+        const baseSc = spot.isPrimary
+          ? (this.mapType === 'black_forest' ? 1.25 : 0.95)
+          : (this.mapType === 'black_forest' ? 0.78 : 0.65);
+        const scale = baseSc * (0.92 + ((idx * 23) % 25) * 0.012);
+        dummy.scale.set(scale, scale * (0.96 + ((idx * 7) % 20) * 0.01), scale);
         dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
         dummy.updateMatrix();
 
@@ -1249,6 +1407,7 @@ export class TerrainMesh {
         instCTier2.setMatrixAt(idx, dummy.matrix);
         instCTier3.setMatrixAt(idx, dummy.matrix);
         instCTier4.setMatrixAt(idx, dummy.matrix);
+        instCTier5.setMatrixAt(idx, dummy.matrix);
       });
 
       instCTrunk.instanceMatrix.needsUpdate = true;
@@ -1256,56 +1415,65 @@ export class TerrainMesh {
       instCTier2.instanceMatrix.needsUpdate = true;
       instCTier3.instanceMatrix.needsUpdate = true;
       instCTier4.instanceMatrix.needsUpdate = true;
+      instCTier5.instanceMatrix.needsUpdate = true;
+      instCTrunk.castShadow = true;
+      instCTier1.castShadow = true;
 
       this.treesGroup.add(instCTrunk);
       this.treesGroup.add(instCTier1);
       this.treesGroup.add(instCTier2);
       this.treesGroup.add(instCTier3);
       this.treesGroup.add(instCTier4);
+      this.treesGroup.add(instCTier5);
     }
 
-    // Broadleaf Oaks / Birches
+    // Broadleaf Oaks / Birches (4-Tiered billowing canopies)
     if (oakSpots.length > 0) {
-      const oTrunkGeom = new THREE.CylinderGeometry(0.16, 0.26, 1.35, 8);
-      oTrunkGeom.translate(0, 0.65, 0);
+      const oTrunkGeom = new THREE.CylinderGeometry(0.18, 0.3, 1.4, 8);
+      oTrunkGeom.translate(0, 0.7, 0);
 
-      const oCrown1Geom = createBillowingCrown(0.95);
-      oCrown1Geom.translate(0, 1.55, 0);
-      const oCrown2Geom = createBillowingCrown(0.75);
-      oCrown2Geom.translate(-0.38, 1.4, 0.22);
-      const oCrown3Geom = createBillowingCrown(0.8);
-      oCrown3Geom.translate(0.38, 1.42, -0.2);
+      const oCrown1Geom = createBillowingCrown(1.05);
+      oCrown1Geom.translate(0, 1.68, 0);
+      const oCrown2Geom = createBillowingCrown(0.85);
+      oCrown2Geom.translate(-0.46, 1.45, 0.28);
+      const oCrown3Geom = createBillowingCrown(0.82);
+      oCrown3Geom.translate(0.44, 1.48, -0.25);
+      const oCrown4Geom = createBillowingCrown(0.72);
+      oCrown4Geom.translate(0.12, 1.95, 0.2);
 
       let oakColor1 = 0x3b6e2d;
       let oakColor2 = 0x4e8d3b;
       let oakColor3 = 0x5ea846;
+      let oakColor4 = 0x6ec053;
 
       if (this.mapType === 'black_forest') {
         oakColor1 = 0x26471e; // Gnarled dark elder oak
         oakColor2 = 0x335928;
         oakColor3 = 0x3f6e32;
+        oakColor4 = 0x4d853e;
       }
 
       const oakMat1 = new THREE.MeshStandardMaterial({ map: foliageTex, color: oakColor1, roughness: 0.82 });
       const oakMat2 = new THREE.MeshStandardMaterial({ map: foliageTex, color: oakColor2, roughness: 0.78 });
       const oakMat3 = new THREE.MeshStandardMaterial({ map: foliageTex, color: oakColor3, roughness: 0.75 });
+      const oakMat4 = new THREE.MeshStandardMaterial({ map: foliageTex, color: oakColor4, roughness: 0.72 });
 
       applyWindHook(oakMat1);
       applyWindHook(oakMat2);
       applyWindHook(oakMat3);
+      applyWindHook(oakMat4);
 
       const instOTrunk = new THREE.InstancedMesh(oTrunkGeom, trunkMat, oakSpots.length);
       const instOCrown1 = new THREE.InstancedMesh(oCrown1Geom, oakMat1, oakSpots.length);
       const instOCrown2 = new THREE.InstancedMesh(oCrown2Geom, oakMat2, oakSpots.length);
       const instOCrown3 = new THREE.InstancedMesh(oCrown3Geom, oakMat3, oakSpots.length);
+      const instOCrown4 = new THREE.InstancedMesh(oCrown4Geom, oakMat4, oakSpots.length);
 
       const dummy = new THREE.Object3D();
-      oakSpots.forEach((pos, idx) => {
-        const jx = (((idx * 29 + 5) % 15) / 14 - 0.5) * 0.52;
-        const jz = (((idx * 13 + 9) % 15) / 14 - 0.5) * 0.52;
-        dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
-
-        const scale = 0.88 + ((idx * 19) % 35) * 0.012;
+      oakSpots.forEach((spot, idx) => {
+        dummy.position.set(spot.pos.x, spot.pos.y, spot.pos.z);
+        const baseSc = spot.isPrimary ? 1.0 : 0.68;
+        const scale = baseSc * (0.9 + ((idx * 19) % 25) * 0.012);
         dummy.scale.set(scale, scale, scale);
         dummy.rotation.y = ((idx * 53) % 360) * (Math.PI / 180);
         dummy.updateMatrix();
@@ -1314,17 +1482,22 @@ export class TerrainMesh {
         instOCrown1.setMatrixAt(idx, dummy.matrix);
         instOCrown2.setMatrixAt(idx, dummy.matrix);
         instOCrown3.setMatrixAt(idx, dummy.matrix);
+        instOCrown4.setMatrixAt(idx, dummy.matrix);
       });
 
       instOTrunk.instanceMatrix.needsUpdate = true;
       instOCrown1.instanceMatrix.needsUpdate = true;
       instOCrown2.instanceMatrix.needsUpdate = true;
       instOCrown3.instanceMatrix.needsUpdate = true;
+      instOCrown4.instanceMatrix.needsUpdate = true;
+      instOTrunk.castShadow = true;
+      instOCrown1.castShadow = true;
 
       this.treesGroup.add(instOTrunk);
       this.treesGroup.add(instOCrown1);
       this.treesGroup.add(instOCrown2);
       this.treesGroup.add(instOCrown3);
+      this.treesGroup.add(instOCrown4);
     }
   }
 

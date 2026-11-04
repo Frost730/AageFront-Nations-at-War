@@ -173,17 +173,18 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
       }
     }
   } else if (mapType === 'riverlands') {
-    // River cutting across the center with bridges/shallows and overlooking cliff bluffs
-    const riverWidth = 3;
-    const riverY = (x: number) => Math.floor(centerY + Math.sin(x * 0.08) * 7);
+    // Grand Riverlands Waterway: Broad, majestic meandering river with sandbars, shallows, and lush riverbank groves
+    const riverWidth = 7; // Grand 15-tile wide river corridor
+    const riverY = (x: number) => Math.floor(centerY + Math.sin(x * 0.045) * 12 + Math.cos(x * 0.09) * 4);
 
     // Dedicated crossing fords evenly spaced across the entire river length
     const fordLocations = [
-      Math.floor(size * 0.15),
-      Math.floor(size * 0.32),
-      Math.floor(size * 0.5),
-      Math.floor(size * 0.68),
-      Math.floor(size * 0.85)
+      Math.floor(size * 0.12),
+      Math.floor(size * 0.28),
+      Math.floor(size * 0.44),
+      Math.floor(size * 0.58),
+      Math.floor(size * 0.72),
+      Math.floor(size * 0.88)
     ];
 
     for (let x = 0; x < size; x++) {
@@ -200,9 +201,41 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
           tile.terrain = 'sand';
           tile.walkable = true; // walkable shallow ford
           tile.elevation = 0;
+        } else if (Math.abs(dy) === riverWidth) {
+          // Natural walkable sand shoreline along outer riverbanks
+          tile.terrain = 'sand';
+          tile.walkable = true;
+          tile.elevation = 0;
         } else {
           tile.terrain = 'water';
           tile.walkable = false;
+        }
+      }
+    }
+
+    // Lush riverbank willow and cypress groves along northern and southern shores
+    for (let x = 6; x < size - 6; x += 4) {
+      const ry = riverY(x);
+      const sides = [-1, 1];
+      for (const side of sides) {
+        if (prng.next() < 0.62) {
+          const bankY = ry + side * (riverWidth + prng.rangeInt(1, 3));
+          if (isNearStart(x, bankY, 14) || isOnArterialHighway(x, bankY, 5.0)) continue;
+          const groveR = prng.rangeInt(2, 3);
+          for (let gy = -groveR; gy <= groveR; gy++) {
+            for (let gx = -groveR; gx <= groveR; gx++) {
+              if (gx * gx + gy * gy <= groveR * groveR + 0.6) {
+                const tx = x + gx;
+                const ty = bankY + gy;
+                if (isNearStart(tx, ty, 14) || isOnArterialHighway(tx, ty, 4.5)) continue;
+                const t = getTile(tx, ty);
+                if (t && t.terrain !== 'water' && t.terrain !== 'mountain') {
+                  t.terrain = 'forest';
+                  t.walkable = false;
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -358,7 +391,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
   // Clustered Forest Grove Placement (No scattered 1x1 tree deadlocks)
   // For non-Black Forest maps, place compact, natural tree groves leaving wide open plains
   if (mapType !== 'black_forest') {
-    const numGroves = Math.floor(size * 0.38);
+    const numGroves = mapType === 'riverlands' ? Math.floor(size * 0.58) : Math.floor(size * 0.38);
     for (let g = 0; g < numGroves; g++) {
       const gx = prng.rangeInt(8, size - 9);
       const gy = prng.rangeInt(8, size - 9);
