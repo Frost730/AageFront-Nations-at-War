@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { generateMap } from '../packages/shared/src/simulation/mapGenerator.js';
+import { GridPathfinder } from '../packages/shared/src/simulation/pathfinding.js';
 import { CameraController } from '../apps/client/src/camera/cameraController.js';
 
 describe('Rise of Nations Map Sizes & Generation', () => {
@@ -222,6 +223,27 @@ describe('Age of Empires & Rise of Nations Unique Biomes', () => {
         expect(types.has('wood')).toBe(true);
         expect(types.has('stone')).toBe(true);
         expect(types.has('metal')).toBe(true);
+      });
+    });
+  });
+
+  it('guarantees 100% path connectivity between all player spawns and to map center across all 5 biomes', () => {
+    const size = 200;
+    allMapTypes.forEach(mapType => {
+      const map = generateMap(mapType, size, 42, 4);
+      const walkableGrid = map.tiles.map(t => t.walkable);
+      const pathfinder = new GridPathfinder(size, size, walkableGrid);
+
+      const centerX = Math.floor(size / 2);
+      const centerY = Math.floor(size / 2);
+
+      map.startPositions.forEach((pos, idx) => {
+        const pathToCenter = pathfinder.findPath(pos.x, pos.y, centerX, centerY);
+        expect(pathToCenter.length, `${mapType} player ${idx} cannot reach map center`).toBeGreaterThan(0);
+
+        const nextPos = map.startPositions[(idx + 1) % map.startPositions.length];
+        const pathToNeighbor = pathfinder.findPath(pos.x, pos.y, nextPos.x, nextPos.y);
+        expect(pathToNeighbor.length, `${mapType} player ${idx} cannot reach neighbor base`).toBeGreaterThan(0);
       });
     });
   });

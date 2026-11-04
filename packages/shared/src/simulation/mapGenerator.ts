@@ -33,6 +33,17 @@ export interface GeneratedMap {
   mapType?: MapType;
 }
 
+function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  return Math.hypot(px - projX, py - projY);
+}
+
 export function generateMap(mapType: MapType, size: number = 240, seed: number = 42, numPlayers: number = 2): GeneratedMap {
   const prng = new PRNG(seed);
   const tiles: MapTile[] = [];
@@ -67,6 +78,43 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     startPositions.push({ x: px, y: py });
   }
 
+  // Pre-calculate arterial travel corridors connecting every player spawn to center and neighbors
+  const highwaySegments: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  startPositions.forEach((pos, i) => {
+    // 1. Spoke road from base to map center
+    highwaySegments.push({ x1: pos.x, y1: pos.y, x2: centerX, y2: centerY });
+    // 2. Ring road connecting to next neighbor
+    const nextPos = startPositions[(i + 1) % startPositions.length];
+    highwaySegments.push({ x1: pos.x, y1: pos.y, x2: nextPos.x, y2: nextPos.y });
+  });
+
+  if (startPositions.length === 2) {
+    highwaySegments.push({
+      x1: startPositions[0].x,
+      y1: startPositions[0].y,
+      x2: startPositions[1].x,
+      y2: startPositions[1].y
+    });
+  }
+
+  const isOnArterialHighway = (x: number, y: number, corridorWidth: number = 4.5): boolean => {
+    for (let s = 0; s < highwaySegments.length; s++) {
+      const seg = highwaySegments[s];
+      if (
+        x < Math.min(seg.x1, seg.x2) - corridorWidth ||
+        x > Math.max(seg.x1, seg.x2) + corridorWidth ||
+        y < Math.min(seg.y1, seg.y2) - corridorWidth ||
+        y > Math.max(seg.y1, seg.y2) + corridorWidth
+      ) {
+        continue;
+      }
+      if (distToSegment(x, y, seg.x1, seg.y1, seg.x2, seg.y2) < corridorWidth) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // Clear area around start positions so base building is never blocked
   const isNearStart = (x: number, y: number, dist: number = 14): boolean => {
     return startPositions.some(p => {
@@ -92,10 +140,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
           tile.terrain = 'mountain';
           tile.elevation = 2;
           tile.walkable = false;
-        } else if (combined > 1.25) {
-          tile.terrain = 'forest';
-          tile.walkable = false;
-        } else if (combined < -1.7) {
+        } else if (combined < -1.75) {
           tile.terrain = 'water';
           tile.walkable = false;
         } else if (combined > 0.75) {
@@ -109,37 +154,41 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
       for (let x = 0; x < size; x++) {
         if (isNearStart(x, y, 14)) continue;
 
-        const noiseRidge = Math.abs(Math.sin(x * 0.08 + y * 0.05) + Math.cos(x * 0.05 - y * 0.08));
+        const n1 = Math.sin(x * 0.08 + 0.6) * Math.cos(y * 0.08 - 0.6);
+        const n2 = Math.sin(x * 0.16 + y * 0.12) * 0.5;
+        const alpineVal = n1 + n2;
         const tile = getTile(x, y)!;
 
-        if (noiseRidge > 1.65) {
+        if (alpineVal > 0.85) {
           tile.terrain = 'mountain';
           tile.elevation = 3;
           tile.walkable = false;
-        } else if (noiseRidge > 1.35) {
+        } else if (alpineVal > 0.56) {
           tile.terrain = 'mountain';
           tile.elevation = 2;
           tile.walkable = false;
-        } else if (noiseRidge > 1.05) {
+        } else if (alpineVal > 0.25) {
           tile.elevation = 1;
-          if (prng.next() < 0.22) {
-            tile.terrain = 'forest';
-            tile.walkable = false;
-          }
         }
       }
     }
   } else if (mapType === 'riverlands') {
     // River cutting across the center with bridges/shallows and overlooking cliff bluffs
     const riverWidth = 3;
-    const riverY = (x: number) => Math.floor(centerY + Math.sin(x * 0.1) * 8);
+    const riverY = (x: number) => Math.floor(centerY + Math.sin(x * 0.08) * 7);
 
-    // Crossing fords
-    const fordLocations = [Math.floor(size * 0.25), Math.floor(size * 0.5), Math.floor(size * 0.75)];
+    // Dedicated crossing fords evenly spaced across the entire river length
+    const fordLocations = [
+      Math.floor(size * 0.15),
+      Math.floor(size * 0.32),
+      Math.floor(size * 0.5),
+      Math.floor(size * 0.68),
+      Math.floor(size * 0.85)
+    ];
 
     for (let x = 0; x < size; x++) {
       const ry = riverY(x);
-      const isFord = fordLocations.some(fx => Math.abs(fx - x) <= 2);
+      const isFord = fordLocations.some(fx => Math.abs(fx - x) <= 4);
 
       for (let dy = -riverWidth; dy <= riverWidth; dy++) {
         const y = ry + dy;
@@ -147,9 +196,10 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
         const tile = getTile(x, y);
         if (!tile) continue;
 
-        if (isFord) {
+        if (isFord || isOnArterialHighway(x, y, 5.0)) {
           tile.terrain = 'sand';
           tile.walkable = true; // walkable shallow ford
+          tile.elevation = 0;
         } else {
           tile.terrain = 'water';
           tile.walkable = false;
@@ -157,7 +207,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
       }
     }
 
-    // Mountain bluffs along valley edges and dense forests
+    // Mountain bluffs along outer valley edges (never blocking center river crossings)
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         if (isNearStart(x, y, 14)) continue;
@@ -167,17 +217,11 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
         const distFromCenter = Math.abs(y - centerY);
         if (distFromCenter > size * 0.38) {
           const bluffNoise = Math.sin(x * 0.16) + Math.cos(y * 0.18);
-          if (bluffNoise > 0.65) {
+          if (bluffNoise > 0.72) {
             tile.terrain = 'mountain';
             tile.elevation = 2;
             tile.walkable = false;
-            continue;
           }
-        }
-
-        if (prng.next() < 0.14) {
-          tile.terrain = 'forest';
-          tile.walkable = false;
         }
       }
     }
@@ -192,12 +236,17 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
         const dy = y - centerY;
         const distFromCenter = Math.sqrt(dx * dx + dy * dy);
 
-        // Central Oasis
+        // Central Oasis with 4 wide cardinal access avenues so entry is never blocked
         if (distFromCenter < size * 0.13) {
-          if (distFromCenter < size * 0.05) {
+          const isCardinalAvenue = Math.abs(dx) < 6 || Math.abs(dy) < 6;
+          if (isCardinalAvenue) {
+            tile.terrain = 'sand';
+            tile.elevation = 0;
+            tile.walkable = true;
+          } else if (distFromCenter < size * 0.05) {
             tile.terrain = 'water';
             tile.walkable = false;
-          } else if (distFromCenter < size * 0.085) {
+          } else if (distFromCenter < size * 0.09) {
             tile.terrain = 'grass';
             tile.walkable = true;
           } else {
@@ -209,28 +258,24 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
 
         // Sandstone Canyon Mesas and Dunes
         const duneNoise = Math.sin(x * 0.08 + y * 0.04) * Math.cos(x * 0.04 - y * 0.08);
-        const mesaNoise = Math.abs(Math.sin(x * 0.11 + 0.5) * Math.sin(y * 0.11 - 0.5));
+        const mesaNoise = Math.sin(x * 0.09) * Math.sin(y * 0.09) + Math.cos(x * 0.18 + 0.8) * Math.sin(y * 0.18 - 0.8) * 0.45;
 
-        if (mesaNoise > 0.72) {
+        if (mesaNoise > 0.82) {
           // Towering Sandstone Canyon Mesa / Butte
           tile.terrain = 'mountain';
           tile.elevation = 2;
           tile.walkable = false;
-        } else if (mesaNoise > 0.58) {
+        } else if (mesaNoise > 0.62) {
           tile.terrain = 'mountain';
           tile.elevation = 1;
           tile.walkable = false;
-        } else if (duneNoise > 0.42) {
+        } else if (duneNoise > 0.45) {
           // Rolling golden sand dunes
           tile.terrain = 'sand';
           tile.elevation = 1;
-        } else if (duneNoise < -0.58 && prng.next() < 0.22) {
+        } else if (duneNoise < -0.65 && prng.next() < 0.15) {
           // Secondary desert watering holes
           tile.terrain = 'water';
-          tile.walkable = false;
-        } else if (prng.next() < 0.11) {
-          // Isolated desert acacia clusters
-          tile.terrain = 'forest';
           tile.walkable = false;
         } else {
           // Default arid steppe sand
@@ -240,39 +285,100 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
       }
     }
   } else if (mapType === 'black_forest') {
-    // Dense primordial woodland with labyrinthine corridors and narrow chokepoints (AoE II style)
+    // Dense primordial woodland with grand central glade & arterial thoroughfares (AoE II style)
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        if (isNearStart(x, y, 14)) continue;
+        if (isNearStart(x, y, 16)) continue;
 
         const tile = getTile(x, y)!;
+        const distFromCenter = Math.hypot(x - centerX, y - centerY);
+
+        // Open grand central glade
+        if (distFromCenter < size * 0.13) {
+          tile.terrain = 'grass';
+          tile.elevation = 0;
+          tile.walkable = true;
+          continue;
+        }
 
         // Heavy multi-octave cellular forest noise
-        const n1 = Math.sin(x * 0.14) * Math.cos(y * 0.14);
-        const n2 = Math.sin(x * 0.28 + 1.4) * Math.cos(y * 0.28 - 0.8) * 0.5;
+        const n1 = Math.sin(x * 0.13) * Math.cos(y * 0.13);
+        const n2 = Math.sin(x * 0.26 + 1.2) * Math.cos(y * 0.26 - 0.7) * 0.45;
         const corridorNoise = n1 + n2;
 
         // Ancient granite crags embedded in forest
         const cragNoise = Math.sin(x * 0.09 + 2.1) + Math.cos(y * 0.09 - 1.7);
 
-        if (cragNoise > 1.6) {
+        if (cragNoise > 1.65) {
           tile.terrain = 'mountain';
           tile.elevation = 2;
           tile.walkable = false;
-        } else if (corridorNoise > -0.18) {
-          // Heavy dense conifer forest
+        } else if (corridorNoise > -0.05) {
+          // Dense conifer forest wall
           tile.terrain = 'forest';
           tile.walkable = false;
-        } else if (corridorNoise < -0.85 && prng.next() < 0.28) {
+        } else if (corridorNoise < -0.9 && prng.next() < 0.2) {
           // Dark forest pond
           tile.terrain = 'water';
           tile.walkable = false;
         } else {
-          // Cleared winding forest pathway / glade
+          // Natural forest glade
           tile.terrain = 'grass';
           tile.walkable = true;
           if (prng.next() < 0.08) {
             tile.elevation = 1;
+          }
+        }
+      }
+    }
+  }
+
+  // Guaranteed Walkable Arterial Highways (RTS Highway Invariant)
+  // Carves wide, unobstructed travel corridors between all player spawns and the map center
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (isOnArterialHighway(x, y, 4.5)) {
+        const tile = getTile(x, y)!;
+        if (tile.terrain === 'mountain') {
+          tile.terrain = defaultTerrain;
+          tile.elevation = 0;
+          tile.walkable = true;
+        } else if (tile.terrain === 'water') {
+          tile.terrain = 'sand';
+          tile.elevation = 0;
+          tile.walkable = true;
+        } else if (tile.terrain === 'forest') {
+          tile.terrain = defaultTerrain;
+          tile.walkable = true;
+        }
+      }
+    }
+  }
+
+  // Clustered Forest Grove Placement (No scattered 1x1 tree deadlocks)
+  // For non-Black Forest maps, place compact, natural tree groves leaving wide open plains
+  if (mapType !== 'black_forest') {
+    const numGroves = Math.floor(size * 0.38);
+    for (let g = 0; g < numGroves; g++) {
+      const gx = prng.rangeInt(8, size - 9);
+      const gy = prng.rangeInt(8, size - 9);
+      if (isNearStart(gx, gy, 15) || isOnArterialHighway(gx, gy, 5.5)) continue;
+      const gTile = getTile(gx, gy);
+      if (!gTile || gTile.terrain === 'water' || gTile.terrain === 'mountain') continue;
+
+      const groveRadius = prng.rangeInt(2, 4);
+      for (let dy = -groveRadius; dy <= groveRadius; dy++) {
+        for (let dx = -groveRadius; dx <= groveRadius; dx++) {
+          const distSq = dx * dx + dy * dy;
+          if (distSq <= groveRadius * groveRadius + prng.next() * 1.2) {
+            const tx = gx + dx;
+            const ty = gy + dy;
+            if (isNearStart(tx, ty, 14) || isOnArterialHighway(tx, ty, 4.5)) continue;
+            const t = getTile(tx, ty);
+            if (t && t.terrain !== 'water' && t.terrain !== 'mountain') {
+              t.terrain = 'forest';
+              t.walkable = false;
+            }
           }
         }
       }

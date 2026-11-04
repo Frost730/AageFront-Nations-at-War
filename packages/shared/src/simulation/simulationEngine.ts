@@ -3366,16 +3366,28 @@ export class SimulationEngine {
         }
       }
 
-      // 8. Tactical Scout Exploration
+      // 8. Tactical Scout Exploration (AoE style fog-of-war sweeps & enemy base recon)
       for (const s of scouts) {
-        if (s.state === 'idle') {
-          const rx = Math.floor(Math.random() * (this.mapData.width - 10) + 5);
-          const ry = Math.floor(Math.random() * (this.mapData.height - 10) + 5);
-          this.processCommand(player.id, {
-            type: 'MOVE',
-            unitIds: [s.id],
-            target: { x: rx, y: ry }
-          });
+        if (s.state === 'idle' || !s.path || s.path.length === 0) {
+          const target = this.findNextExplorationTarget(s);
+          if (target) {
+            this.processCommand(player.id, {
+              type: 'MOVE',
+              unitIds: [s.id],
+              target
+            });
+          } else {
+            const rx = Math.floor(Math.random() * (this.mapData.width - 10) + 5);
+            const ry = Math.floor(Math.random() * (this.mapData.height - 10) + 5);
+            const walkable = this.pathfinder.findNearestWalkable(rx, ry, 12);
+            if (walkable) {
+              this.processCommand(player.id, {
+                type: 'MOVE',
+                unitIds: [s.id],
+                target: walkable
+              });
+            }
+          }
         }
       }
 

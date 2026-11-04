@@ -78,10 +78,37 @@ export class TerrainMesh {
     } else if (tile.terrain === 'forest') {
       return 0.12 + (tile.elevation || 0) * 0.8 + microNoise;
     } else if (tile.terrain === 'mountain') {
-      const baseHeight = (tile.elevation || 1) >= 3 ? 3.6 : (tile.elevation || 1) >= 2 ? 2.6 : 1.6;
-      const ridge1 = Math.pow(Math.abs(Math.sin(vx * 0.28 + vz * 0.2) * Math.cos(vx * 0.2 - vz * 0.28)), 0.85) * 1.25;
-      const crag = Math.sin(vx * 0.75) * Math.cos(vz * 0.75) * 0.35;
-      return baseHeight + ridge1 + crag + microNoise * 0.5;
+      const elev = tile.elevation || 1;
+      if (this.mapType === 'highland_kingdom') {
+        // Towering sharp volcanic crags, soaring jagged needle summits, razor arêtes
+        const baseHeight = elev >= 3 ? 4.2 : elev >= 2 ? 3.0 : 1.8;
+        const razorRidge = Math.pow(Math.abs(Math.sin(vx * 0.35 + vz * 0.25) * Math.cos(vx * 0.25 - vz * 0.35)), 0.5) * 1.85;
+        const needleCrag = Math.sin(vx * 1.1) * Math.cos(vz * 1.1) * 0.55;
+        return baseHeight + razorRidge + needleCrag + microNoise * 0.5;
+      } else if (this.mapType === 'desert_oasis') {
+        // Stepped flat-topped sandstone canyon mesas & buttes (Monument Valley style)
+        const baseHeight = elev >= 3 ? 3.1 : elev >= 2 ? 2.3 : 1.5;
+        const tablePlateau = Math.sin(vx * 0.15) * Math.cos(vz * 0.15) * 0.12;
+        const stepLedge = Math.floor((Math.sin(vx * 0.35) + Math.cos(vz * 0.35)) * 1.5) * 0.22;
+        return baseHeight + tablePlateau + stepLedge + microNoise * 0.3;
+      } else if (this.mapType === 'riverlands') {
+        // Terraced horizontal mudstone & clay bluffs overlooking the river
+        const baseHeight = elev >= 3 ? 2.9 : elev >= 2 ? 2.1 : 1.4;
+        const terrace = Math.floor(Math.sin(vz * 0.5 + vx * 0.2) * 2.5) * 0.22;
+        return baseHeight + terrace + microNoise * 0.5;
+      } else if (this.mapType === 'black_forest') {
+        // Colossal weathered ancient granite domes & brooding megaliths
+        const baseHeight = elev >= 3 ? 3.6 : elev >= 2 ? 2.6 : 1.6;
+        const dome = Math.sqrt(Math.max(0, 1.0 - (Math.pow(Math.sin(vx * 0.22), 2) + Math.pow(Math.cos(vz * 0.22), 2)) * 0.45)) * 1.35;
+        const fissure = Math.abs(Math.sin(vx * 0.75) * Math.cos(vz * 0.75)) * 0.22;
+        return baseHeight + dome - fissure + microNoise * 0.4;
+      } else {
+        // Green Frontier: Classic rolling limestone ridges
+        const baseHeight = elev >= 3 ? 3.6 : elev >= 2 ? 2.6 : 1.6;
+        const ridge1 = Math.pow(Math.abs(Math.sin(vx * 0.28 + vz * 0.2) * Math.cos(vx * 0.2 - vz * 0.28)), 0.85) * 1.25;
+        const crag = Math.sin(vx * 0.75) * Math.cos(vz * 0.75) * 0.35;
+        return baseHeight + ridge1 + crag + microNoise * 0.5;
+      }
     } else {
       const mInfo = this.getMountainWeight(vx, vz);
       if (mInfo.weight > 0.15) {
@@ -131,6 +158,7 @@ export class TerrainMesh {
 
     const posAttr = geom.attributes.position;
     const colors = new Float32Array(posAttr.count * 3);
+    const rockAttr = new Float32Array(posAttr.count);
 
     // Helper to get tile safely
     const getTileAt = (x: number, z: number): MapTile => {
@@ -297,12 +325,16 @@ export class TerrainMesh {
           color.lerp(alpineSnow, snowAmount * 0.88);
         }
 
-        // 3. Foothill transition: blend into scree gravel then deep alpine meadow moss
+        // 3. Foothill transition: blend into scree gravel then deep biome-specific ground
         if (vy < 1.8) {
           const foothillBlend = Math.max(0, Math.min(1, (1.8 - vy) / 0.9));
-          const foothillMoss = new THREE.Color(0x3e5a26);
-          const screeGravel = new THREE.Color(0x606c7a);
-          const lowerColor = screeGravel.lerp(foothillMoss, foothillBlend * 0.65);
+          const foothillColor =
+            this.mapType === 'desert_oasis' ? biomeSandBase :
+            this.mapType === 'highland_kingdom' ? biomeCliffDark :
+            this.mapType === 'black_forest' ? biomeBaseMeadow :
+            new THREE.Color(0x3e5a26);
+          const screeGravel = biomeCliffDark.clone().lerp(new THREE.Color(0x606c7a), 0.5);
+          const lowerColor = screeGravel.lerp(foothillColor, foothillBlend * 0.65);
           color.lerp(lowerColor, foothillBlend * 0.85);
         }
       } else {
@@ -364,8 +396,8 @@ export class TerrainMesh {
       // Slope Cliff Shading: Any steep slope automatically turns into striated rock cliff face (AoE II: DE style)
       if (tile.terrain !== 'water' && tile.terrain !== 'sand' && !isMountainArea && ny < 0.75) {
         const strata = Math.sin(vy * 9.0 + Math.sin(vx * 1.5 + vz * 1.2) * 1.2) * 0.5 + 0.5;
-        const cliffDark = new THREE.Color(0x2d343c); // Dark slate crevice
-        const cliffLight = new THREE.Color(0x5a636e); // Exposed stone ledge strata
+        const cliffDark = biomeCliffDark;
+        const cliffLight = biomeCliffSunlit;
         const cliffColor = cliffDark.clone().lerp(cliffLight, strata * 0.5);
         const cliffMix = Math.min(1.0, (0.75 - ny) * 3.8);
         color.lerp(cliffColor, cliffMix);
@@ -378,9 +410,13 @@ export class TerrainMesh {
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
       colors[i * 3 + 2] = color.b;
+
+      const isRockArea = isMountainArea || ny < 0.72;
+      rockAttr[i] = isRockArea ? 1.0 : (ny < 0.8 ? (0.8 - ny) / 0.08 : 0.0);
     }
 
     geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geom.setAttribute('aRock', new THREE.BufferAttribute(rockAttr, 1));
     geom.computeVertexNormals();
 
     // High-resolution seamless AoE terrain texture & micro-relief bump map
@@ -398,6 +434,37 @@ export class TerrainMesh {
       metalness: 0.05,
       flatShading: false
     });
+
+    groundMat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+        attribute float aRock;
+        varying float vRock;`
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vRock = aRock;`
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+        varying float vRock;`
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `#ifdef USE_MAP
+          vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+          // For mountain and rock cliff areas, preserve the true biome vertex colors (red sandstone, dark basalt, terracotta clay)
+          // modulated with high-frequency surface texture luminance rather than multiplying with green grass blade pigment
+          float texLum = dot(sampledDiffuseColor.rgb, vec3(0.299, 0.587, 0.114)) * 1.55;
+          vec3 rockDetail = vec3(clamp(texLum, 0.6, 1.25));
+          vec3 finalTex = mix(sampledDiffuseColor.rgb, rockDetail, clamp(vRock, 0.0, 1.0));
+          diffuseColor *= vec4(finalTex, 1.0);
+        #endif`
+      );
+    };
 
     this.groundMesh = new THREE.Mesh(geom, groundMat);
     this.groundMesh.receiveShadow = true;
@@ -680,7 +747,7 @@ export class TerrainMesh {
 
     const graniteRockMat = new THREE.MeshStandardMaterial({
       map: cliffTex,
-      color: rockColor,
+      color: 0xffffff, // Pure white base so procedural cliff texture colors (red sandstone, basalt, terracotta) render at 100% vibrance
       roughness: 0.86,
       metalness: 0.05,
       flatShading: true
@@ -688,18 +755,33 @@ export class TerrainMesh {
 
     const darkSlateMat = new THREE.MeshStandardMaterial({
       map: cliffTex,
-      color: screeColor,
+      color: 0xcccccc,
       roughness: 0.90,
       metalness: 0.04,
       flatShading: true
     });
 
-    // 1. Natural Bedrock Outcrop Formations (Pedestal C: Stratified rock slabs jutting along cliff slopes)
-    // Sparse placement: ~11% of cliff faces for natural accents instead of repetitive clutter
+    // 1. Natural Bedrock Outcrop Formations with Biome-Specific Geology
     const bedrockSpots = mountainSpots.filter(m => m.isCliff && ((m.pos.x * 17 + m.pos.z * 31) % 9 === 0));
     if (bedrockSpots.length > 0) {
-      const rockGeom = new THREE.DodecahedronGeometry(0.75, 1);
-      rockGeom.scale(1.8, 0.45, 1.25); // Stratified flat rock slab
+      let rockGeom: THREE.BufferGeometry;
+      if (this.mapType === 'desert_oasis') {
+        // Flat-topped sandstone canyon mesa shelf
+        rockGeom = new THREE.CylinderGeometry(0.9, 1.15, 0.55, 6);
+      } else if (this.mapType === 'highland_kingdom') {
+        // Jagged volcanic crag horn
+        rockGeom = new THREE.ConeGeometry(0.75, 1.5, 5);
+      } else if (this.mapType === 'riverlands') {
+        // Horizontal terraced clay bluff slab
+        rockGeom = new THREE.BoxGeometry(1.6, 0.45, 1.2);
+      } else if (this.mapType === 'black_forest') {
+        // Ancient weathered lichen megalith
+        rockGeom = new THREE.DodecahedronGeometry(0.8, 1);
+        rockGeom.scale(1.2, 1.1, 1.2);
+      } else {
+        rockGeom = new THREE.DodecahedronGeometry(0.75, 1);
+        rockGeom.scale(1.8, 0.45, 1.25);
+      }
 
       const instBedrock = new THREE.InstancedMesh(rockGeom, graniteRockMat, bedrockSpots.length);
       instBedrock.castShadow = true;
@@ -749,11 +831,27 @@ export class TerrainMesh {
       this.group.add(instBoulders);
     }
 
-    // 3. Rare Alpine Granite Spires / Pinnacles (Only 1 per ~20 peak tiles)
+    // 3. Distinct Biome Mountain Pinnacles / Mesas / Monoliths
     const spireSpots = mountainSpots.filter(m => m.isPeak && ((m.pos.x * 19 + m.pos.z * 43) % 17 === 0));
     if (spireSpots.length > 0) {
-      const spireGeom = new THREE.ConeGeometry(0.4, 1.4, 6);
-      spireGeom.scale(1.1, 1.0, 0.85);
+      let spireGeom: THREE.BufferGeometry;
+      if (this.mapType === 'desert_oasis') {
+        // Monument Valley flat-topped butte / red sandstone tower
+        spireGeom = new THREE.CylinderGeometry(0.55, 0.75, 1.4, 6);
+      } else if (this.mapType === 'highland_kingdom') {
+        // Soaring sharp needle peak
+        spireGeom = new THREE.ConeGeometry(0.35, 1.9, 5);
+      } else if (this.mapType === 'riverlands') {
+        // Terraced clay bluff pillar
+        spireGeom = new THREE.BoxGeometry(0.8, 1.2, 0.8);
+      } else if (this.mapType === 'black_forest') {
+        // Colossal rounded ancient granite monolith
+        spireGeom = new THREE.SphereGeometry(0.75, 6, 6);
+        spireGeom.scale(1.0, 1.4, 1.0);
+      } else {
+        spireGeom = new THREE.ConeGeometry(0.4, 1.4, 6);
+        spireGeom.scale(1.1, 1.0, 0.85);
+      }
 
       const instSpires = new THREE.InstancedMesh(spireGeom, graniteRockMat, spireSpots.length);
       instSpires.castShadow = true;
