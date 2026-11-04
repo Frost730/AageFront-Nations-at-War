@@ -480,28 +480,35 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     }
   }
 
-  // Ensure EVERY procedural forest tile on the map is a harvestable wood resource node!
+  // Populate rich harvestable timber stands in natural forest groves (scalable, high-performance distribution)
   const nodeOccupied = new Set<string>();
   resourceNodes.forEach(n => nodeOccupied.add(`${n.x},${n.y}`));
 
-  tiles.forEach((t, idx) => {
-    if (t.terrain === 'forest') {
-      const tx = idx % size;
-      const ty = Math.floor(idx / size);
-      const key = `${tx},${ty}`;
-      if (!nodeOccupied.has(key)) {
-        nodeOccupied.add(key);
-        resourceNodes.push({
-          id: `res_wood_${tx}_${ty}`,
-          type: 'wood',
-          x: tx,
-          y: ty,
-          amount: 1500,
-          maxAmount: 1500
-        });
+  const maxWildWoodNodes = Math.min(250, Math.floor(size * 0.8));
+  let wildWoodCount = 0;
+  const step = Math.max(3, Math.floor(size / 30));
+
+  for (let y = 5; y < size - 5; y += step) {
+    for (let x = 5; x < size - 5; x += step) {
+      if (wildWoodCount >= maxWildWoodNodes) break;
+      const tile = getTile(x, y);
+      if (tile && tile.terrain === 'forest') {
+        const key = `${x},${y}`;
+        if (!nodeOccupied.has(key)) {
+          nodeOccupied.add(key);
+          resourceNodes.push({
+            id: `res_wood_${x}_${y}`,
+            type: 'wood',
+            x: x,
+            y: y,
+            amount: 1500,
+            maxAmount: 1500
+          });
+          wildWoodCount++;
+        }
       }
     }
-  });
+  }
 
   return {
     width: size,

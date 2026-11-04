@@ -648,6 +648,20 @@ export class InputHandler {
       }
     }
 
+    // Check if right-clicked directly on a forest tile
+    const tileX = Math.floor(ground.x);
+    const tileY = Math.floor(ground.z);
+    if (tileX >= 0 && tileX < this.mapWidth && tileY >= 0 && tileY < this.mapHeight) {
+      const tile = this.mapTiles?.[tileY * this.mapWidth + tileX];
+      if (tile && tile.terrain === 'forest') {
+        const nodeId = `res_wood_${tileX}_${tileY}`;
+        this.dispatcher.dispatchGather(unitIds, nodeId);
+        this.renderer.spawnOrderMarker(tileX + 0.5, tileY + 0.5, 'gather');
+        soundManager.playOrder();
+        return;
+      }
+    }
+
     // Check if right-clicked on or near any resource deposit (trees, stone, metal, fruit)
     for (const res of this.activeResourcesForSelection) {
       if (res.amount > 0) {

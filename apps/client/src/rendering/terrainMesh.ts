@@ -178,16 +178,17 @@ export class TerrainMesh {
     const normAttr = geom.attributes.normal;
 
     
-    // Precompute desire lines / dirt trails between resource nodes and settlement hubs
+    // Precompute desire lines / dirt trails between settlement resource hubs
+    const hubNodes = (resourceNodes || []).filter(n => n.type !== 'wood' || !n.id.startsWith('res_wood_'));
     const pathSegments: { x1: number; z1: number; x2: number; z2: number }[] = [];
-    if (resourceNodes && resourceNodes.length > 0) {
-      for (let a = 0; a < resourceNodes.length; a++) {
-        const nodeA = resourceNodes[a];
+    if (hubNodes.length > 0) {
+      for (let a = 0; a < hubNodes.length; a++) {
+        const nodeA = hubNodes[a];
         let nearestDist = 26;
         let nearestB: ResourceNodeData | null = null;
-        for (let b = 0; b < resourceNodes.length; b++) {
+        for (let b = 0; b < hubNodes.length; b++) {
           if (a === b) continue;
-          const nodeB = resourceNodes[b];
+          const nodeB = hubNodes[b];
           const d = Math.hypot(nodeA.x - nodeB.x, nodeA.y - nodeB.y);
           if (d < nearestDist && d > 3.5) {
             nearestDist = d;
@@ -372,10 +373,10 @@ export class TerrainMesh {
           color.lerp(blendColor, Math.min(0.88, intensity * 0.95));
         }
 
-        // Trampled earth around resource clearing hubs
+        // Trampled earth around settlement resource clearing hubs
         let minNodeDist = 999;
-        for (let n = 0; n < resourceNodes.length; n++) {
-          const rn = resourceNodes[n];
+        for (let n = 0; n < hubNodes.length; n++) {
+          const rn = hubNodes[n];
           if (Math.abs(vx - rn.x) > 3.5 || Math.abs(vz - rn.y) > 3.5) continue;
           const d = Math.hypot(vx - rn.x, vz - rn.y);
           if (d < minNodeDist) minNodeDist = d;

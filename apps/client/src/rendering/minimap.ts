@@ -156,15 +156,14 @@ export class Minimap {
     const scaleX = this.width / this.mapWidth;
     const scaleY = this.height / this.mapHeight;
 
-    // 2. Draw Resource Deposits
+    // 2. Draw Resource Deposits (skip wood since terrain canvas already renders forest in green)
     for (const res of resourceNodes) {
-      if (res.amount <= 0) continue;
+      if (res.amount <= 0 || res.type === 'wood') continue;
       if (!fog.isTileExplored(res.x, res.y)) continue;
 
       if (res.type === 'stone') this.ctx.fillStyle = '#94a3b8';
       else if (res.type === 'metal') this.ctx.fillStyle = '#fbbf24';
       else if (res.type === 'food') this.ctx.fillStyle = '#ef4444';
-      else this.ctx.fillStyle = '#166534';
 
       this.ctx.fillRect(res.x * scaleX, res.y * scaleY, scaleX * 1.5, scaleY * 1.5);
     }

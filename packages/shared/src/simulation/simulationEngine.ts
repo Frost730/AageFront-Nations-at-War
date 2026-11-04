@@ -622,8 +622,29 @@ export class SimulationEngine {
 
       case 'GATHER': {
         if (!Array.isArray(cmd.unitIds) || typeof cmd.resourceNodeId !== 'string') return false;
-        const node = this.resourceNodes.get(cmd.resourceNodeId);
+        let node = this.resourceNodes.get(cmd.resourceNodeId);
         const bldg = this.buildings.get(cmd.resourceNodeId);
+
+        // Dynamic on-demand wood node instantiation for any forest tile
+        if (!node && cmd.resourceNodeId.startsWith('res_wood_')) {
+          const parts = cmd.resourceNodeId.split('_');
+          const tx = parseInt(parts[2], 10);
+          const ty = parseInt(parts[3], 10);
+          if (tx >= 0 && tx < this.mapData.width && ty >= 0 && ty < this.mapData.height) {
+            const tile = this.mapData.tiles[ty * this.mapData.width + tx];
+            if (tile && tile.terrain === 'forest') {
+              node = {
+                id: cmd.resourceNodeId,
+                type: 'wood',
+                x: tx,
+                y: ty,
+                amount: 1500,
+                maxAmount: 1500
+              };
+              this.resourceNodes.set(node.id, node);
+            }
+          }
+        }
 
         if (!node && (!bldg || bldg.ownerId !== playerId || !bldg.isConstructed)) return false;
 
@@ -2495,6 +2516,46 @@ export class SimulationEngine {
         }
       }
     }
+
+    // Dynamic on-demand wood node discovery from adjacent forest tiles
+    if ((!nearest || minDist > 20) && (type === 'wood' || !type)) {
+      const w = this.mapData.width;
+      const h = this.mapData.height;
+      const startX = Math.floor(x);
+      const startY = Math.floor(y);
+      for (let r = 1; r <= 20; r++) {
+        for (let dx = -r; dx <= r; dx++) {
+          for (let dy = -r; dy <= r; dy++) {
+            if (Math.abs(dx) === r || Math.abs(dy) === r) {
+              const nx = startX + dx;
+              const ny = startY + dy;
+              if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                const t = this.mapData.tiles[ny * w + nx];
+                if (t && t.terrain === 'forest') {
+                  const dynamicId = `res_wood_${nx}_${ny}`;
+                  let dynNode = this.resourceNodes.get(dynamicId);
+                  if (!dynNode) {
+                    dynNode = {
+                      id: dynamicId,
+                      type: 'wood',
+                      x: nx,
+                      y: ny,
+                      amount: 1500,
+                      maxAmount: 1500
+                    };
+                    this.resourceNodes.set(dynamicId, dynNode);
+                  }
+                  if (dynNode.amount > 0) {
+                    return dynNode;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     return nearest;
   }
 
