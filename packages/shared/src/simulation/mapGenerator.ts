@@ -97,6 +97,33 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     });
   }
 
+  // Riverlands constants and ford bridgehead protection
+  const riverWidth = 7;
+  const riverY = (x: number) => Math.floor(centerY + Math.sin(x * 0.045) * 12 + Math.cos(x * 0.09) * 4);
+  const riverFordLocations = [
+    Math.floor(size * 0.12),
+    Math.floor(size * 0.28),
+    Math.floor(size * 0.44),
+    Math.floor(size * 0.58),
+    Math.floor(size * 0.72),
+    Math.floor(size * 0.88)
+  ];
+
+  const isNearRiverFord = (x: number, y: number, clearanceRadius: number = 7.0): boolean => {
+    if (mapType !== 'riverlands') return false;
+    for (let f = 0; f < riverFordLocations.length; f++) {
+      const fx = riverFordLocations[f];
+      const fry = riverY(fx);
+      const dx = Math.abs(x - fx);
+      const dy = Math.abs(y - fry);
+      // Crossing spans across river (dy up to riverWidth + clearance) and across ford width (dx up to clearance)
+      if (dx <= clearanceRadius && dy <= riverWidth + clearanceRadius + 3) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const isOnArterialHighway = (x: number, y: number, corridorWidth: number = 4.5): boolean => {
     for (let s = 0; s < highwaySegments.length; s++) {
       const seg = highwaySegments[s];
@@ -174,22 +201,9 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     }
   } else if (mapType === 'riverlands') {
     // Grand Riverlands Waterway: Broad, majestic meandering river with sandbars, shallows, and lush riverbank groves
-    const riverWidth = 7; // Grand 15-tile wide river corridor
-    const riverY = (x: number) => Math.floor(centerY + Math.sin(x * 0.045) * 12 + Math.cos(x * 0.09) * 4);
-
-    // Dedicated crossing fords evenly spaced across the entire river length
-    const fordLocations = [
-      Math.floor(size * 0.12),
-      Math.floor(size * 0.28),
-      Math.floor(size * 0.44),
-      Math.floor(size * 0.58),
-      Math.floor(size * 0.72),
-      Math.floor(size * 0.88)
-    ];
-
     for (let x = 0; x < size; x++) {
       const ry = riverY(x);
-      const isFord = fordLocations.some(fx => Math.abs(fx - x) <= 4);
+      const isFord = riverFordLocations.some(fx => Math.abs(fx - x) <= 5);
 
       for (let dy = -riverWidth; dy <= riverWidth; dy++) {
         const y = ry + dy;
@@ -197,9 +211,9 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
         const tile = getTile(x, y);
         if (!tile) continue;
 
-        if (isFord || isOnArterialHighway(x, y, 5.0)) {
+        if (isFord || isOnArterialHighway(x, y, 5.0) || isNearRiverFord(x, y, 5.5)) {
           tile.terrain = 'sand';
-          tile.walkable = true; // walkable shallow ford
+          tile.walkable = true; // walkable shallow ford bridge crossing
           tile.elevation = 0;
         } else if (Math.abs(dy) === riverWidth) {
           // Natural walkable sand shoreline along outer riverbanks
@@ -214,20 +228,21 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     }
 
     // Lush riverbank willow and cypress groves along northern and southern shores
+    // Strictly excluded from ford bridge crossings and arterial highway approaches
     for (let x = 6; x < size - 6; x += 4) {
       const ry = riverY(x);
       const sides = [-1, 1];
       for (const side of sides) {
         if (prng.next() < 0.62) {
           const bankY = ry + side * (riverWidth + prng.rangeInt(1, 3));
-          if (isNearStart(x, bankY, 14) || isOnArterialHighway(x, bankY, 5.0)) continue;
+          if (isNearStart(x, bankY, 14) || isOnArterialHighway(x, bankY, 6.0) || isNearRiverFord(x, bankY, 9.0)) continue;
           const groveR = prng.rangeInt(2, 3);
           for (let gy = -groveR; gy <= groveR; gy++) {
             for (let gx = -groveR; gx <= groveR; gx++) {
               if (gx * gx + gy * gy <= groveR * groveR + 0.6) {
                 const tx = x + gx;
                 const ty = bankY + gy;
-                if (isNearStart(tx, ty, 14) || isOnArterialHighway(tx, ty, 4.5)) continue;
+                if (isNearStart(tx, ty, 14) || isOnArterialHighway(tx, ty, 5.0) || isNearRiverFord(tx, ty, 8.0)) continue;
                 const t = getTile(tx, ty);
                 if (t && t.terrain !== 'water' && t.terrain !== 'mountain') {
                   t.terrain = 'forest';
@@ -240,10 +255,10 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
       }
     }
 
-    // Mountain bluffs along outer valley edges (never blocking center river crossings)
+    // Mountain bluffs along outer valley edges (never blocking center river crossings or highways)
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        if (isNearStart(x, y, 14)) continue;
+        if (isNearStart(x, y, 14) || isNearRiverFord(x, y, 9.0) || isOnArterialHighway(x, y, 6.0)) continue;
         const tile = getTile(x, y)!;
         if (tile.terrain === 'water' || tile.terrain === 'sand') continue;
 
@@ -395,7 +410,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     for (let g = 0; g < numGroves; g++) {
       const gx = prng.rangeInt(8, size - 9);
       const gy = prng.rangeInt(8, size - 9);
-      if (isNearStart(gx, gy, 15) || isOnArterialHighway(gx, gy, 5.5)) continue;
+      if (isNearStart(gx, gy, 15) || isOnArterialHighway(gx, gy, 5.5) || isNearRiverFord(gx, gy, 8.5)) continue;
       const gTile = getTile(gx, gy);
       if (!gTile || gTile.terrain === 'water' || gTile.terrain === 'mountain') continue;
 
@@ -406,7 +421,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
           if (distSq <= groveRadius * groveRadius + prng.next() * 1.2) {
             const tx = gx + dx;
             const ty = gy + dy;
-            if (isNearStart(tx, ty, 14) || isOnArterialHighway(tx, ty, 4.5)) continue;
+            if (isNearStart(tx, ty, 14) || isOnArterialHighway(tx, ty, 4.5) || isNearRiverFord(tx, ty, 7.5)) continue;
             const t = getTile(tx, ty);
             if (t && t.terrain !== 'water' && t.terrain !== 'mountain') {
               t.terrain = 'forest';
@@ -543,12 +558,45 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     }
   }
 
+  // AUTHORITATIVE RTS HIGHWAY & BRIDGE CLEARANCE GUARANTEE
+  // Final pass strictly clears any trees, foliage, mountains, or blocking water
+  // from all arterial highways and river ford crossing bridgeheads connecting opposite lands.
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (isNearStart(x, y, 9)) continue; // Preserve balanced starting base resource perimeter
+      const onHighway = isOnArterialHighway(x, y, 4.5);
+      const nearFord = isNearRiverFord(x, y, 6.0);
+
+      if (onHighway || nearFord) {
+        const tile = getTile(x, y)!;
+        if (tile.terrain === 'forest' || tile.terrain === 'mountain') {
+          tile.terrain = (mapType === 'desert_oasis' || nearFord) ? 'sand' : 'grass';
+          tile.elevation = 0;
+          tile.walkable = true;
+        } else if (tile.terrain === 'water') {
+          tile.terrain = 'sand';
+          tile.elevation = 0;
+          tile.walkable = true;
+        }
+      }
+    }
+  }
+
+  // Ensure no wild blocking resource nodes occupy arterial highways or river ford bridges
+  // (Always preserves player starting resources inside base perimeter)
+  const cleanResourceNodes = resourceNodes.filter(n => {
+    if (isNearStart(n.x, n.y, 9)) return true; // Keep guaranteed player starting resource cluster
+    if (isOnArterialHighway(n.x, n.y, 4.0)) return false;
+    if (isNearRiverFord(n.x, n.y, 5.5)) return false;
+    return true;
+  });
+
   return {
     width: size,
     height: size,
     tiles,
     startPositions,
-    resourceNodes,
+    resourceNodes: cleanResourceNodes,
     mapType
   };
 }

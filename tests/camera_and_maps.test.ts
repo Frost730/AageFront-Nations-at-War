@@ -247,4 +247,45 @@ describe('Age of Empires & Rise of Nations Unique Biomes', () => {
       });
     });
   });
+
+  it('guarantees riverlands bridges/fords and approaches are completely free of trees and obstacles for troop crossing', () => {
+    const size = 200;
+    const map = generateMap('riverlands', size, 12345, 4);
+    const walkableGrid = map.tiles.map(t => t.walkable);
+    const pathfinder = new GridPathfinder(size, size, walkableGrid);
+
+    const centerY = Math.floor(size / 2);
+    const riverY = (x: number) => Math.floor(centerY + Math.sin(x * 0.045) * 12 + Math.cos(x * 0.09) * 4);
+    const fordLocations = [
+      Math.floor(size * 0.12),
+      Math.floor(size * 0.28),
+      Math.floor(size * 0.44),
+      Math.floor(size * 0.58),
+      Math.floor(size * 0.72),
+      Math.floor(size * 0.88)
+    ];
+
+    fordLocations.forEach(fx => {
+      const fry = riverY(fx);
+      // North approach
+      const northY = fry - 14;
+      // South approach
+      const southY = fry + 14;
+
+      // Check crossing corridor has no forest or mountain blocking entrance
+      for (let dy = -10; dy <= 10; dy++) {
+        for (let dx = -4; dx <= 4; dx++) {
+          const t = map.tiles[(fry + dy) * size + (fx + dx)];
+          if (t) {
+            expect(t.terrain, `Blocked tile at (${fx + dx}, ${fry + dy})`).not.toBe('forest');
+            expect(t.terrain, `Blocked tile at (${fx + dx}, ${fry + dy})`).not.toBe('mountain');
+          }
+        }
+      }
+
+      // Pathfinder can navigate directly across the river ford between north and south lands
+      const crossPath = pathfinder.findPath(fx, northY, fx, southY);
+      expect(crossPath.length, `Troops cannot cross riverland ford at x=${fx}`).toBeGreaterThan(0);
+    });
+  });
 });

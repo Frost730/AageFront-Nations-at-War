@@ -114,7 +114,7 @@ export class GridPathfinder {
     return this.walkableGrid[y * this.width + x];
   }
 
-  public findNearestWalkable(targetX: number, targetY: number, maxRadius: number = 8): Vector2D | null {
+  public findNearestWalkable(targetX: number, targetY: number, maxRadius: number = 16): Vector2D | null {
     const tx = Math.floor(targetX);
     const ty = Math.floor(targetY);
     if (this.isWalkable(tx, ty)) return { x: tx, y: ty };
@@ -138,7 +138,7 @@ export class GridPathfinder {
   /**
    * Fast line-of-sight raycast between two world points with obstacle & corner clearance.
    */
-  public hasLineOfSight(x0: number, y0: number, x1: number, y1: number, clearance: number = 0.35): boolean {
+  public hasLineOfSight(x0: number, y0: number, x1: number, y1: number, clearance: number = 0.22): boolean {
     const dist = Math.hypot(x1 - x0, y1 - y0);
     if (dist < 0.2) return true;
 
@@ -256,7 +256,7 @@ export class GridPathfinder {
     startY: number,
     endX: number,
     endY: number,
-    maxSteps: number = 4000
+    maxSteps: number = 25000
   ): Vector2D[] {
     let sx = Math.floor(startX);
     let sy = Math.floor(startY);
@@ -273,7 +273,7 @@ export class GridPathfinder {
 
     // 1. Recover if starting tile is blocked (e.g. spawned near wall or building)
     if (!this.isWalkable(sx, sy)) {
-      const nearestStart = this.findNearestWalkable(sx, sy, 8);
+      const nearestStart = this.findNearestWalkable(sx, sy, 16);
       if (nearestStart) {
         sx = nearestStart.x;
         sy = nearestStart.y;
@@ -284,7 +284,7 @@ export class GridPathfinder {
 
     // 2. Recover if destination tile is blocked (e.g. clicked on a building or wall)
     if (!this.isWalkable(ex, ey)) {
-      const nearestEnd = this.findNearestWalkable(ex, ey, 8);
+      const nearestEnd = this.findNearestWalkable(ex, ey, 16);
       if (!nearestEnd) return [];
       ex = nearestEnd.x;
       ey = nearestEnd.y;
@@ -301,7 +301,7 @@ export class GridPathfinder {
     const currentSearchId = this.searchId;
     this.openHeap.clear();
 
-    const startH = Math.hypot(ex - sx, ey - sy);
+    const startH = Math.hypot(ex - sx, ey - sy) * 1.0005;
     const startNode: PathNode = {
       x: sx,
       y: sy,
@@ -368,7 +368,7 @@ export class GridPathfinder {
         if (tentG < currentG) {
           this.gScores[nIndex] = tentG;
           this.gScoreSearchId[nIndex] = currentSearchId;
-          const h = Math.hypot(ex - nx, ey - ny);
+          const h = Math.hypot(ex - nx, ey - ny) * 1.0005;
           const f = tentG + h;
           this.openHeap.push({ x: nx, y: ny, g: tentG, h, f, parent: current });
         }

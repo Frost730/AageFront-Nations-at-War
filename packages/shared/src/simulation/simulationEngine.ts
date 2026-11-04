@@ -530,7 +530,8 @@ export class SimulationEngine {
 
         if (targetTeam === undefined || targetTeam === player.team) return false;
 
-        for (const uid of cmd.unitIds) {
+        for (let uIdx = 0; uIdx < cmd.unitIds.length; uIdx++) {
+          const uid = cmd.unitIds[uIdx];
           const unit = this.units.get(uid);
           if (!unit || unit.ownerId !== playerId || unit.state === 'dead') continue;
 
@@ -600,11 +601,11 @@ export class SimulationEngine {
               if (firingSpot) {
                 targetPos = firingSpot;
               } else {
-                const adj = this.findAdjacentWalkableToBuilding(targetBuilding.x, targetBuilding.y, targetBuilding.width, targetBuilding.height, unit.x, unit.y);
+                const adj = this.findAdjacentWalkableToBuilding(targetBuilding.x, targetBuilding.y, targetBuilding.width, targetBuilding.height, unit.x, unit.y, uIdx);
                 targetPos = adj || { x: clampedX, y: clampedY };
               }
             } else {
-              const adj = this.findAdjacentWalkableToBuilding(targetBuilding.x, targetBuilding.y, targetBuilding.width, targetBuilding.height, unit.x, unit.y);
+              const adj = this.findAdjacentWalkableToBuilding(targetBuilding.x, targetBuilding.y, targetBuilding.width, targetBuilding.height, unit.x, unit.y, uIdx);
               targetPos = adj || { x: clampedX, y: clampedY };
             }
           }
@@ -1779,7 +1780,7 @@ export class SimulationEngine {
     // Line of sight shortcut: if next waypoint after current is directly reachable with clearance, skip current
     if (unit.path.length >= 2) {
       const pNext = unit.path[1];
-      const clearance = unit.type === 'siege_unit' ? 0.45 : 0.25;
+      const clearance = unit.type === 'siege_unit' ? 0.35 : 0.18;
       if (this.pathfinder.hasLineOfSight(unit.x, unit.y, pNext.x, pNext.y, clearance)) {
         unit.path.shift();
       }
@@ -1822,7 +1823,7 @@ export class SimulationEngine {
       const newX = unit.x + (dx / dist) * moveStep;
       const newY = unit.y + (dy / dist) * moveStep;
 
-      // Aerial units fly over water, walls, and ground obstacles; ground units check walkability
+      // Aerial units fly over water, walls, and ground obstacles; ground units check walkability with wall-sliding
       if (unit.type === 'dragon') {
         if (newX >= 1 && newX <= this.mapData.width - 1 && newY >= 1 && newY <= this.mapData.height - 1) {
           unit.x = newX;
@@ -1830,6 +1831,12 @@ export class SimulationEngine {
         }
       } else if (this.pathfinder.isWalkable(Math.floor(newX), Math.floor(newY))) {
         unit.x = newX;
+        unit.y = newY;
+      } else if (this.pathfinder.isWalkable(Math.floor(newX), Math.floor(unit.y))) {
+        // Slide horizontally along X axis when brushing vertical obstacles
+        unit.x = newX;
+      } else if (this.pathfinder.isWalkable(Math.floor(unit.x), Math.floor(newY))) {
+        // Slide vertically along Y axis when brushing horizontal obstacles
         unit.y = newY;
       } else {
         unit.stuckTicks = (unit.stuckTicks || 0) + 1;
@@ -1843,15 +1850,15 @@ export class SimulationEngine {
       unit.stuckTicks = 0;
     }
 
-    // Unstuck recovery if blocked for 8+ consecutive ticks (0.4s)
-    if ((unit.stuckTicks || 0) >= 8) {
+    // Unstuck recovery if blocked for 5+ consecutive ticks (0.25s)
+    if ((unit.stuckTicks || 0) >= 5) {
       unit.stuckTicks = 0;
       if (unit.path && unit.path.length > 1) {
         // Skip problematic waypoint
         unit.path.shift();
       } else if (unit.targetX !== undefined && unit.targetY !== undefined) {
         // Recalculate path from clean nearby tile
-        const safeStart = this.pathfinder.findNearestWalkable(unit.x, unit.y, 6) || { x: unit.x, y: unit.y };
+        const safeStart = this.pathfinder.findNearestWalkable(unit.x, unit.y, 8) || { x: unit.x, y: unit.y };
         unit.path = this.pathfinder.findPath(safeStart.x, safeStart.y, unit.targetX, unit.targetY);
       } else {
         unit.path = undefined;
@@ -3736,6 +3743,12 @@ export class SimulationEngine {
                 const curB = this.buildings.get(m.targetEntityId!);
                 if ((!curU || curU.state === 'dead') && (!curB || curB.hp <= 0)) return true;
               }
+              // If unit is supposed to be attacking target, but has exhausted its path while far from target, re-issue
+              if (m.state === 'attacking' && m.targetEntityId === target?.id && (!m.path || m.path.length === 0)) {
+                const tx = 'x' in target! ? target!.x : 0;
+                const ty = 'y' in target! ? target!.y : 0;
+                if (Math.hypot(m.x - tx, m.y - ty) > 4) return true;
+              }
               return false;
             });
 
@@ -3879,9 +3892,16 @@ export class SimulationEngine {
     return null;
   }
 
-  public findAdjacentWalkableToBuilding(bx: number, by: number, width: number, height: number, fromX?: number, fromY?: number): Vector2D | null {
-    let bestSpot: Vector2D | null = null;
-    let minFromDist = Infinity;
+  public findAdjacentWalkableToBuilding(
+    bx: number,
+    by: number,
+    width: number,
+    height: number,
+    fromX?: number,
+    fromY?: number,
+    slotIndex: number = 0
+  ): Vector2D | null {
+    const candidates: { spot: Vector2D; dist: number }[] = [];
 
     for (let r = 1; r <= 8; r++) {
       for (let x = bx - r; x <= bx + width + r - 1; x++) {
@@ -3889,22 +3909,26 @@ export class SimulationEngine {
           if (x < bx || x >= bx + width || y < by || y >= by + height) {
             if (this.pathfinder.isWalkable(x, y)) {
               const spot = { x: x + 0.5, y: y + 0.5 };
-              if (fromX !== undefined && fromY !== undefined) {
-                const d = Math.hypot(spot.x - fromX, spot.y - fromY);
-                if (d < minFromDist) {
-                  minFromDist = d;
-                  bestSpot = spot;
-                }
-              } else {
-                return spot;
-              }
+              const d = (fromX !== undefined && fromY !== undefined)
+                ? Math.hypot(spot.x - fromX, spot.y - fromY)
+                : 0;
+              candidates.push({ spot, dist: d });
             }
           }
         }
       }
-      if (bestSpot) return bestSpot;
+      if (candidates.length > 0) break;
     }
-    return bestSpot;
+
+    if (candidates.length === 0) return null;
+
+    if (fromX !== undefined && fromY !== undefined) {
+      candidates.sort((a, b) => a.dist - b.dist);
+      const chosen = candidates[slotIndex % candidates.length];
+      return chosen.spot;
+    }
+
+    return candidates[0].spot;
   }
 
   public checkVictoryConditions(): void {
