@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MapType } from '@agefront/shared';
 
 // Cache generated textures to avoid redundant canvas rendering
 const textureCache = new Map<string, THREE.CanvasTexture>();
@@ -7,8 +8,8 @@ const textureCache = new Map<string, THREE.CanvasTexture>();
  * Creates a seamless procedural grass and soil detail texture for terrain.
  * Features individual grass blade strokes, organic dirt patches, and natural micro-variation.
  */
-export function getTerrainGrassTexture(): THREE.CanvasTexture {
-  const key = 'terrain_grass';
+export function getTerrainGrassTexture(biome: MapType = 'green_frontier'): THREE.CanvasTexture {
+  const key = 'terrain_grass_' + biome;
   if (textureCache.has(key)) return textureCache.get(key)!;
 
   const size = 512;
@@ -17,8 +18,35 @@ export function getTerrainGrassTexture(): THREE.CanvasTexture {
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  // 1. Rich earthy base underlayer
-  ctx.fillStyle = '#3a5f22';
+  // 1. Biome-specific earthy base underlayer
+  let baseColor = '#3a5f22'; // default temperate
+  let loamColors = ['rgba(43, 68, 25, 0.15)', 'rgba(74, 52, 28, 0.12)'];
+  let grassColors = ['#4a7c2a', '#589432', '#365a1e', '#629e38', '#406c24', '#72ab3e', '#88ba4c', '#2c4a17'];
+  let floraPalette = ['#ffffff', '#fef08a', '#93c5fd']; // Daisy, buttercup, bluebell
+
+  if (biome === 'highland_kingdom') {
+    baseColor = '#2b3b28';
+    loamColors = ['rgba(30, 41, 32, 0.22)', 'rgba(63, 74, 66, 0.18)'];
+    grassColors = ['#3d5236', '#4d6645', '#2b3d26', '#597350', '#34472f', '#64805c'];
+    floraPalette = ['#9333ea', '#a855f7', '#7e22ce', '#c084fc', '#d8b4fe']; // Highland Heather
+  } else if (biome === 'riverlands') {
+    baseColor = '#273c1c';
+    loamColors = ['rgba(28, 43, 20, 0.25)', 'rgba(63, 51, 34, 0.2)'];
+    grassColors = ['#3f6927', '#4f7e32', '#5e943c', '#2f521c', '#6fa644', '#385c22'];
+    floraPalette = ['#fbbf24', '#f59e0b', '#ffffff', '#e0e7ff']; // Marsh marigolds & rushes
+  } else if (biome === 'desert_oasis') {
+    baseColor = '#947e4d';
+    loamColors = ['rgba(184, 157, 97, 0.28)', 'rgba(124, 99, 58, 0.22)'];
+    grassColors = ['#a39158', '#b5a467', '#877644', '#c4b373', '#9c8850', '#baa86e'];
+    floraPalette = ['#ef4444', '#f97316', '#fef08a', '#d4c29a']; // Desert succulents & sands
+  } else if (biome === 'black_forest') {
+    baseColor = '#182614';
+    loamColors = ['rgba(20, 31, 16, 0.35)', 'rgba(36, 27, 18, 0.28)'];
+    grassColors = ['#233d1c', '#2d4d24', '#192e14', '#385c2c', '#142610', '#416634'];
+    floraPalette = ['#ef4444', '#f3f4f6', '#86efac', '#4ade80']; // Toadstools & deep moss
+  }
+
+  ctx.fillStyle = baseColor;
   ctx.fillRect(0, 0, size, size);
 
   // 2. Organic soil & loam noise clusters
@@ -26,31 +54,26 @@ export function getTerrainGrassTexture(): THREE.CanvasTexture {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const r = Math.random() * 18 + 4;
-    const alpha = Math.random() * 0.18 + 0.05;
-    ctx.fillStyle = Math.random() > 0.4 ? `rgba(43, 68, 25, ${alpha})` : `rgba(74, 52, 28, ${alpha * 0.8})`;
+    ctx.fillStyle = loamColors[Math.floor(Math.random() * loamColors.length)];
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    // Wrap around for seamless tiling
     if (x - r < 0) { ctx.beginPath(); ctx.arc(x + size, y, r, 0, Math.PI * 2); ctx.fill(); }
     if (x + r > size) { ctx.beginPath(); ctx.arc(x - size, y, r, 0, Math.PI * 2); ctx.fill(); }
     if (y - r < 0) { ctx.beginPath(); ctx.arc(x, y + size, r, 0, Math.PI * 2); ctx.fill(); }
     if (y + r > size) { ctx.beginPath(); ctx.arc(x, y - size, r, 0, Math.PI * 2); ctx.fill(); }
   }
 
-  // 3. Dense individual grass blades (Age of Empires II: Definitive Edition grass density)
-  const grassColors = [
-    '#4a7c2a', '#589432', '#365a1e', '#629e38', '#406c24', '#72ab3e', '#88ba4c', '#2c4a17'
-  ];
-
+  // 3. Dense individual grass blades
   ctx.lineWidth = 1.2;
   ctx.lineCap = 'round';
+  const bladeCount = biome === 'desert_oasis' ? 9000 : 18000;
 
-  for (let i = 0; i < 18000; i++) {
+  for (let i = 0; i < bladeCount; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const len = Math.random() * 6 + 3;
-    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.85; // Mostly upright with natural wind lean
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.85;
     const dx = Math.cos(angle) * len;
     const dy = Math.sin(angle) * len;
 
@@ -60,21 +83,19 @@ export function getTerrainGrassTexture(): THREE.CanvasTexture {
     ctx.lineTo(x + dx, y + dy);
     ctx.stroke();
 
-    // Wrap-around strokes
     if (x + dx < 0) { ctx.beginPath(); ctx.moveTo(x + size, y); ctx.lineTo(x + size + dx, y + dy); ctx.stroke(); }
     if (x + dx > size) { ctx.beginPath(); ctx.moveTo(x - size, y); ctx.lineTo(x - size + dx, y + dy); ctx.stroke(); }
     if (y + dy < 0) { ctx.beginPath(); ctx.moveTo(x, y + size); ctx.lineTo(x + dx, y + size + dy); ctx.stroke(); }
     if (y + dy > size) { ctx.beginPath(); ctx.moveTo(x, y - size); ctx.lineTo(x + dx, y - size + dy); ctx.stroke(); }
   }
 
-  // 4. Micro pebble and wildflower scatter
-  for (let i = 0; i < 250; i++) {
+  // 4. Micro flora & detail scatter
+  for (let i = 0; i < 350; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const isFlower = Math.random() > 0.82;
-    ctx.fillStyle = isFlower ? (Math.random() > 0.5 ? '#fef08a' : '#ffffff') : '#78716c';
+    ctx.fillStyle = floraPalette[Math.floor(Math.random() * floraPalette.length)];
     ctx.beginPath();
-    ctx.arc(x, y, isFlower ? 1.0 : 1.4, 0, Math.PI * 2);
+    ctx.arc(x, y, Math.random() * 1.5 + 0.8, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -764,8 +785,8 @@ export function getPineNeedleTexture(): THREE.CanvasTexture {
  * Creates high-detail procedural granite mountain cliff & crag texture.
  * Features stratified rock layers, vertical tectonic fissures, mineral veins, and alpine lichen.
  */
-export function getMountainCliffTexture(): THREE.CanvasTexture {
-  const key = 'mountain_cliff';
+export function getMountainCliffTexture(biome: MapType = 'green_frontier'): THREE.CanvasTexture {
+  const key = 'mountain_cliff_' + biome;
   if (textureCache.has(key)) return textureCache.get(key)!;
 
   const size = 512;
@@ -774,19 +795,49 @@ export function getMountainCliffTexture(): THREE.CanvasTexture {
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  // Weathered alpine granite bedrock base (Matching Pedestal C Valley Bedrock reference)
-  ctx.fillStyle = '#7a8594';
+  let baseFill = '#7a8594'; // default weathered alpine granite
+  let strataColors = ['#8893a2', '#97a2b2', '#727d8c', '#a6b1c0', '#697482', '#b3becd', '#8f9baa'];
+  let fissureColor = 'rgba(42, 48, 56, 0.65)';
+  let ledgeColor = 'rgba(235, 242, 250, 0.45)';
+  let accentColor = 'rgba(92, 116, 75, 0.55)'; // alpine moss/lichen
+
+  if (biome === 'highland_kingdom') {
+    baseFill = '#434c59'; // Dark volcanic basalt & slate
+    strataColors = ['#4f5968', '#38414d', '#5a6677', '#313843', '#68768a', '#2c333d'];
+    fissureColor = 'rgba(22, 26, 33, 0.82)';
+    ledgeColor = 'rgba(240, 248, 255, 0.65)'; // Crisp frost ledge
+    accentColor = 'rgba(163, 184, 205, 0.45)';
+  } else if (biome === 'riverlands') {
+    baseFill = '#7a4e38'; // Terracotta & red-clay mudstone
+    strataColors = ['#8e5d45', '#6b3f2b', '#a26d52', '#593220', '#b57c60', '#744530'];
+    fissureColor = 'rgba(46, 25, 15, 0.75)';
+    ledgeColor = 'rgba(235, 196, 175, 0.45)';
+    accentColor = 'rgba(74, 107, 62, 0.55)'; // River algae
+  } else if (biome === 'desert_oasis') {
+    baseFill = '#994a26'; // Vibrant canyon red sandstone (Monument Valley / Petra)
+    strataColors = ['#b85e33', '#cc7241', '#e08552', '#7d3718', '#d67a48', '#f09867'];
+    fissureColor = 'rgba(64, 22, 9, 0.8)';
+    ledgeColor = 'rgba(254, 215, 170, 0.65)'; // Golden sunlit mineral shelf
+    accentColor = 'rgba(194, 120, 60, 0.4)';
+  } else if (biome === 'black_forest') {
+    baseFill = '#2d3632'; // Brooding ancient monolith
+    strataColors = ['#38433e', '#232b27', '#45524c', '#1b221f', '#4f5e57', '#313c37'];
+    fissureColor = 'rgba(15, 20, 18, 0.85)';
+    ledgeColor = 'rgba(167, 186, 177, 0.35)';
+    accentColor = 'rgba(46, 92, 56, 0.75)'; // Thick ancient forest lichen
+  }
+
+  ctx.fillStyle = baseFill;
   ctx.fillRect(0, 0, size, size);
 
-  // Horizontal sedimentary rock strata bands (Luminous granite & limestone layers)
-  const strataColors = ['#8893a2', '#97a2b2', '#727d8c', '#a6b1c0', '#697482', '#b3becd', '#8f9baa'];
+  // Horizontal sedimentary rock strata bands
   for (let y = 0; y < size; y += 8) {
     ctx.fillStyle = strataColors[Math.floor(Math.random() * strataColors.length)];
     ctx.fillRect(0, y, size, Math.random() * 14 + 6);
   }
 
   // Vertical tectonic cracks & geological fissures
-  ctx.strokeStyle = 'rgba(42, 48, 56, 0.65)';
+  ctx.strokeStyle = fissureColor;
   ctx.lineWidth = 1.8;
   for (let i = 0; i < 35; i++) {
     let x = Math.random() * size;
@@ -801,8 +852,8 @@ export function getMountainCliffTexture(): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  // Chiseled angular granite ledge highlights
-  ctx.strokeStyle = 'rgba(235, 242, 250, 0.45)';
+  // Angular rock ledge highlights
+  ctx.strokeStyle = ledgeColor;
   ctx.lineWidth = 1.5;
   for (let i = 0; i < 50; i++) {
     const x = Math.random() * size;
@@ -814,11 +865,11 @@ export function getMountainCliffTexture(): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  // Alpine lichen / moss flecks (Valley Bedrock reference)
+  // Lichen / moss / mineral flecks
   for (let i = 0; i < 700; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(92, 116, 75, 0.55)' : 'rgba(165, 178, 142, 0.4)';
+    ctx.fillStyle = accentColor;
     ctx.fillRect(x, y, Math.random() * 4 + 2, Math.random() * 3 + 1);
   }
 
@@ -826,6 +877,142 @@ export function getMountainCliffTexture(): THREE.CanvasTexture {
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(3, 3);
+  textureCache.set(key, texture);
+  return texture;
+}
+
+/**
+ * Creates high-detail procedural feather palm frond texture for Date Palms (Desert Oasis).
+ */
+export function getPalmFrondTexture(): THREE.CanvasTexture {
+  const key = 'foliage_palm_frond';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#1e3814';
+  ctx.fillRect(0, 0, size, size);
+
+  // Central thick stem spine
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(size / 2, size);
+  ctx.quadraticCurveTo(size / 2 + 30, size / 2, size / 2, 20);
+  ctx.stroke();
+
+  // Radiating palm feather leaflets
+  const frondColors = ['#2d5a1e', '#3b7428', '#4b9134', '#5dae41', '#6fca4f', '#244818'];
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+
+  for (let y = size - 20; y > 30; y -= 5) {
+    const spineX = size / 2 + Math.sin(y * 0.01) * 20;
+    const frondLen = Math.min(180, (y / size) * 220);
+
+    for (const dir of [-1, 1]) {
+      ctx.strokeStyle = frondColors[Math.floor(Math.random() * frondColors.length)];
+      ctx.beginPath();
+      ctx.moveTo(spineX, y);
+      const angle = (dir * 0.7) - (y / size) * 0.4;
+      const ex = spineX + Math.cos(angle) * frondLen * dir;
+      const ey = y - Math.sin(angle) * frondLen * 0.6;
+      ctx.quadraticCurveTo(spineX + (ex - spineX) * 0.6, y - 25, ex, ey);
+      ctx.stroke();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 2);
+  textureCache.set(key, texture);
+  return texture;
+}
+
+/**
+ * Creates high-detail procedural weeping willow leaf garland texture (Riverlands).
+ */
+export function getWillowFoliageTexture(): THREE.CanvasTexture {
+  const key = 'foliage_willow';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#1c3315';
+  ctx.fillRect(0, 0, size, size);
+
+  // Cascading pendulous vertical willow tendrils
+  const willowColors = ['#385e26', '#497733', '#5a9040', '#6ba94d', '#2c4b1e', '#7fc35d'];
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+
+  for (let i = 0; i < 400; i++) {
+    let x = Math.random() * size;
+    let y = Math.random() * 80;
+    const len = Math.random() * 320 + 120;
+    ctx.strokeStyle = willowColors[Math.floor(Math.random() * willowColors.length)];
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+
+    let cy = y;
+    while (cy < y + len && cy < size) {
+      cy += Math.random() * 20 + 10;
+      x += (Math.random() - 0.5) * 8;
+      ctx.lineTo(x, cy);
+    }
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3, 3);
+  textureCache.set(key, texture);
+  return texture;
+}
+
+/**
+ * Creates high-detail procedural flat umbrella acacia canopy texture (Desert Oasis).
+ */
+export function getAcaciaFoliageTexture(): THREE.CanvasTexture {
+  const key = 'foliage_acacia';
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#263b19';
+  ctx.fillRect(0, 0, size, size);
+
+  // Feathery horizontal acacia leaflets
+  const acaciaColors = ['#4a6e2e', '#5c873a', '#70a248', '#84be57', '#3a5723', '#96d465'];
+  for (let i = 0; i < 6000; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const rx = Math.random() * 8 + 4;
+    const ry = Math.random() * 2.5 + 1;
+    ctx.fillStyle = acaciaColors[Math.floor(Math.random() * acaciaColors.length)];
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, (Math.random() - 0.5) * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
   textureCache.set(key, texture);
   return texture;
 }

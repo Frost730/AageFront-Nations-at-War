@@ -213,9 +213,11 @@ export class LobbyView {
             <div>
               <label class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03; display: block; margin-bottom: 2px;">Battlefield Terrain</label>
               <select id="select-map-type" class="aoe-select" ${!isHost ? 'disabled' : ''} style="width: 100%;">
-                <option value="green_frontier" ${state.settings.mapType === 'green_frontier' ? 'selected' : ''}>Green Frontier (Lush Forests)</option>
-                <option value="highland_kingdom" ${state.settings.mapType === 'highland_kingdom' ? 'selected' : ''}>Highland Kingdom (Mountains)</option>
-                <option value="riverlands" ${state.settings.mapType === 'riverlands' ? 'selected' : ''}>Riverlands (Rivers & Valleys)</option>
+                <option value="green_frontier" ${state.settings.mapType === 'green_frontier' ? 'selected' : ''}>Green Frontier (Temperate Meadows & Oaks)</option>
+                <option value="highland_kingdom" ${state.settings.mapType === 'highland_kingdom' ? 'selected' : ''}>Highland Kingdom (Snowy Peaks & Pines)</option>
+                <option value="riverlands" ${state.settings.mapType === 'riverlands' ? 'selected' : ''}>Riverlands (Rivers, Fords & Willows)</option>
+                <option value="desert_oasis" ${state.settings.mapType === 'desert_oasis' ? 'selected' : ''}>Desert Oasis (Dunes, Palms & Mesas)</option>
+                <option value="black_forest" ${state.settings.mapType === 'black_forest' ? 'selected' : ''}>Black Forest (Dense Woods & Chokepoints)</option>
               </select>
             </div>
 

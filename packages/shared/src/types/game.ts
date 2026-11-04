@@ -14,7 +14,7 @@ export type CivName = 'Veyran Confederacy' | 'Solari Dominion' | 'Ironvale Kingd
 
 export type VictoryConditionType = 'conquest' | 'territorial' | 'technology' | 'elimination';
 
-export type MapType = 'green_frontier' | 'highland_kingdom' | 'riverlands';
+export type MapType = 'green_frontier' | 'highland_kingdom' | 'riverlands' | 'desert_oasis' | 'black_forest';
 
 export type AIDifficulty = 'easy' | 'standard' | 'tough' | 'toughest' | 'medium' | 'hard';
 

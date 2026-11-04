@@ -29,7 +29,7 @@ export interface Room {
 export function validateGameSettings(settings: any): Partial<GameSettings> {
   if (!settings || typeof settings !== 'object') return {};
   const validated: Partial<GameSettings> = {};
-  const allowedMapTypes = ['green_frontier', 'highland_kingdom', 'riverlands'];
+  const allowedMapTypes = ['green_frontier', 'highland_kingdom', 'riverlands', 'desert_oasis', 'black_forest'];
   const allowedVictories = ['conquest', 'territorial', 'technology', 'elimination'];
   const allowedResources = ['standard', 'high', 'deathmatch'];
   const allowedDifficulties = ['easy', 'standard', 'tough', 'toughest', 'medium', 'hard'];

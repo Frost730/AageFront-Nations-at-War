@@ -8,7 +8,7 @@ function distToSegment(px: number, pz: number, x1: number, z1: number, x2: numbe
 }
 
 import * as THREE from 'three';
-import { MapTile, ResourceNodeData } from '@agefront/shared';
+import { MapTile, ResourceNodeData, MapType } from '@agefront/shared';
 import {
   getTerrainGrassTexture,
   getTerrainBumpTexture,
@@ -18,13 +18,17 @@ import {
   getWoodPlankTexture,
   getFoliageTexture,
   getPineNeedleTexture,
-  getMountainCliffTexture
+  getMountainCliffTexture,
+  getPalmFrondTexture,
+  getWillowFoliageTexture,
+  getAcaciaFoliageTexture
 } from './proceduralTextures.js';
 
 export class TerrainMesh {
   public group: THREE.Group;
   private width: number;
   private height: number;
+  private mapType: MapType = 'green_frontier';
   private groundMesh: THREE.Mesh;
   private waterMesh: THREE.Mesh | null = null;
   private waterRippleTex: THREE.CanvasTexture | null = null;
@@ -112,9 +116,10 @@ export class TerrainMesh {
     return e0 * (1 - fz) + e1 * fz;
   }
 
-  constructor(width: number, height: number, tiles: MapTile[], resourceNodes: ResourceNodeData[]) {
+  constructor(width: number, height: number, tiles: MapTile[], resourceNodes: ResourceNodeData[], mapType: MapType = 'green_frontier') {
     this.width = width;
     this.height = height;
+    this.mapType = mapType;
     this.group = new THREE.Group();
     this.tiles = tiles;
 
@@ -167,7 +172,86 @@ export class TerrainMesh {
       }
     }
 
-    // 2. Multi-Palette Vertex Color Blending (Lush grass, sandy beaches, granite cliffs, alpine snow)
+    // 2. Multi-Palette Biome Vertex Color Blending (Unique per MapType)
+    let biomeBaseMeadow = new THREE.Color(0x446d2c);
+    let biomeDeepMeadow = new THREE.Color(0x2f4c1c);
+    let biomeSunlitGrass = new THREE.Color(0x567e35);
+    let biomeWaterBed = new THREE.Color(0x0e354a);
+    let biomeSandBase = new THREE.Color(0x9e845c);
+    let biomeSandVar = new THREE.Color(0x826c48);
+    let biomeForestFloor = new THREE.Color(0x234419);
+    let biomeForestVar = new THREE.Color(0x1c3714);
+
+    let biomeCliffDark = new THREE.Color(0x48525f);
+    let biomeCliffSunlit = new THREE.Color(0x8896a7);
+    let biomeCliffShadow = new THREE.Color(0x38414c);
+    let biomeCliffHighlight = new THREE.Color(0x98a5b6);
+    let biomeAllowSnow = true;
+    let biomeSnowMinElev = 3.6;
+
+    if (this.mapType === 'highland_kingdom') {
+      biomeBaseMeadow = new THREE.Color(0x384a32); // cold heather tundra
+      biomeDeepMeadow = new THREE.Color(0x283824);
+      biomeSunlitGrass = new THREE.Color(0x495e3f);
+      biomeWaterBed = new THREE.Color(0x082f3d);
+      biomeSandBase = new THREE.Color(0x76787c); // cold grey gravel
+      biomeSandVar = new THREE.Color(0x5e6064);
+      biomeForestFloor = new THREE.Color(0x182c16);
+      biomeForestVar = new THREE.Color(0x122210);
+
+      biomeCliffDark = new THREE.Color(0x252b33); // dark volcanic basalt
+      biomeCliffSunlit = new THREE.Color(0x5d6878);
+      biomeCliffShadow = new THREE.Color(0x1a1e24);
+      biomeCliffHighlight = new THREE.Color(0x798699);
+      biomeAllowSnow = true;
+      biomeSnowMinElev = 2.6; // prominent alpine snow caps
+    } else if (this.mapType === 'riverlands') {
+      biomeBaseMeadow = new THREE.Color(0x324d22); // lush river silt meadow
+      biomeDeepMeadow = new THREE.Color(0x233816);
+      biomeSunlitGrass = new THREE.Color(0x486b30);
+      biomeWaterBed = new THREE.Color(0x0a3334);
+      biomeSandBase = new THREE.Color(0x805f42); // moist riverbank clay sediment
+      biomeSandVar = new THREE.Color(0x6b4e33);
+      biomeForestFloor = new THREE.Color(0x1f3c15);
+      biomeForestVar = new THREE.Color(0x162c0e);
+
+      biomeCliffDark = new THREE.Color(0x5c3826); // terracotta & red-clay mudstone bluffs
+      biomeCliffSunlit = new THREE.Color(0x9c6042);
+      biomeCliffShadow = new THREE.Color(0x422618);
+      biomeCliffHighlight = new THREE.Color(0xb57353);
+      biomeAllowSnow = false;
+    } else if (this.mapType === 'desert_oasis') {
+      biomeBaseMeadow = new THREE.Color(0x8c7a4a); // dry savanna grass
+      biomeDeepMeadow = new THREE.Color(0x6d5e35);
+      biomeSunlitGrass = new THREE.Color(0xa49058);
+      biomeWaterBed = new THREE.Color(0x083a38);
+      biomeSandBase = new THREE.Color(0xd4a04e); // radiant golden desert sand
+      biomeSandVar = new THREE.Color(0xc08836);
+      biomeForestFloor = new THREE.Color(0x7a6c38);
+      biomeForestVar = new THREE.Color(0x5c5028);
+
+      biomeCliffDark = new THREE.Color(0x7a3518); // Monument Valley red-orange canyon sandstone
+      biomeCliffSunlit = new THREE.Color(0xc26435);
+      biomeCliffShadow = new THREE.Color(0x56230e);
+      biomeCliffHighlight = new THREE.Color(0xdb7a48);
+      biomeAllowSnow = false;
+    } else if (this.mapType === 'black_forest') {
+      biomeBaseMeadow = new THREE.Color(0x1e3318); // deep dark mossy forest clearing
+      biomeDeepMeadow = new THREE.Color(0x142410);
+      biomeSunlitGrass = new THREE.Color(0x294320);
+      biomeWaterBed = new THREE.Color(0x061e2b);
+      biomeSandBase = new THREE.Color(0x4e4438); // dark woodland peat
+      biomeSandVar = new THREE.Color(0x3b3329);
+      biomeForestFloor = new THREE.Color(0x10210e);
+      biomeForestVar = new THREE.Color(0x0a1608);
+
+      biomeCliffDark = new THREE.Color(0x1f2623); // brooding ancient granite monolith
+      biomeCliffSunlit = new THREE.Color(0x3f4d47);
+      biomeCliffShadow = new THREE.Color(0x151a18);
+      biomeCliffHighlight = new THREE.Color(0x53645d);
+      biomeAllowSnow = false;
+    }
+
     for (let i = 0; i < posAttr.count; i++) {
       const vx = posAttr.getX(i);
       const vy = posAttr.getY(i);
@@ -181,34 +265,30 @@ export class TerrainMesh {
       let color = new THREE.Color(0x446d2c); // Base rich temperate meadow green
 
       if (tile.terrain === 'water') {
-        color = new THREE.Color(0x0e354a); // Deep rich aquatic riverbed (AoE / RoN style)
+        color = biomeWaterBed.clone();
       } else if (tile.terrain === 'sand') {
-        color = new THREE.Color(0x9e845c); // Natural warm river sand / shore sediment
-        color.lerp(new THREE.Color(0x826c48), Math.abs(Math.sin(vx * 0.8)));
+        color = biomeSandBase.clone().lerp(biomeSandVar, Math.abs(Math.sin(vx * 0.8)));
       } else if (tile.terrain === 'forest' && !isMountainArea) {
-        color = new THREE.Color(0x234419); // Rich pine needle and moss woodland floor
-        color.lerp(new THREE.Color(0x1c3714), Math.abs(Math.cos(vz * 0.6)));
+        color = biomeForestFloor.clone().lerp(biomeForestVar, Math.abs(Math.cos(vz * 0.6)));
       } else if (isMountainArea) {
         // Alpine Mountain Massif (Faithfully matching user photo reference ba65d829.jpg)
         // 1. Granite mountain rock is dominant (weathered alpine granite & stratified stone)
         const strata = Math.sin(vy * 6.5 + Math.sin(vx * 1.5 + vz * 1.2) * 1.1) * 0.5 + 0.5;
-        const cliffDark = new THREE.Color(0x48525f); // Dark weathered slate fissure
-        const cliffSunlit = new THREE.Color(0x8896a7); // Luminous exposed granite ledge
-        const graniteBase = cliffDark.clone().lerp(cliffSunlit, strata * 0.6 + 0.2);
+        const graniteBase = biomeCliffDark.clone().lerp(biomeCliffSunlit, strata * 0.6 + 0.2);
 
         // Cliff steepness shading (steep faces darker, flat shoulders sunlit)
         if (ny < 0.72) {
           const shadeMix = Math.min(1.0, (0.72 - ny) * 3.0);
-          graniteBase.lerp(new THREE.Color(0x38414c), shadeMix * 0.5);
+          graniteBase.lerp(biomeCliffShadow, shadeMix * 0.5);
         } else {
-          graniteBase.lerp(new THREE.Color(0x98a5b6), 0.2);
+          graniteBase.lerp(biomeCliffHighlight, 0.2);
         }
 
         color = graniteBase;
 
         // 2. Subtle, realistic snow ONLY on highest crests & arêtes (vy >= 3.6 AND ny > 0.52)
         // Never excessive, strictly crowning the peaks where snow naturally accumulates
-        if (vy >= 3.6 && ny > 0.52) {
+        if (biomeAllowSnow && vy >= biomeSnowMinElev && ny > 0.52) {
           const snowFactor = Math.min(1.0, (vy - 3.6) / 0.85);
           const snowSlopeFactor = Math.min(1.0, (ny - 0.52) / 0.3);
           const snowAmount = snowFactor * snowSlopeFactor;
@@ -228,9 +308,9 @@ export class TerrainMesh {
       } else {
         // Smooth natural grassland gradient (Rise of Nations / Age of Empires style)
         const varChoice = Math.sin(vx * 0.08) * Math.cos(vz * 0.08) * 0.5 + Math.sin(vx * 0.15 + 1.2) * 0.2;
-        const baseGrass = new THREE.Color(0x446d2c); // Lush temperate meadow
-        const deepMeadow = new THREE.Color(0x2f4c1c); // Forest edge & valley shadow
-        const sunlitGrass = new THREE.Color(0x567e35); // Sunlit warm hillside knoll
+        const baseGrass = biomeBaseMeadow;
+        const deepMeadow = biomeDeepMeadow;
+        const sunlitGrass = biomeSunlitGrass;
         if (varChoice > 0.1) {
           color = baseGrass.clone().lerp(sunlitGrass, Math.min(1.0, (varChoice - 0.1) * 2.5));
         } else {
@@ -304,7 +384,7 @@ export class TerrainMesh {
     geom.computeVertexNormals();
 
     // High-resolution seamless AoE terrain texture & micro-relief bump map
-    const grassTex = getTerrainGrassTexture();
+    const grassTex = getTerrainGrassTexture(this.mapType);
     const bumpTex = getTerrainBumpTexture();
     grassTex.repeat.set(width / 3.5, height / 3.5);
     bumpTex.repeat.set(width / 3.5, height / 3.5);
@@ -387,9 +467,25 @@ export class TerrainMesh {
       this.waterRippleTex = getWaterRippleTexture();
       this.waterRippleTex.repeat.set(width / 4, height / 4);
 
+      let waterColorHex = 0x1873aa;
+      let waterEmissiveHex = 0x0c3e5e;
+      if (this.mapType === 'highland_kingdom') {
+        waterColorHex = 0x178299;
+        waterEmissiveHex = 0x09414e;
+      } else if (this.mapType === 'riverlands') {
+        waterColorHex = 0x19636b;
+        waterEmissiveHex = 0x0d3c42;
+      } else if (this.mapType === 'desert_oasis') {
+        waterColorHex = 0x1ea59e;
+        waterEmissiveHex = 0x0d5652;
+      } else if (this.mapType === 'black_forest') {
+        waterColorHex = 0x113b52;
+        waterEmissiveHex = 0x07202e;
+      }
+
       const waterMat = new THREE.MeshStandardMaterial({
-        color: 0x1873aa, // Vibrant aquatic river blue (Age of Empires II style)
-        emissive: 0x0c3e5e, // Clear aquatic luminescence
+        color: waterColorHex,
+        emissive: waterEmissiveHex,
         emissiveIntensity: 0.22,
         bumpMap: this.waterRippleTex,
         bumpScale: 0.045,
@@ -564,10 +660,27 @@ export class TerrainMesh {
 
     if (mountainSpots.length === 0) return;
 
-    const cliffTex = getMountainCliffTexture();
+    const cliffTex = getMountainCliffTexture(this.mapType);
+    let rockColor = 0x768393;
+    let screeColor = 0x586472;
+
+    if (this.mapType === 'highland_kingdom') {
+      rockColor = 0x434c59; // Dark volcanic basalt
+      screeColor = 0x2b333e;
+    } else if (this.mapType === 'riverlands') {
+      rockColor = 0x8e5d45; // Terracotta & red-clay mudstone
+      screeColor = 0x6a3f2b;
+    } else if (this.mapType === 'desert_oasis') {
+      rockColor = 0xb85e33; // Radiant red canyon sandstone (Monument Valley)
+      screeColor = 0x8e4222;
+    } else if (this.mapType === 'black_forest') {
+      rockColor = 0x2d3632; // Ancient mossy monolith
+      screeColor = 0x1b221f;
+    }
+
     const graniteRockMat = new THREE.MeshStandardMaterial({
       map: cliffTex,
-      color: 0x768393, // Weathered alpine granite (Pedestal C Valley Bedrock)
+      color: rockColor,
       roughness: 0.86,
       metalness: 0.05,
       flatShading: true
@@ -575,7 +688,7 @@ export class TerrainMesh {
 
     const darkSlateMat = new THREE.MeshStandardMaterial({
       map: cliffTex,
-      color: 0x586472, // Shadowed slate rock & scree
+      color: screeColor,
       roughness: 0.90,
       metalness: 0.04,
       flatShading: true
@@ -683,239 +796,436 @@ export class TerrainMesh {
       }
     });
 
-    if (forestSpots.length > 0) {
-      const woodTex = getWoodPlankTexture();
-      const foliageTex = getFoliageTexture();
-      const pineNeedleTex = getPineNeedleTexture();
+    if (forestSpots.length === 0) return;
 
-      const trunkMat = new THREE.MeshStandardMaterial({
-        map: woodTex,
-        color: 0x5c3d25, // Natural Scots Pine timber bark (Pedestal A)
-        roughness: 0.88,
-        flatShading: false
-      });
+    const woodTex = getWoodPlankTexture();
+    const trunkMat = new THREE.MeshStandardMaterial({
+      map: woodTex,
+      color: this.mapType === 'desert_oasis' ? 0x826543 : 0x5c3d25,
+      roughness: 0.88,
+      flatShading: false
+    });
 
-      // Conifers vs Oaks distribution
-      const coniferSpots: THREE.Vector3[] = [];
-      const oakSpots: THREE.Vector3[] = [];
-
-      forestSpots.forEach((p, idx) => {
-        if (idx % 2 === 0) coniferSpots.push(p);
-        else oakSpots.push(p);
-      });
-
-      // Apply wind physics vertex animation shader hook
-      const applyWindHook = (mat: THREE.MeshStandardMaterial) => {
-        mat.onBeforeCompile = (shader) => {
-          shader.uniforms.uTime = this.windUniforms.uTime;
-          shader.vertexShader = `
-            uniform float uTime;
-            ${shader.vertexShader}
-          `;
-          shader.vertexShader = shader.vertexShader.replace(
-            '#include <begin_vertex>',
-            `
-            #include <begin_vertex>
-            // Wind physics: sway branches naturally
-            float branchHeight = max(0.0, position.y);
-            float windGust = sin(uTime * 2.2 + position.x * 2.0 + position.z * 1.5);
-            float swayAmt = branchHeight * 0.045 * windGust;
-            transformed.x += swayAmt;
-            transformed.z += swayAmt * 0.6;
-            `
-          );
-        };
+    const applyWindHook = (mat: THREE.MeshStandardMaterial) => {
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = this.windUniforms.uTime;
+        shader.vertexShader = `
+          uniform float uTime;
+          ${shader.vertexShader}
+        `;
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <begin_vertex>',
+          `
+          #include <begin_vertex>
+          float branchHeight = max(0.0, position.y);
+          float windGust = sin(uTime * 2.2 + position.x * 2.0 + position.z * 1.5);
+          float swayAmt = branchHeight * 0.045 * windGust;
+          transformed.x += swayAmt;
+          transformed.z += swayAmt * 0.6;
+          `
+        );
       };
+    };
 
-      // 1. Scalloped Conifer Pines (Layered downward-drooping branch skirts)
-      const createScallopedBough = (bottomR: number, height: number, segs = 14) => {
-        const geom = new THREE.ConeGeometry(bottomR, height, segs, 2);
-        const pos = geom.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-          const y = pos.getY(i);
-          if (y < -height * 0.3) {
-            const x = pos.getX(i);
-            const z = pos.getZ(i);
-            const angle = Math.atan2(z, x);
-            const wave = 1.0 + 0.22 * Math.sin(angle * 7);
-            pos.setX(i, x * wave);
-            pos.setZ(i, z * wave);
-            pos.setY(i, y - 0.06 * Math.sin(angle * 7));
-          }
+    // Helper: Billowing leafy crown (Oaks, Birches, Willows)
+    const createBillowingCrown = (r: number) => {
+      const geom = new THREE.IcosahedronGeometry(r, 2);
+      const pos = geom.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        const vz = pos.getZ(i);
+        const len = Math.hypot(vx, vy, vz);
+        if (len > 0.01) {
+          const n = Math.sin(vx * 3.5) * Math.cos(vy * 3.5) * Math.sin(vz * 3.5) * 0.16;
+          const s = 1.0 + n / len;
+          pos.setXYZ(i, vx * s, vy * s, vz * s);
         }
-        geom.computeVertexNormals();
-        return geom;
-      };
+      }
+      geom.computeVertexNormals();
+      return geom;
+    };
 
-      if (coniferSpots.length > 0) {
-        const cTrunkGeom = new THREE.CylinderGeometry(0.11, 0.22, 1.5, 8);
-        cTrunkGeom.translate(0, 0.65, 0);
+    // Helper: Scalloped conifer skirts
+    const createScallopedBough = (bottomR: number, height: number, segs = 14) => {
+      const geom = new THREE.ConeGeometry(bottomR, height, segs, 2);
+      const pos = geom.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        if (y < -height * 0.3) {
+          const x = pos.getX(i);
+          const z = pos.getZ(i);
+          const angle = Math.atan2(z, x);
+          const wave = 1.0 + 0.22 * Math.sin(angle * 7);
+          pos.setX(i, x * wave);
+          pos.setZ(i, z * wave);
+          pos.setY(i, y - 0.06 * Math.sin(angle * 7));
+        }
+      }
+      geom.computeVertexNormals();
+      return geom;
+    };
 
-        const cTier1 = createScallopedBough(1.15, 0.85);
-        cTier1.translate(0, 1.05, 0);
-        const cTier2 = createScallopedBough(0.92, 0.8);
-        cTier2.translate(0, 1.55, 0);
-        const cTier3 = createScallopedBough(0.68, 0.75);
-        cTier3.translate(0, 2.0, 0);
-        const cTier4 = createScallopedBough(0.42, 0.7);
-        cTier4.translate(0, 2.45, 0);
+    // ==============================================================
+    // 1. DESERT OASIS: Date Palms & Flat-Topped Umbrella Acacias
+    // ==============================================================
+    if (this.mapType === 'desert_oasis') {
+      const palmTex = getPalmFrondTexture();
+      const acaciaTex = getAcaciaFoliageTexture();
 
-        // Scots Pine needle palette (Matching Pedestal A Scots Pine Cluster reference)
-        const coniferMat1 = new THREE.MeshStandardMaterial({
-          map: pineNeedleTex,
-          color: 0x245422, // Fresh deep alpine pine
-          roughness: 0.82,
-          flatShading: false
-        });
-        const coniferMat2 = new THREE.MeshStandardMaterial({
-          map: pineNeedleTex,
-          color: 0x32692f, // Sunlit mid-branch pine
-          roughness: 0.8,
-          flatShading: false
-        });
-        const coniferMat3 = new THREE.MeshStandardMaterial({
-          map: pineNeedleTex,
-          color: 0x407f3d, // Vibrant crown needles
+      const palmSpots: THREE.Vector3[] = [];
+      const acaciaSpots: THREE.Vector3[] = [];
+      forestSpots.forEach((p, idx) => {
+        if (idx % 3 === 0) acaciaSpots.push(p);
+        else palmSpots.push(p);
+      });
+
+      // Date Palms (Slender curved trunk + radiating drooping feather fronds)
+      if (palmSpots.length > 0) {
+        const palmTrunkGeom = new THREE.CylinderGeometry(0.12, 0.24, 2.3, 7);
+        palmTrunkGeom.translate(0, 1.1, 0);
+
+        const palmMat = new THREE.MeshStandardMaterial({
+          map: palmTex,
+          color: 0x4f8e32,
           roughness: 0.78,
-          flatShading: false
+          side: THREE.DoubleSide
         });
-        const coniferMat4 = new THREE.MeshStandardMaterial({
-          map: pineNeedleTex,
-          color: 0x4f944b, // Spring tip pine needles
-          roughness: 0.75,
-          flatShading: false
-        });
+        applyWindHook(palmMat);
 
-        applyWindHook(coniferMat1);
-        applyWindHook(coniferMat2);
-        applyWindHook(coniferMat3);
-        applyWindHook(coniferMat4);
+        // 8-bladed radiant drooping palm crown
+        const palmCrownGeom = new THREE.BufferGeometry();
+        const crownGroup = new THREE.Group();
+        for (let f = 0; f < 8; f++) {
+          const frondGeom = new THREE.PlaneGeometry(1.6, 0.65, 3, 2);
+          frondGeom.translate(0.8, 0, 0);
+          frondGeom.rotateZ(-0.45); // Droop downward
+          frondGeom.rotateY((f * Math.PI) / 4);
+          frondGeom.translate(0, 2.25, 0);
+          crownGroup.add(new THREE.Mesh(frondGeom, palmMat));
+        }
 
-        const instCTrunk = new THREE.InstancedMesh(cTrunkGeom, trunkMat, coniferSpots.length);
-        const instCTier1 = new THREE.InstancedMesh(cTier1, coniferMat1, coniferSpots.length);
-        const instCTier2 = new THREE.InstancedMesh(cTier2, coniferMat2, coniferSpots.length);
-        const instCTier3 = new THREE.InstancedMesh(cTier3, coniferMat3, coniferSpots.length);
-        const instCTier4 = new THREE.InstancedMesh(cTier4, coniferMat4, coniferSpots.length);
-
+        const instPalmTrunk = new THREE.InstancedMesh(palmTrunkGeom, trunkMat, palmSpots.length);
         const dummy = new THREE.Object3D();
-        coniferSpots.forEach((pos, idx) => {
-          const jx = (((idx * 17 + 7) % 15) / 14 - 0.5) * 0.52;
-          const jz = (((idx * 31 + 11) % 15) / 14 - 0.5) * 0.52;
-          dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
-
-          const scale = 0.85 + ((idx * 23) % 35) * 0.012;
-          dummy.scale.set(scale, scale * (0.92 + ((idx * 7) % 25) * 0.01), scale);
-          dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
-          dummy.rotation.x = (((idx * 13) % 9) - 4) * 0.015;
-          dummy.rotation.z = (((idx * 19) % 9) - 4) * 0.015;
+        palmSpots.forEach((pos, idx) => {
+          dummy.position.set(pos.x, pos.y, pos.z);
+          const sc = 0.88 + ((idx * 17) % 30) * 0.012;
+          dummy.scale.set(sc, sc * 1.1, sc);
+          dummy.rotation.y = ((idx * 61) % 360) * (Math.PI / 180);
           dummy.updateMatrix();
-
-          instCTrunk.setMatrixAt(idx, dummy.matrix);
-          instCTier1.setMatrixAt(idx, dummy.matrix);
-          instCTier2.setMatrixAt(idx, dummy.matrix);
-          instCTier3.setMatrixAt(idx, dummy.matrix);
-          instCTier4.setMatrixAt(idx, dummy.matrix);
+          instPalmTrunk.setMatrixAt(idx, dummy.matrix);
         });
+        instPalmTrunk.instanceMatrix.needsUpdate = true;
+        instPalmTrunk.castShadow = true;
+        this.treesGroup.add(instPalmTrunk);
 
-        instCTrunk.castShadow = true;
-        instCTier1.castShadow = true;
-        instCTier2.castShadow = true;
-        instCTier3.castShadow = true;
-        instCTier4.castShadow = true;
-
-        this.treesGroup.add(instCTrunk);
-        this.treesGroup.add(instCTier1);
-        this.treesGroup.add(instCTier2);
-        this.treesGroup.add(instCTier3);
-        this.treesGroup.add(instCTier4);
+        // Palms Fronds Instancing
+        const frondMergedGeom = new THREE.ConeGeometry(1.4, 0.65, 8, 1, true);
+        frondMergedGeom.translate(0, 2.2, 0);
+        const instFronds = new THREE.InstancedMesh(frondMergedGeom, palmMat, palmSpots.length);
+        palmSpots.forEach((pos, idx) => {
+          dummy.position.set(pos.x, pos.y, pos.z);
+          const sc = 0.88 + ((idx * 17) % 30) * 0.012;
+          dummy.scale.set(sc * 1.25, sc * 0.9, sc * 1.25);
+          dummy.rotation.y = ((idx * 61) % 360) * (Math.PI / 180);
+          dummy.updateMatrix();
+          instFronds.setMatrixAt(idx, dummy.matrix);
+        });
+        instFronds.instanceMatrix.needsUpdate = true;
+        instFronds.castShadow = true;
+        this.treesGroup.add(instFronds);
       }
 
-      // 2. Noble Broadleaf Oaks (Organic billowing canopy billows with leaf foliage texture)
-      const createBillowingCrown = (r: number) => {
-        const geom = new THREE.IcosahedronGeometry(r, 2);
-        const pos = geom.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-          const vx = pos.getX(i);
-          const vy = pos.getY(i);
-          const vz = pos.getZ(i);
-          const len = Math.hypot(vx, vy, vz);
-          if (len > 0.01) {
-            const n = Math.sin(vx * 3.5) * Math.cos(vy * 3.5) * Math.sin(vz * 3.5) * 0.16;
-            const s = 1.0 + n / len;
-            pos.setXYZ(i, vx * s, vy * s, vz * s);
-          }
-        }
-        geom.computeVertexNormals();
-        return geom;
-      };
+      // Umbrella Acacias (Flat-topped horizontal savanna discs)
+      if (acaciaSpots.length > 0) {
+        const aTrunkGeom = new THREE.CylinderGeometry(0.12, 0.22, 1.6, 6);
+        aTrunkGeom.translate(0, 0.8, 0);
 
-      if (oakSpots.length > 0) {
-        const oTrunkGeom = new THREE.CylinderGeometry(0.16, 0.26, 1.35, 8);
-        oTrunkGeom.translate(0, 0.65, 0);
+        const aCrownGeom1 = new THREE.CylinderGeometry(1.25, 0.95, 0.25, 8);
+        aCrownGeom1.translate(0, 1.85, 0);
+        const aCrownGeom2 = new THREE.CylinderGeometry(0.75, 0.55, 0.22, 8);
+        aCrownGeom2.translate(-0.35, 1.6, 0.25);
 
-        const oCrown1Geom = createBillowingCrown(0.92);
-        oCrown1Geom.translate(0, 1.55, 0);
-        const oCrown2Geom = createBillowingCrown(0.74);
-        oCrown2Geom.translate(-0.38, 1.4, 0.22);
-        const oCrown3Geom = createBillowingCrown(0.78);
-        oCrown3Geom.translate(0.38, 1.42, -0.2);
-
-        // Broadleaf Oaks & Wild Juniper (Matching Pedestal B Wild Juniper Bush reference)
-        const oakMat1 = new THREE.MeshStandardMaterial({
-          map: foliageTex,
-          color: 0x3b6e2d, // Rich natural juniper green
-          roughness: 0.82,
-          flatShading: false
+        const acaciaMat = new THREE.MeshStandardMaterial({
+          map: acaciaTex,
+          color: 0x5c873a,
+          roughness: 0.82
         });
-        const oakMat2 = new THREE.MeshStandardMaterial({
-          map: foliageTex,
-          color: 0x4e8d3b, // Sunlit lush foliage
-          roughness: 0.78,
-          flatShading: false
-        });
-        const oakMat3 = new THREE.MeshStandardMaterial({
-          map: foliageTex,
-          color: 0x5ea846, // Fresh outer canopy leaves
-          roughness: 0.75,
-          flatShading: false
-        });
+        applyWindHook(acaciaMat);
 
-        applyWindHook(oakMat1);
-        applyWindHook(oakMat2);
-        applyWindHook(oakMat3);
-
-        const instOTrunk = new THREE.InstancedMesh(oTrunkGeom, trunkMat, oakSpots.length);
-        const instOCrown1 = new THREE.InstancedMesh(oCrown1Geom, oakMat1, oakSpots.length);
-        const instOCrown2 = new THREE.InstancedMesh(oCrown2Geom, oakMat2, oakSpots.length);
-        const instOCrown3 = new THREE.InstancedMesh(oCrown3Geom, oakMat3, oakSpots.length);
+        const instATrunk = new THREE.InstancedMesh(aTrunkGeom, trunkMat, acaciaSpots.length);
+        const instACrown1 = new THREE.InstancedMesh(aCrownGeom1, acaciaMat, acaciaSpots.length);
+        const instACrown2 = new THREE.InstancedMesh(aCrownGeom2, acaciaMat, acaciaSpots.length);
 
         const dummy = new THREE.Object3D();
-        oakSpots.forEach((pos, idx) => {
-          const jx = (((idx * 29 + 5) % 15) / 14 - 0.5) * 0.52;
-          const jz = (((idx * 13 + 9) % 15) / 14 - 0.5) * 0.52;
-          dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
+        acaciaSpots.forEach((pos, idx) => {
+          dummy.position.set(pos.x, pos.y, pos.z);
+          const sc = 0.85 + ((idx * 23) % 30) * 0.012;
+          dummy.scale.set(sc, sc, sc);
+          dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
+          dummy.updateMatrix();
+          instATrunk.setMatrixAt(idx, dummy.matrix);
+          instACrown1.setMatrixAt(idx, dummy.matrix);
+          instACrown2.setMatrixAt(idx, dummy.matrix);
+        });
 
-          const scale = 0.85 + ((idx * 19) % 35) * 0.012;
-          dummy.scale.set(scale, scale, scale);
+        instATrunk.instanceMatrix.needsUpdate = true;
+        instACrown1.instanceMatrix.needsUpdate = true;
+        instACrown2.instanceMatrix.needsUpdate = true;
+        this.treesGroup.add(instATrunk);
+        this.treesGroup.add(instACrown1);
+        this.treesGroup.add(instACrown2);
+      }
+      return;
+    }
+
+    // ==============================================================
+    // 2. RIVERLANDS: Weeping Willows & Columnar River Cypress
+    // ==============================================================
+    if (this.mapType === 'riverlands') {
+      const willowTex = getWillowFoliageTexture();
+      const foliageTex = getFoliageTexture();
+
+      const willowSpots: THREE.Vector3[] = [];
+      const cypressSpots: THREE.Vector3[] = [];
+      forestSpots.forEach((p, idx) => {
+        if (idx % 2 === 0) willowSpots.push(p);
+        else cypressSpots.push(p);
+      });
+
+      // Weeping Willows (Cascading pendulous leaf domes)
+      if (willowSpots.length > 0) {
+        const wTrunkGeom = new THREE.CylinderGeometry(0.18, 0.32, 1.4, 7);
+        wTrunkGeom.translate(0, 0.7, 0);
+
+        // Drooping willow dome
+        const wDomeGeom = new THREE.CylinderGeometry(0.9, 1.35, 1.2, 8);
+        wDomeGeom.translate(0, 1.6, 0);
+
+        const willowMat = new THREE.MeshStandardMaterial({
+          map: willowTex,
+          color: 0x497733,
+          roughness: 0.8
+        });
+        applyWindHook(willowMat);
+
+        const instWTrunk = new THREE.InstancedMesh(wTrunkGeom, trunkMat, willowSpots.length);
+        const instWDome = new THREE.InstancedMesh(wDomeGeom, willowMat, willowSpots.length);
+
+        const dummy = new THREE.Object3D();
+        willowSpots.forEach((pos, idx) => {
+          dummy.position.set(pos.x, pos.y, pos.z);
+          const sc = 0.9 + ((idx * 19) % 25) * 0.012;
+          dummy.scale.set(sc * 1.15, sc * 0.95, sc * 1.15);
+          dummy.rotation.y = ((idx * 37) % 360) * (Math.PI / 180);
+          dummy.updateMatrix();
+          instWTrunk.setMatrixAt(idx, dummy.matrix);
+          instWDome.setMatrixAt(idx, dummy.matrix);
+        });
+
+        instWTrunk.instanceMatrix.needsUpdate = true;
+        instWDome.instanceMatrix.needsUpdate = true;
+        this.treesGroup.add(instWTrunk);
+        this.treesGroup.add(instWDome);
+      }
+
+      // Columnar River Cypress
+      if (cypressSpots.length > 0) {
+        const cyTrunkGeom = new THREE.CylinderGeometry(0.1, 0.18, 1.2, 6);
+        cyTrunkGeom.translate(0, 0.6, 0);
+        const cyCrownGeom = new THREE.ConeGeometry(0.65, 2.2, 8);
+        cyCrownGeom.translate(0, 1.7, 0);
+
+        const cyMat = new THREE.MeshStandardMaterial({
+          map: foliageTex,
+          color: 0x3d662e,
+          roughness: 0.78
+        });
+        applyWindHook(cyMat);
+
+        const instCyTrunk = new THREE.InstancedMesh(cyTrunkGeom, trunkMat, cypressSpots.length);
+        const instCyCrown = new THREE.InstancedMesh(cyCrownGeom, cyMat, cypressSpots.length);
+
+        const dummy = new THREE.Object3D();
+        cypressSpots.forEach((pos, idx) => {
+          dummy.position.set(pos.x, pos.y, pos.z);
+          const sc = 0.85 + ((idx * 29) % 30) * 0.012;
+          dummy.scale.set(sc, sc * 1.15, sc);
           dummy.rotation.y = ((idx * 53) % 360) * (Math.PI / 180);
           dummy.updateMatrix();
-
-          instOTrunk.setMatrixAt(idx, dummy.matrix);
-          instOCrown1.setMatrixAt(idx, dummy.matrix);
-          instOCrown2.setMatrixAt(idx, dummy.matrix);
-          instOCrown3.setMatrixAt(idx, dummy.matrix);
+          instCyTrunk.setMatrixAt(idx, dummy.matrix);
+          instCyCrown.setMatrixAt(idx, dummy.matrix);
         });
 
-        instOTrunk.castShadow = true;
-        instOCrown1.castShadow = true;
-        instOCrown2.castShadow = true;
-        instOCrown3.castShadow = true;
-
-        this.treesGroup.add(instOTrunk);
-        this.treesGroup.add(instOCrown1);
-        this.treesGroup.add(instOCrown2);
-        this.treesGroup.add(instOCrown3);
+        instCyTrunk.instanceMatrix.needsUpdate = true;
+        instCyCrown.instanceMatrix.needsUpdate = true;
+        this.treesGroup.add(instCyTrunk);
+        this.treesGroup.add(instCyCrown);
       }
+      return;
+    }
+
+    // ==============================================================
+    // 3. HIGHLAND KINGDOM / BLACK FOREST / GREEN FRONTIER
+    // ==============================================================
+    const foliageTex = getFoliageTexture();
+    const pineNeedleTex = getPineNeedleTexture();
+
+    // Highland & Black Forest have dominant pines; Green Frontier has dominant Oaks
+    const isTaiga = this.mapType === 'highland_kingdom' || this.mapType === 'black_forest';
+    const coniferSpots: THREE.Vector3[] = [];
+    const oakSpots: THREE.Vector3[] = [];
+
+    forestSpots.forEach((p, idx) => {
+      if (isTaiga) {
+        if (idx % 4 === 0) oakSpots.push(p);
+        else coniferSpots.push(p);
+      } else {
+        if (idx % 3 === 0) coniferSpots.push(p);
+        else oakSpots.push(p);
+      }
+    });
+
+    // Conifers (Spruce / Scots Pine / Colossal Black Pines)
+    if (coniferSpots.length > 0) {
+      const cTrunkGeom = new THREE.CylinderGeometry(0.12, 0.24, 1.6, 8);
+      cTrunkGeom.translate(0, 0.7, 0);
+
+      const cTier1 = createScallopedBough(1.2, 0.9);
+      cTier1.translate(0, 1.1, 0);
+      const cTier2 = createScallopedBough(0.95, 0.85);
+      cTier2.translate(0, 1.65, 0);
+      const cTier3 = createScallopedBough(0.7, 0.8);
+      cTier3.translate(0, 2.15, 0);
+      const cTier4 = createScallopedBough(0.45, 0.75);
+      cTier4.translate(0, 2.65, 0);
+
+      let pColor1 = 0x245422;
+      let pColor2 = 0x32692f;
+      let pColor3 = 0x407f3d;
+      let pColor4 = 0x4f944b;
+
+      if (this.mapType === 'highland_kingdom') {
+        pColor1 = 0x1b3d1b; // Cold alpine spruce
+        pColor2 = 0x264d27;
+        pColor3 = 0x346336;
+        pColor4 = 0x457d47;
+      } else if (this.mapType === 'black_forest') {
+        pColor1 = 0x0f2413; // Deep ancient black pine
+        pColor2 = 0x16331a;
+        pColor3 = 0x1f4524;
+        pColor4 = 0x2a5930;
+      }
+
+      const coniferMat1 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor1, roughness: 0.82 });
+      const coniferMat2 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor2, roughness: 0.8 });
+      const coniferMat3 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor3, roughness: 0.78 });
+      const coniferMat4 = new THREE.MeshStandardMaterial({ map: pineNeedleTex, color: pColor4, roughness: 0.75 });
+
+      applyWindHook(coniferMat1);
+      applyWindHook(coniferMat2);
+      applyWindHook(coniferMat3);
+      applyWindHook(coniferMat4);
+
+      const instCTrunk = new THREE.InstancedMesh(cTrunkGeom, trunkMat, coniferSpots.length);
+      const instCTier1 = new THREE.InstancedMesh(cTier1, coniferMat1, coniferSpots.length);
+      const instCTier2 = new THREE.InstancedMesh(cTier2, coniferMat2, coniferSpots.length);
+      const instCTier3 = new THREE.InstancedMesh(cTier3, coniferMat3, coniferSpots.length);
+      const instCTier4 = new THREE.InstancedMesh(cTier4, coniferMat4, coniferSpots.length);
+
+      const dummy = new THREE.Object3D();
+      coniferSpots.forEach((pos, idx) => {
+        const jx = (((idx * 17 + 7) % 15) / 14 - 0.5) * 0.52;
+        const jz = (((idx * 31 + 11) % 15) / 14 - 0.5) * 0.52;
+        dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
+
+        const baseSc = this.mapType === 'black_forest' ? 1.25 : 0.88;
+        const scale = baseSc + ((idx * 23) % 35) * 0.015;
+        dummy.scale.set(scale, scale * (0.95 + ((idx * 7) % 25) * 0.01), scale);
+        dummy.rotation.y = ((idx * 47) % 360) * (Math.PI / 180);
+        dummy.updateMatrix();
+
+        instCTrunk.setMatrixAt(idx, dummy.matrix);
+        instCTier1.setMatrixAt(idx, dummy.matrix);
+        instCTier2.setMatrixAt(idx, dummy.matrix);
+        instCTier3.setMatrixAt(idx, dummy.matrix);
+        instCTier4.setMatrixAt(idx, dummy.matrix);
+      });
+
+      instCTrunk.instanceMatrix.needsUpdate = true;
+      instCTier1.instanceMatrix.needsUpdate = true;
+      instCTier2.instanceMatrix.needsUpdate = true;
+      instCTier3.instanceMatrix.needsUpdate = true;
+      instCTier4.instanceMatrix.needsUpdate = true;
+
+      this.treesGroup.add(instCTrunk);
+      this.treesGroup.add(instCTier1);
+      this.treesGroup.add(instCTier2);
+      this.treesGroup.add(instCTier3);
+      this.treesGroup.add(instCTier4);
+    }
+
+    // Broadleaf Oaks / Birches
+    if (oakSpots.length > 0) {
+      const oTrunkGeom = new THREE.CylinderGeometry(0.16, 0.26, 1.35, 8);
+      oTrunkGeom.translate(0, 0.65, 0);
+
+      const oCrown1Geom = createBillowingCrown(0.95);
+      oCrown1Geom.translate(0, 1.55, 0);
+      const oCrown2Geom = createBillowingCrown(0.75);
+      oCrown2Geom.translate(-0.38, 1.4, 0.22);
+      const oCrown3Geom = createBillowingCrown(0.8);
+      oCrown3Geom.translate(0.38, 1.42, -0.2);
+
+      let oakColor1 = 0x3b6e2d;
+      let oakColor2 = 0x4e8d3b;
+      let oakColor3 = 0x5ea846;
+
+      if (this.mapType === 'black_forest') {
+        oakColor1 = 0x26471e; // Gnarled dark elder oak
+        oakColor2 = 0x335928;
+        oakColor3 = 0x3f6e32;
+      }
+
+      const oakMat1 = new THREE.MeshStandardMaterial({ map: foliageTex, color: oakColor1, roughness: 0.82 });
+      const oakMat2 = new THREE.MeshStandardMaterial({ map: foliageTex, color: oakColor2, roughness: 0.78 });
+      const oakMat3 = new THREE.MeshStandardMaterial({ map: foliageTex, color: oakColor3, roughness: 0.75 });
+
+      applyWindHook(oakMat1);
+      applyWindHook(oakMat2);
+      applyWindHook(oakMat3);
+
+      const instOTrunk = new THREE.InstancedMesh(oTrunkGeom, trunkMat, oakSpots.length);
+      const instOCrown1 = new THREE.InstancedMesh(oCrown1Geom, oakMat1, oakSpots.length);
+      const instOCrown2 = new THREE.InstancedMesh(oCrown2Geom, oakMat2, oakSpots.length);
+      const instOCrown3 = new THREE.InstancedMesh(oCrown3Geom, oakMat3, oakSpots.length);
+
+      const dummy = new THREE.Object3D();
+      oakSpots.forEach((pos, idx) => {
+        const jx = (((idx * 29 + 5) % 15) / 14 - 0.5) * 0.52;
+        const jz = (((idx * 13 + 9) % 15) / 14 - 0.5) * 0.52;
+        dummy.position.set(pos.x + jx, pos.y, pos.z + jz);
+
+        const scale = 0.88 + ((idx * 19) % 35) * 0.012;
+        dummy.scale.set(scale, scale, scale);
+        dummy.rotation.y = ((idx * 53) % 360) * (Math.PI / 180);
+        dummy.updateMatrix();
+
+        instOTrunk.setMatrixAt(idx, dummy.matrix);
+        instOCrown1.setMatrixAt(idx, dummy.matrix);
+        instOCrown2.setMatrixAt(idx, dummy.matrix);
+        instOCrown3.setMatrixAt(idx, dummy.matrix);
+      });
+
+      instOTrunk.instanceMatrix.needsUpdate = true;
+      instOCrown1.instanceMatrix.needsUpdate = true;
+      instOCrown2.instanceMatrix.needsUpdate = true;
+      instOCrown3.instanceMatrix.needsUpdate = true;
+
+      this.treesGroup.add(instOTrunk);
+      this.treesGroup.add(instOCrown1);
+      this.treesGroup.add(instOCrown2);
+      this.treesGroup.add(instOCrown3);
     }
   }
 

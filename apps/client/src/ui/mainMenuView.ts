@@ -576,9 +576,11 @@ export class MainMenuView {
 
               <span class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03;">Location:</span>
               <select id="sp-map-type" class="aoe-select" style="width: 100%;">
-                <option value="green_frontier" ${this.skirmishMapType === 'green_frontier' ? 'selected' : ''}>Green Frontier (Coastal / Valley)</option>
-                <option value="highland_kingdom" ${this.skirmishMapType === 'highland_kingdom' ? 'selected' : ''}>Highland Kingdom (Alpine)</option>
-                <option value="riverlands" ${this.skirmishMapType === 'riverlands' ? 'selected' : ''}>Riverlands (Rivers & Lakes)</option>
+                <option value="green_frontier" ${this.skirmishMapType === 'green_frontier' ? 'selected' : ''}>Green Frontier (Temperate Meadows & Oaks)</option>
+                <option value="highland_kingdom" ${this.skirmishMapType === 'highland_kingdom' ? 'selected' : ''}>Highland Kingdom (Snowy Peaks & Pines)</option>
+                <option value="riverlands" ${this.skirmishMapType === 'riverlands' ? 'selected' : ''}>Riverlands (Rivers, Fords & Willows)</option>
+                <option value="desert_oasis" ${this.skirmishMapType === 'desert_oasis' ? 'selected' : ''}>Desert Oasis (Dunes, Palms & Mesas)</option>
+                <option value="black_forest" ${this.skirmishMapType === 'black_forest' ? 'selected' : ''}>Black Forest (Dense Woods & Chokepoints)</option>
               </select>
 
               <span class="cinzel" style="font-size: 11px; font-weight: 700; color: #451a03;">Map Size:</span>

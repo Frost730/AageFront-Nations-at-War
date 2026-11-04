@@ -1,4 +1,4 @@
-import { MapTile, ResourceNodeData, UnitData, BuildingData } from '@agefront/shared';
+import { MapTile, ResourceNodeData, UnitData, BuildingData, MapType } from '@agefront/shared';
 import { FogOfWar } from './fogOfWar.js';
 
 export class Minimap {
@@ -19,7 +19,8 @@ export class Minimap {
     mapWidth: number,
     mapHeight: number,
     tiles: MapTile[],
-    onNavigate: (x: number, y: number) => void
+    onNavigate: (x: number, y: number) => void,
+    mapType: MapType = 'green_frontier'
   ) {
     this.mapWidth = mapWidth;
     this.mapHeight = mapHeight;
@@ -59,10 +60,38 @@ export class Minimap {
         if (!tile) continue;
 
         let color = '#2d5a27'; // grass
-        if (tile.terrain === 'forest') color = '#193a1c';
-        else if (tile.terrain === 'water') color = '#0284c7';
-        else if (tile.terrain === 'mountain') color = (tile.elevation || 0) >= 2 ? '#e2e8f0' : '#475569';
-        else if (tile.terrain === 'sand') color = '#d97706';
+        if (mapType === 'highland_kingdom') {
+          if (tile.terrain === 'forest') color = '#153118';
+          else if (tile.terrain === 'water') color = '#0891b2';
+          else if (tile.terrain === 'mountain') color = (tile.elevation || 0) >= 2 ? '#f8fafc' : '#334155';
+          else if (tile.terrain === 'sand') color = '#64748b';
+          else color = '#34472f';
+        } else if (mapType === 'riverlands') {
+          if (tile.terrain === 'forest') color = '#1a401c';
+          else if (tile.terrain === 'water') color = '#0d9488';
+          else if (tile.terrain === 'mountain') color = '#9a3412';
+          else if (tile.terrain === 'sand') color = '#b45309';
+          else color = '#2d4d22';
+        } else if (mapType === 'desert_oasis') {
+          if (tile.terrain === 'forest') color = '#15803d'; // date palms
+          else if (tile.terrain === 'water') color = '#14b8a6'; // emerald turquoise oasis
+          else if (tile.terrain === 'mountain') color = '#c2410c'; // sandstone canyon mesas
+          else if (tile.terrain === 'sand') color = '#eab308'; // golden dunes
+          else color = '#ca8a04';
+        } else if (mapType === 'black_forest') {
+          if (tile.terrain === 'forest') color = '#052e16'; // deep dark forest
+          else if (tile.terrain === 'water') color = '#0369a1';
+          else if (tile.terrain === 'mountain') color = '#1e293b';
+          else if (tile.terrain === 'sand') color = '#451a03';
+          else color = '#142610';
+        } else {
+          // green_frontier
+          if (tile.terrain === 'forest') color = '#193a1c';
+          else if (tile.terrain === 'water') color = '#0284c7';
+          else if (tile.terrain === 'mountain') color = (tile.elevation || 0) >= 2 ? '#e2e8f0' : '#475569';
+          else if (tile.terrain === 'sand') color = '#d97706';
+          else color = '#2d5a27';
+        }
 
         tCtx.fillStyle = color;
         tCtx.fillRect(tx * scaleX, ty * scaleY, scaleX * 2, scaleY * 2);

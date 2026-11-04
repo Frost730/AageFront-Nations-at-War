@@ -8,7 +8,8 @@ import {
   Vector2D,
   BuildingType,
   UnitType,
-  BUILDING_DEFINITIONS
+  BUILDING_DEFINITIONS,
+  MapType
 } from '@agefront/shared';
 import { CameraController } from '../camera/cameraController.js';
 import { TerrainMesh } from './terrainMesh.js';
@@ -350,12 +351,13 @@ export class GameRenderer {
     height: number,
     tiles: MapTile[],
     resourceNodes: ResourceNodeData[],
-    myTeam: number
+    myTeam: number,
+    mapType: MapType = 'green_frontier'
   ): void {
     this.clearGameScene();
 
     this.cameraController.setMapBounds(width, height);
-    this.terrainMesh = new TerrainMesh(width, height, tiles, resourceNodes);
+    this.terrainMesh = new TerrainMesh(width, height, tiles, resourceNodes, mapType);
     this.scene.add(this.terrainMesh.group);
 
     this.fogOfWar = new FogOfWar(width, height, myTeam);

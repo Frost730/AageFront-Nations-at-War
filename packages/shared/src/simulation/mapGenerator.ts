@@ -30,17 +30,19 @@ export interface GeneratedMap {
   tiles: MapTile[];
   startPositions: Vector2D[];
   resourceNodes: ResourceNodeData[];
+  mapType?: MapType;
 }
 
 export function generateMap(mapType: MapType, size: number = 240, seed: number = 42, numPlayers: number = 2): GeneratedMap {
   const prng = new PRNG(seed);
   const tiles: MapTile[] = [];
 
-  // Initialize base terrain
+  // Initialize base terrain according to biome
+  const defaultTerrain = mapType === 'desert_oasis' ? 'sand' : 'grass';
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       tiles.push({
-        terrain: 'grass',
+        terrain: defaultTerrain,
         elevation: 0,
         walkable: true
       });
@@ -87,7 +89,6 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
 
         const tile = getTile(x, y)!;
         if (combined > 1.75) {
-          // Restricted Mountain Peaks
           tile.terrain = 'mountain';
           tile.elevation = 2;
           tile.walkable = false;
@@ -112,12 +113,10 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
         const tile = getTile(x, y)!;
 
         if (noiseRidge > 1.65) {
-          // Alpine high peak - restricted summit
           tile.terrain = 'mountain';
           tile.elevation = 3;
           tile.walkable = false;
         } else if (noiseRidge > 1.35) {
-          // Rocky mountain shoulder - restricted high ground
           tile.terrain = 'mountain';
           tile.elevation = 2;
           tile.walkable = false;
@@ -182,8 +181,103 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
         }
       }
     }
-  }
+  } else if (mapType === 'desert_oasis') {
+    // Arid golden dunes, sandstone canyon mesas, and a lush fertile central oasis
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (isNearStart(x, y, 14)) continue;
 
+        const tile = getTile(x, y)!;
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+        // Central Oasis
+        if (distFromCenter < size * 0.13) {
+          if (distFromCenter < size * 0.05) {
+            tile.terrain = 'water';
+            tile.walkable = false;
+          } else if (distFromCenter < size * 0.085) {
+            tile.terrain = 'grass';
+            tile.walkable = true;
+          } else {
+            tile.terrain = 'forest'; // Lush date palm ring around oasis
+            tile.walkable = false;
+          }
+          continue;
+        }
+
+        // Sandstone Canyon Mesas and Dunes
+        const duneNoise = Math.sin(x * 0.08 + y * 0.04) * Math.cos(x * 0.04 - y * 0.08);
+        const mesaNoise = Math.abs(Math.sin(x * 0.11 + 0.5) * Math.sin(y * 0.11 - 0.5));
+
+        if (mesaNoise > 0.72) {
+          // Towering Sandstone Canyon Mesa / Butte
+          tile.terrain = 'mountain';
+          tile.elevation = 2;
+          tile.walkable = false;
+        } else if (mesaNoise > 0.58) {
+          tile.terrain = 'mountain';
+          tile.elevation = 1;
+          tile.walkable = false;
+        } else if (duneNoise > 0.42) {
+          // Rolling golden sand dunes
+          tile.terrain = 'sand';
+          tile.elevation = 1;
+        } else if (duneNoise < -0.58 && prng.next() < 0.22) {
+          // Secondary desert watering holes
+          tile.terrain = 'water';
+          tile.walkable = false;
+        } else if (prng.next() < 0.11) {
+          // Isolated desert acacia clusters
+          tile.terrain = 'forest';
+          tile.walkable = false;
+        } else {
+          // Default arid steppe sand
+          tile.terrain = 'sand';
+          tile.elevation = 0;
+        }
+      }
+    }
+  } else if (mapType === 'black_forest') {
+    // Dense primordial woodland with labyrinthine corridors and narrow chokepoints (AoE II style)
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (isNearStart(x, y, 14)) continue;
+
+        const tile = getTile(x, y)!;
+
+        // Heavy multi-octave cellular forest noise
+        const n1 = Math.sin(x * 0.14) * Math.cos(y * 0.14);
+        const n2 = Math.sin(x * 0.28 + 1.4) * Math.cos(y * 0.28 - 0.8) * 0.5;
+        const corridorNoise = n1 + n2;
+
+        // Ancient granite crags embedded in forest
+        const cragNoise = Math.sin(x * 0.09 + 2.1) + Math.cos(y * 0.09 - 1.7);
+
+        if (cragNoise > 1.6) {
+          tile.terrain = 'mountain';
+          tile.elevation = 2;
+          tile.walkable = false;
+        } else if (corridorNoise > -0.18) {
+          // Heavy dense conifer forest
+          tile.terrain = 'forest';
+          tile.walkable = false;
+        } else if (corridorNoise < -0.85 && prng.next() < 0.28) {
+          // Dark forest pond
+          tile.terrain = 'water';
+          tile.walkable = false;
+        } else {
+          // Cleared winding forest pathway / glade
+          tile.terrain = 'grass';
+          tile.walkable = true;
+          if (prng.next() < 0.08) {
+            tile.elevation = 1;
+          }
+        }
+      }
+    }
+  }
 
   // Explicit Open Plains Guarantee: Ensure generous flat open ground (no mountain, no water, 0 elevation) around every player/AI spawn
   startPositions.forEach(pos => {
@@ -192,7 +286,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
         if (dx * dx + dy * dy <= 196) {
           const tile = getTile(pos.x + dx, pos.y + dy);
           if (tile) {
-            tile.terrain = 'grass';
+            tile.terrain = mapType === 'desert_oasis' ? 'sand' : 'grass';
             tile.elevation = 0;
             tile.walkable = true;
           }
@@ -274,7 +368,7 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
       createNode('metal', rx, ry + 1, 2500);
       if (prng.next() < 0.5) createNode('metal', rx + 1, ry, 2500);
     } else {
-      // Wild fertile fruit groves
+      // Wild fertile fruit / oasis groves
       createNode('food', rx, ry, 1500);
       createNode('food', rx + 1, ry, 1500);
     }
@@ -303,12 +397,12 @@ export function generateMap(mapType: MapType, size: number = 240, seed: number =
     }
   });
 
-
   return {
     width: size,
     height: size,
     tiles,
     startPositions,
-    resourceNodes
+    resourceNodes,
+    mapType
   };
 }

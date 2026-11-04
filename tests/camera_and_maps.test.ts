@@ -145,3 +145,84 @@ describe('Camera Movement & Full Map Boundary Navigation', () => {
     expect((controller as any).zoomDistance).not.toBe(initialZoom);
   });
 });
+
+describe('Age of Empires & Rise of Nations Unique Biomes', () => {
+  const allMapTypes: ('green_frontier' | 'highland_kingdom' | 'riverlands' | 'desert_oasis' | 'black_forest')[] = [
+    'green_frontier',
+    'highland_kingdom',
+    'riverlands',
+    'desert_oasis',
+    'black_forest'
+  ];
+
+  it('generates completely distinct tile signatures across each of the 5 map types', () => {
+    const size = 200;
+    const maps = allMapTypes.map(m => ({
+      type: m,
+      data: generateMap(m, size, 42, 2)
+    }));
+
+    // 1. Desert Oasis must be overwhelmingly sand-dominant with oasis water & palm forest
+    const desert = maps.find(m => m.type === 'desert_oasis')!.data;
+    const desertSandCount = desert.tiles.filter(t => t.terrain === 'sand').length;
+    const desertWaterCount = desert.tiles.filter(t => t.terrain === 'water').length;
+    const desertMountainCount = desert.tiles.filter(t => t.terrain === 'mountain').length;
+    expect(desertSandCount).toBeGreaterThan(size * size * 0.5); // > 50% sand dunes & steppe
+    expect(desertWaterCount).toBeGreaterThan(0); // central oasis
+    expect(desertMountainCount).toBeGreaterThan(0); // canyon mesas
+
+    // 2. Black Forest must have extremely dense labyrinthine woodlands
+    const blackForest = maps.find(m => m.type === 'black_forest')!.data;
+    const bfForestCount = blackForest.tiles.filter(t => t.terrain === 'forest').length;
+    expect(bfForestCount).toBeGreaterThan(size * size * 0.35); // > 35% heavy woodland coverage
+
+    // 3. Highland Kingdom must have prominent alpine summits & high elevation ridges
+    const highland = maps.find(m => m.type === 'highland_kingdom')!.data;
+    const alpineSummits = highland.tiles.filter(t => t.terrain === 'mountain' && t.elevation >= 2).length;
+    expect(alpineSummits).toBeGreaterThan(50);
+
+    // 4. Riverlands must feature a navigable central river system and sandbar crossing fords
+    const riverlands = maps.find(m => m.type === 'riverlands')!.data;
+    const riverWater = riverlands.tiles.filter(t => t.terrain === 'water').length;
+    const riverFords = riverlands.tiles.filter(t => t.terrain === 'sand' && t.walkable).length;
+    expect(riverWater).toBeGreaterThan(size);
+    expect(riverFords).toBeGreaterThan(0);
+
+    // 5. Green Frontier provides classic temperate rolling meadows
+    const greenFrontier = maps.find(m => m.type === 'green_frontier')!.data;
+    const grassCount = greenFrontier.tiles.filter(t => t.terrain === 'grass').length;
+    expect(grassCount).toBeGreaterThan(size * size * 0.5);
+  });
+
+  it('guarantees open base clearance and starting resources for all players across all 5 map types', () => {
+    const size = 200;
+    allMapTypes.forEach(mapType => {
+      const map = generateMap(mapType, size, 999, 4);
+      expect(map.startPositions.length).toBe(4);
+
+      map.startPositions.forEach(pos => {
+        // Base tile must be walkable and 0 elevation
+        const baseTile = map.tiles[pos.y * size + pos.x];
+        expect(baseTile.walkable).toBe(true);
+        expect(baseTile.elevation).toBe(0);
+
+        // Immediate perimeter must be free of mountains or water
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const t = map.tiles[(pos.y + dy) * size + (pos.x + dx)];
+            expect(t.terrain).not.toBe('mountain');
+            expect(t.terrain).not.toBe('water');
+          }
+        }
+
+        // Must have local starting food, wood, stone, and metal deposits nearby
+        const nearbyNodes = map.resourceNodes.filter(n => Math.hypot(n.x - pos.x, n.y - pos.y) <= 8);
+        const types = new Set(nearbyNodes.map(n => n.type));
+        expect(types.has('food')).toBe(true);
+        expect(types.has('wood')).toBe(true);
+        expect(types.has('stone')).toBe(true);
+        expect(types.has('metal')).toBe(true);
+      });
+    });
+  });
+});

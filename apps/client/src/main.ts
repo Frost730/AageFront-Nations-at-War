@@ -14,7 +14,8 @@ import {
   UnitStance,
   MatchReplayRecorder,
   MatchReplayPlayer,
-  MatchReplayData
+  MatchReplayData,
+  MapType
 } from '@agefront/shared';
 import { GameRenderer } from './rendering/renderer.js';
 import { SelectionManager } from './controls/selectionManager.js';
@@ -395,12 +396,14 @@ class GameApp {
     this.inputHandler.activeBuildingsForSelection = this.currentBuildings;
     this.inputHandler.activeResourcesForSelection = this.currentResourceNodes;
 
+    const replayMapType: MapType = (this.replayPlayer.sim.settings?.mapType as MapType) || 'green_frontier';
     this.renderer.initMap(
       this.replayPlayer.sim.mapData.width,
       this.replayPlayer.sim.mapData.height,
       this.replayPlayer.sim.mapData.tiles,
       this.currentResourceNodes,
-      this.myTeam
+      this.myTeam,
+      replayMapType
     );
 
     this.hud.showReplayControls(
@@ -490,13 +493,16 @@ class GameApp {
     this.inputHandler.activeResourcesForSelection = this.currentResourceNodes;
     this.inputHandler.setMapData(data.mapTiles.width, data.mapTiles.height, data.mapTiles.tiles);
 
+    const activeMapType: MapType = (data.settings?.mapType as MapType) || 'green_frontier';
+
     // Initialize map in renderer
     this.renderer.initMap(
       data.mapTiles.width,
       data.mapTiles.height,
       data.mapTiles.tiles,
       data.resourceNodes,
-      this.myTeam
+      this.myTeam,
+      activeMapType
     );
 
     // Initialize Minimap
@@ -509,7 +515,8 @@ class GameApp {
       data.mapTiles.tiles,
       (worldX, worldZ) => {
         this.renderer.cameraController.jumpTo(worldX, worldZ);
-      }
+      },
+      activeMapType
     );
 
     // Center camera on my starting Town Centre
